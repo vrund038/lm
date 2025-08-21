@@ -1,0 +1,77 @@
+name: Create Release with Auto Notes
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build
+      run: npm run build
+    
+    - name: Get the version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+    
+    - name: Get tag message
+      id: tag_message
+      run: |
+        TAG_MESSAGE=$(git tag -l --format='%(contents)' ${{ steps.get_version.outputs.VERSION }})
+        echo "TAG_MESSAGE<<EOF" >> $GITHUB_OUTPUT
+        echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+        echo "# Local LLM MCP ${{ steps.get_version.outputs.VERSION }}" >> $GITHUB_OUTPUT
+        echo "" >> $GITHUB_OUTPUT
+        
+        # If tag has a message, use it
+        if [ -n "${{ steps.tag_message.outputs.TAG_MESSAGE }}" ]; then
+          echo "${{ steps.tag_message.outputs.TAG_MESSAGE }}" >> $GITHUB_OUTPUT
+        else
+          # Otherwise generate default notes
+          echo "## 📦 Installation" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo '```bash' >> $GITHUB_OUTPUT
+          echo "git clone https://github.com/${{ github.repository }}.git" >> $GITHUB_OUTPUT
+          echo "cd local-llm-mcp" >> $GITHUB_OUTPUT
+          echo "npm install" >> $GITHUB_OUTPUT
+          echo "npm run build" >> $GITHUB_OUTPUT
+          echo '```' >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "## 📚 Documentation" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "- [Complete Guide](https://github.com/${{ github.repository }}/blob/main/COMPLETE_GUIDE.md)" >> $GITHUB_OUTPUT
+          echo "- [Getting Started](https://github.com/${{ github.repository }}/blob/main/GETTING_STARTED.md)" >> $GITHUB_OUTPUT
+        fi
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: ncipollo/release-action@v1
+      with:
+        tag: ${{ steps.get_version.outputs.VERSION }}
+        name: ${{ steps.get_version.outputs.VERSION }}
+        body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+        draft: false
+        prerelease: false
+        generateReleaseNotes: false
