@@ -23,12 +23,22 @@ CODE_REVIEW_PROMPT.md
 COMPLETE_GUIDE.md
 GETTING_STARTED.md
 UPGRADE_SUMMARY.md
+SECURITY_AUDIT.md
+NPM_REVIEW_SUMMARY.md
+claude_config_example.json
 
 # Build artifacts
 *.tsbuildinfo
 *.log
 .npm
 .eslintcache
+
+# Extra dist files
+dist/__tests__/
+dist/config-secure.*
+dist/security-fixes.*
+dist/types-secure.*
+dist/index-npm.*
 
 # Environment files
 .env*

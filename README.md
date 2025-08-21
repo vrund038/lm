@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
 [![GitHub release](https://img.shields.io/github/v/release/richardbaxterseo/local-llm-mcp)](https://github.com/richardbaxterseo/local-llm-mcp/releases)
+[![npm version](https://badge.fury.io/js/@richardbaxterseo%2Flocal-llm-mcp.svg)](https://www.npmjs.com/package/@richardbaxterseo/local-llm-mcp)
 
 An MCP (Model Context Protocol) server that enables Claude to offload tasks to local LLMs running in LM Studio. Version 2.1 adds security features including path validation and configurable directory access.
 
@@ -53,8 +54,17 @@ An MCP (Model Context Protocol) server that enables Claude to offload tasks to l
 
 ## Installation
 
+### Option 1: Install from NPM (Recommended)
+
 ```bash
-cd C:\MCP\local-llm-mcp
+npm install -g @richardbaxterseo/local-llm-mcp
+```
+
+### Option 2: Install from Source
+
+```bash
+git clone https://github.com/richardbaxterseo/local-llm-mcp.git
+cd local-llm-mcp
 npm install
 npm run build
 ```
@@ -63,14 +73,35 @@ npm run build
 
 ### Claude Desktop Configuration
 
+#### For NPM Installation:
+
 Add to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "local-llm": {
+      "command": "npx",
+      "args": ["@richardbaxterseo/local-llm-mcp"],
+      "env": {
+        "LLM_MCP_ALLOWED_DIRS": "C:\\Users\\YourName\\Documents,C:\\Projects"
+      }
+    }
+  }
+}
+```
+
+#### For Local Installation:
+
+```json
+{
+  "mcpServers": {
+    "local-llm": {
       "command": "node",
-      "args": ["C:\\MCP\\local-llm-mcp\\dist\\index.js"]
+      "args": ["C:\\MCP\\local-llm-mcp\\dist\\index.js"],
+      "env": {
+        "LLM_MCP_ALLOWED_DIRS": "C:\\Users\\YourName\\Documents,C:\\Projects"
+      }
     }
   }
 }
