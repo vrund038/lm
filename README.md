@@ -1,6 +1,17 @@
 # Local LLM MCP Server v2.0
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
+[![GitHub release](https://img.shields.io/github/v/release/richardbaxterseo/local-llm-mcp)](https://github.com/richardbaxterseo/local-llm-mcp/releases)
+
 An MCP (Model Context Protocol) server that enables Claude to offload tasks to local LLMs running in LM Studio. Version 2.0 adds file attachment support using the official LM Studio SDK.
+
+## Documentation
+
+- 📚 **[Complete Guide](COMPLETE_GUIDE.md)** - Full technical documentation
+- 🚀 **[Getting Started](GETTING_STARTED.md)** - Step-by-step setup from zero
+- 📖 **[API Reference](COMPLETE_GUIDE.md#api-reference)** - All available tools
+- 🔧 **[Troubleshooting](GETTING_STARTED.md#troubleshooting)** - Common issues
 
 ## Features
 
