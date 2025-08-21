@@ -1,10 +1,10 @@
-# Local LLM MCP Server v2.0
+# Local LLM MCP Server v2.1
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
 [![GitHub release](https://img.shields.io/github/v/release/richardbaxterseo/local-llm-mcp)](https://github.com/richardbaxterseo/local-llm-mcp/releases)
 
-An MCP (Model Context Protocol) server that enables Claude to offload tasks to local LLMs running in LM Studio. Version 2.0 adds file attachment support using the official LM Studio SDK.
+An MCP (Model Context Protocol) server that enables Claude to offload tasks to local LLMs running in LM Studio. Version 2.1 adds security features including path validation and configurable directory access.
 
 ## Documentation
 
@@ -14,6 +14,13 @@ An MCP (Model Context Protocol) server that enables Claude to offload tasks to l
 - 🔧 **[Troubleshooting](GETTING_STARTED.md#troubleshooting)** - Common issues
 
 ## Features
+
+### New in v2.1
+- **Security Features**: Path validation and configurable directory access control
+- **Path Traversal Protection**: Prevents unauthorized file system access
+- **Configurable Allowed Directories**: Control which directories can be accessed
+- **Fixed Thinking Tag Regex**: Improved response parsing
+- **TypeScript Improvements**: Better type safety and strict mode
 
 ### New in v2.0
 - **File Attachment Support**: Analyse files directly without reading content first

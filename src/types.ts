@@ -1,14 +1,15 @@
 export enum TaskType {
-  CODE_STRUCTURE = 'code_structure',
-  GENERATE_TESTS = 'generate_tests',
-  DOCUMENT_FUNCTION = 'document_function',
-  SUGGEST_REFACTOR = 'suggest_refactor',
-  CHECK_PATTERNS = 'check_patterns',
+  CODE_STRUCTURE = 'analyze_code_structure',
+  GENERATE_TESTS = 'generate_unit_tests',
+  DOCUMENT_FUNCTION = 'generate_documentation',
+  SUGGEST_REFACTOR = 'suggest_refactoring',
+  CHECK_PATTERNS = 'detect_patterns',
   EXPLAIN_CODE = 'explain_code',
-  FIND_BUGS = 'find_bugs',
+  FIND_BUGS = 'validate_syntax',
   OPTIMISE_PERFORMANCE = 'optimise_performance',
   GENERATE_TYPES = 'generate_types',
   CREATE_EXAMPLES = 'create_examples',
+  VARIABLE_NAMES = 'suggest_variable_names',
   ANALYZE_FILE = 'analyze_file',
   ANALYZE_CSV_DATA = 'analyze_csv_data'
 }

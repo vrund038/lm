@@ -146,7 +146,7 @@ ${content}`
 
     [TaskType.ANALYZE_FILE]: {
       systemPrompt: 'You are a file analysis expert. Analyze files comprehensively based on their content and user instructions.',
-      prompt: (content: string, language?: string, additionalParams?: any) => {
+      prompt: (content: string, _language?: string, additionalParams?: any) => {
         const instructions = additionalParams?.instructions || 'Provide a comprehensive analysis of this file';
         const format = additionalParams?.extractFormat || 'summary';
         
@@ -166,7 +166,7 @@ ${content}`;
 
     [TaskType.ANALYZE_CSV_DATA]: {
       systemPrompt: 'You are a CSV data analysis expert. Filter and analyze CSV data based on specific criteria.',
-      prompt: (content: string, language?: string, additionalParams?: any) => {
+      prompt: (content: string, _language?: string, additionalParams?: any) => {
         const filterCriteria = additionalParams?.filterCriteria || 'all data';
         const columns = additionalParams?.columns;
         const returnFormat = additionalParams?.returnFormat || 'json';
@@ -183,6 +183,18 @@ ${returnFormat === 'list' ? 'Return as a formatted list.' : ''}
 
 CSV Data:
 ${content}`;
+      }
+    },
+    
+    [TaskType.VARIABLE_NAMES]: {
+      systemPrompt: 'You are an expert at suggesting meaningful variable and function names.',
+      prompt: (content: string, language?: string, additionalParams?: any) => {
+        const convention = additionalParams?.namingConvention || 'camelCase';
+        return `Suggest better variable and function names for the following ${language || 'code'} using ${convention} convention:
+
+${content}
+
+Provide a list of suggested renames with explanations for why each name is better.`;
       }
     }
   }

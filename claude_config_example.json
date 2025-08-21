@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "local-llm": {
+      "command": "node",
+      "args": ["C:\\MCP\\local-llm-mcp\\dist\\index.js"]
+    }
+  }
+}

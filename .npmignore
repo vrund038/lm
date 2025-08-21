@@ -1,0 +1,52 @@
+# Source files (only ship compiled)
+src/
+*.ts
+!*.d.ts
+
+# Test files
+test/
+*.test.js
+*.spec.js
+
+# Development files
+.github/
+.vscode/
+.idea/
+.gitignore
+.eslintrc*
+.prettierrc*
+tsconfig.json
+
+# Documentation (keep essential ones)
+CHANGELOG.md
+CODE_REVIEW_PROMPT.md
+COMPLETE_GUIDE.md
+GETTING_STARTED.md
+UPGRADE_SUMMARY.md
+
+# Build artifacts
+*.tsbuildinfo
+*.log
+.npm
+.eslintcache
+
+# Environment files
+.env*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.swp
+*.swo
+*~
+
+# Keep these
+!README.md
+!LICENSE
+!package.json
+!dist/
