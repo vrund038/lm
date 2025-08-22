@@ -1,9 +1,12 @@
 {
   "name": "@richardbaxterseo/local-llm-mcp",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "MCP server for offloading tasks to local LLMs via LM Studio SDK - improved documentation and troubleshooting",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "local-llm-mcp": "dist/index.js"
+  },
   "files": [
     "dist/**/*",
     "README.md",
@@ -16,6 +19,8 @@
   ],
   "scripts": {
     "build": "tsc",
+    "clean": "rm -rf dist",
+    "rebuild": "npm run clean && npm run build",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test:connection": "node test-connection.mjs",

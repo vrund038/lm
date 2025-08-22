@@ -1,6 +1,7 @@
 // test-connection.js
 // Test script to verify LM Studio connection
-const http = require('http');
+import http from 'http';
+import { URL } from 'url';
 
 const url = process.env.LM_STUDIO_URL || 'http://localhost:1234';
 const parsed = new URL(url.replace('ws://', 'http://'));
