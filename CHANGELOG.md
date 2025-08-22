@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2024-08-22
+
+### Added
+- Comprehensive troubleshooting guide (TROUBLESHOOTING.md)
+- Connection test script (test-connection.js) for easy LM Studio verification
+- NPM vs Local installation comparison in README
+- Environment variables documentation table
+- Quick start section in README
+- Debugging tools section in troubleshooting guide
+- Complete example configurations with all required environment variables
+
+### Changed
+- Updated claude_config_example.json to include LM_STUDIO_URL and LLM_MCP_ALLOWED_DIRS
+- Improved README structure with clearer installation methods
+- Enhanced configuration examples with proper environment variables
+- Updated package.json to include new documentation files
+- Added test:connection script for easy testing
+
+### Fixed
+- Documentation now correctly shows WebSocket URL format (ws:// not http://)
+- Configuration examples now include all required environment variables
+- Clarified localhost vs network address configuration
+
+### Documentation
+- Added comprehensive troubleshooting for common issues
+- Included step-by-step debugging procedures
+- Added quick fixes checklist
+- Improved error message explanations
+
+## [2.1.0] - 2024-08-21
+
+### Added
+- Security features with path validation and configurable directory access
+- Path traversal protection
+- Configurable allowed directories via LLM_MCP_ALLOWED_DIRS
+- Fixed thinking tag regex for better response parsing
+- TypeScript strict mode improvements
+
+### Security
+- Implemented path validation to prevent unauthorized file access
+- Added configurable directory whitelist
+- Enhanced security configuration documentation
+
 ## [2.0.0] - 2024-08-21
 
 ### Added
@@ -41,19 +84,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP server implementation
 - Support for 10 different task types
 - Basic documentation
-
----
-
-## Upcoming Features
-
-### [2.1.0] - Planned
-- Unit test coverage
-- Streaming response support activation
-- Caching mechanism for repeated queries
-- Rate limiting implementation
-
-### [3.0.0] - Future
-- Multi-model support
-- Custom prompt templates
-- Web UI for configuration
-- Plugin system for extensibility

@@ -1,7 +1,7 @@
 {
   "name": "@richardbaxterseo/local-llm-mcp",
-  "version": "2.1.0",
-  "description": "MCP server for offloading tasks to local LLMs via LM Studio SDK - now with security features",
+  "version": "2.2.0",
+  "description": "MCP server for offloading tasks to local LLMs via LM Studio SDK - improved documentation and troubleshooting",
   "main": "dist/index.js",
   "type": "module",
   "files": [
@@ -9,12 +9,16 @@
     "README.md",
     "LICENSE",
     "MIGRATION_GUIDE.md",
-    "SECURITY_CONFIG.md"
+    "SECURITY_CONFIG.md",
+    "TROUBLESHOOTING.md",
+    "test-connection.mjs",
+    "claude_config_example.json"
   ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
+    "test:connection": "node test-connection.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
