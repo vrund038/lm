@@ -5,14 +5,17 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
+  ErrorCode,
   ListToolsRequestSchema,
+  McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { LMStudioClient } from '@lmstudio/sdk';
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { config } from './config.js';
-import { TaskType } from './types.js';
-import { securityConfig } from './security-config.js';
+import { OffloadTask, TaskType } from './types.js';
+import { validatePath, isPathSafe } from './security-config.js';
 
 // ADD THESE IMPORTS
 import { enhancedToolDefinitions } from './enhanced-tool-definitions.js';
@@ -28,30 +31,8 @@ import {
   createSecurityAuditPrompt
 } from './enhanced-prompts.js';
 
-// Security: Get allowed directories from config
-const ALLOWED_DIRECTORIES = securityConfig.getAllowedDirectories();
-
-// Security helper functions
-function isPathSafe(filePath: string): boolean {
-  if (!filePath || typeof filePath !== 'string') return false;
-  
-  // Must be absolute path
-  if (!path.isAbsolute(filePath)) return false;
-  
-  // Normalize to prevent traversal
-  const normalizedPath = path.resolve(path.normalize(filePath));
-  
-  // Check if within allowed directories
-  return ALLOWED_DIRECTORIES.some(allowedDir => 
-    normalizedPath.startsWith(allowedDir)
-  );
-}
-
-function validatePath(filePath: string): void {
-  if (!isPathSafe(filePath)) {
-    throw new Error('Invalid file path: Path must be absolute and within allowed directories');
-  }
-}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class LocalLLMServer {
   private server: Server;
@@ -61,7 +42,7 @@ class LocalLLMServer {
     this.server = new Server(
       {
         name: 'local-llm-server',
-        version: '3.0.0', // Bump version for enhanced features
+        version: '2.3.0', // Bump version for enhanced features
       },
       {
         capabilities: {
@@ -85,7 +66,12 @@ class LocalLLMServer {
   }
 
   private setupToolHandlers() {
-    // Tool listing handler - returns all enhanced tool definitions
+    // REPLACE the manual tool additions with enhanced definitions
+    enhancedToolDefinitions.forEach(toolDef => {
+      this.server.addTool(toolDef);
+    });
+
+    // Tool listing handler remains the same
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: enhancedToolDefinitions,
     }));
@@ -94,14 +80,11 @@ class LocalLLMServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
       
-      // Type assertion for arguments
-      const typedArgs = args as any;
-      
       try {
         switch (name) {
           // ENHANCED TOOLS WITH CONTEXT SUPPORT
           case 'analyze_code_structure': {
-            const { code, filePath, language, context } = typedArgs;
+            const { code, filePath, language, analysisDepth, context } = args;
             const content = code || await this.readFileContent(filePath);
             
             let prompt: string;
@@ -124,7 +107,7 @@ class LocalLLMServer {
           }
           
           case 'generate_unit_tests': {
-            const { code, filePath, language, testFramework, coverageTarget, context } = typedArgs;
+            const { code, filePath, language, testFramework, coverageTarget, context } = args;
             const content = code || await this.readFileContent(filePath);
             
             let prompt: string;
@@ -151,7 +134,7 @@ class LocalLLMServer {
           }
           
           case 'generate_documentation': {
-            const { code, filePath, language, docStyle, includeExamples, context } = typedArgs;
+            const { code, filePath, language, docStyle, includeExamples, context } = args;
             const content = code || await this.readFileContent(filePath);
             
             let prompt: string;
@@ -179,7 +162,7 @@ class LocalLLMServer {
           }
           
           case 'suggest_refactoring': {
-            const { code, filePath, language, focusAreas, context } = typedArgs;
+            const { code, filePath, language, focusAreas, context } = args;
             const content = code || await this.readFileContent(filePath);
             
             let prompt: string;
@@ -204,7 +187,7 @@ class LocalLLMServer {
           
           // EXISTING TOOLS (PRESERVED AS-IS)
           case 'detect_patterns': {
-            const { code, filePath, language } = typedArgs;
+            const { code, filePath, language, patternTypes } = args;
             const content = code || await this.readFileContent(filePath);
             const prompt = config.taskPrompts[TaskType.CHECK_PATTERNS].prompt(
               content,
@@ -215,7 +198,7 @@ class LocalLLMServer {
           }
           
           case 'validate_syntax': {
-            const { code, filePath, language } = typedArgs;
+            const { code, filePath, language, strictMode } = args;
             const content = code || await this.readFileContent(filePath);
             const prompt = config.taskPrompts[TaskType.FIND_BUGS].prompt(
               content,
@@ -226,7 +209,7 @@ class LocalLLMServer {
           }
           
           case 'suggest_variable_names': {
-            const { code, filePath, language, namingConvention } = typedArgs;
+            const { code, filePath, language, namingConvention } = args;
             const content = code || await this.readFileContent(filePath);
             const prompt = config.taskPrompts[TaskType.VARIABLE_NAMES].prompt(
               content,
@@ -238,39 +221,39 @@ class LocalLLMServer {
           }
           
           case 'analyze_file': {
-            return this.handleFileAnalysis(typedArgs);
+            return this.handleFileAnalysis(args);
           }
           
           case 'analyze_csv_data': {
-            return this.handleCsvAnalysis(typedArgs);
+            return this.handleCsvAnalysis(args);
           }
           
           case 'health_check': {
-            return this.handleHealthCheck(typedArgs);
+            return this.handleHealthCheck(args);
           }
           
           // NEW ENHANCED TOOLS
           case 'generate_wordpress_plugin': {
-            const prompt = createWordPressPluginPrompt(typedArgs);
+            const prompt = createWordPressPluginPrompt(args);
             const result = await this.callLMStudio(prompt);
             return { content: [{ type: 'text', text: result }] };
           }
           
           case 'analyze_n8n_workflow': {
-            const { workflow } = typedArgs;
-            const prompt = createN8nWorkflowAnalysisPrompt(workflow || {});
+            const { workflow } = args;
+            const prompt = createN8nWorkflowAnalysisPrompt(workflow);
             const result = await this.callLMStudio(prompt);
             return { content: [{ type: 'text', text: result }] };
           }
           
           case 'generate_responsive_component': {
-            const prompt = createResponsiveComponentPrompt(typedArgs);
+            const prompt = createResponsiveComponentPrompt(args);
             const result = await this.callLMStudio(prompt);
             return { content: [{ type: 'text', text: result }] };
           }
           
           case 'convert_to_typescript': {
-            const { code, filePath, ...tsContext } = typedArgs;
+            const { code, filePath, ...tsContext } = args;
             const content = code || await this.readFileContent(filePath);
             const prompt = createTypeScriptConversionPrompt(content, tsContext);
             const result = await this.callLMStudio(prompt);
@@ -278,7 +261,7 @@ class LocalLLMServer {
           }
           
           case 'security_audit': {
-            const { code, filePath, ...securityContext } = typedArgs;
+            const { code, filePath, ...securityContext } = args;
             const content = code || await this.readFileContent(filePath);
             const prompt = createSecurityAuditPrompt(content, securityContext);
             const result = await this.callLMStudio(prompt);
@@ -304,8 +287,8 @@ class LocalLLMServer {
   // ALL EXISTING METHODS REMAIN UNCHANGED
   private async handleHealthCheck(args: any) {
     try {
-      const { detailed } = args || {};
-      const models = await this.lmStudioClient.llm.listLoaded();
+      const { detailed } = args;
+      const models = await this.lmStudioClient.llm.listDownloadedModels();
       
       const response: any = {
         status: 'ready',
@@ -313,7 +296,7 @@ class LocalLLMServer {
         lmStudioUrl: config.lmStudioUrl,
       };
       
-      if (detailed && models.length > 0 && models[0]) {
+      if (detailed && models.length > 0) {
         response.modelDetails = {
           identifier: models[0].identifier,
           path: models[0].path,
@@ -341,7 +324,7 @@ class LocalLLMServer {
   }
 
   private async handleFileAnalysis(args: any) {
-    const { filePath, instructions, extractFormat } = args || {};
+    const { filePath, instructions, extractFormat } = args;
     
     if (!filePath) {
       throw new Error('filePath is required');
@@ -359,7 +342,7 @@ class LocalLLMServer {
   }
 
   private async handleCsvAnalysis(args: any) {
-    const { filePath, filterCriteria, columns, returnFormat } = args || {};
+    const { filePath, filterCriteria, columns, returnFormat } = args;
     
     if (!filePath) {
       throw new Error('filePath is required');
@@ -392,19 +375,19 @@ class LocalLLMServer {
         ? normalizedPath 
         : path.join(process.cwd(), normalizedPath);
       
-      validatePath(absolutePath);
-      const stats = await fs.stat(absolutePath);
+      const validatedPath = validatePath(absolutePath);
+      const stats = await fs.stat(validatedPath);
       
       if (stats.size > config.maxFileSize) {
         throw new Error(`File too large (max ${config.maxFileSize / 1024 / 1024}MB)`);
       }
       
-      const ext = path.extname(absolutePath).toLowerCase();
+      const ext = path.extname(validatedPath).toLowerCase();
       if (!config.supportedFileTypes.includes(ext)) {
         throw new Error(`Unsupported file type: ${ext}`);
       }
       
-      return await fs.readFile(absolutePath, 'utf-8');
+      return await fs.readFile(validatedPath, 'utf-8');
     } catch (error) {
       throw new Error(`Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -412,23 +395,29 @@ class LocalLLMServer {
 
   private async callLMStudio(prompt: string): Promise<string> {
     try {
-      const model = config.modelName === 'auto'
-        ? (await this.lmStudioClient.llm.listLoaded())[0]?.identifier
-        : config.modelName;
-
+      const model = await this.lmStudioClient.llm.get({ 
+        path: config.modelName,
+        fallbackToAny: true 
+      });
+      
       if (!model) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
+        throw new Error('No model loaded in LM Studio');
       }
-
-      const llm = await this.lmStudioClient.llm.model(model);
-      const response = await llm.respond([
+      
+      const prediction = model.respond([
         { role: 'user', content: prompt }
       ], {
         temperature: config.temperature,
-        maxTokens: config.maxTokens
+        maxTokens: config.maxTokens,
+        topP: config.topP,
       });
       
-      return this.parseModelResponse(response.content);
+      let response = '';
+      for await (const chunk of prediction) {
+        response += chunk.content;
+      }
+      
+      return this.parseModelResponse(response);
     } catch (error) {
       throw new Error(`LM Studio error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
