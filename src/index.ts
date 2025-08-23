@@ -363,7 +363,16 @@ export class LocalLLMServer {
 export default LocalLLMServer;
 
 // Only run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+import { fileURLToPath } from 'url';
+
+const isMainModule = () => {
+  if (!process.argv[1]) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  const mainPath = normalize(process.argv[1]);
+  return modulePath === mainPath;
+};
+
+if (isMainModule()) {
   const server = new LocalLLMServer();
   server.start().catch(console.error);
 }
