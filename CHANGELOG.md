@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.2] - 2025-08-23
+
+### Fixed
+- Fixed NPX execution on Windows by properly normalizing file paths in main module check
+- Server now correctly starts when invoked via NPX on Windows systems
+- Resolved "server transport closed unexpectedly" error by fixing import.meta.url comparison
+
+### Technical Details
+- Uses fileURLToPath and path.normalize for cross-platform path comparison
+- Handles undefined process.argv[1] case gracefully
+- Fixed issue where forward slashes in import.meta.url didn't match backslashes in process.argv[1]
+
 ## [2.2.1] - 2025-08-23
 
 ### Fixed

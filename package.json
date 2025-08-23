@@ -1,6 +1,6 @@
 {
   "name": "@richardbaxterseo/local-llm-mcp",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "MCP server for offloading tasks to local LLMs via LM Studio SDK - improved documentation and troubleshooting",
   "main": "dist/index.js",
   "type": "module",
