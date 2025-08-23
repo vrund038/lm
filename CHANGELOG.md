@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.3] - 2025-08-23
+
+### Fixed
+- Added missing tool definitions that were accidentally removed in refactoring
+- All 10 tools are now properly registered and available in Claude
+- Tools include: health_check, analyze_code_structure, generate_unit_tests, generate_documentation, 
+  suggest_refactoring, detect_patterns, validate_syntax, suggest_variable_names, analyze_file, analyze_csv_data
+
+### Technical Details
+- The setupHandlers method had only health_check tool defined with a comment suggesting others remained
+- Restored complete tool definitions array with all input schemas
+
 ## [2.2.2] - 2025-08-23
 
 ### Fixed

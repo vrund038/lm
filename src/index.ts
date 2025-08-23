@@ -140,7 +140,6 @@ export class LocalLLMServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
         tools: [
-          // All tool definitions remain the same
           {
             name: 'health_check',
             description: 'Check if LM Studio is running and responding',
@@ -155,7 +154,271 @@ export class LocalLLMServer {
               }
             }
           },
-          // ... other tools remain the same
+          {
+            name: 'analyze_code_structure',
+            description: 'Analyze the structure of code and provide insights about its organization',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                code: {
+                  type: 'string',
+                  description: 'The code to analyze (optional if filePath is provided)'
+                },
+                filePath: {
+                  type: 'string',
+                  description: 'Path to code file (alternative to code parameter)'
+                },
+                language: {
+                  type: 'string',
+                  description: 'Programming language (javascript, python, java, etc.)',
+                  default: 'javascript'
+                },
+                analysisDepth: {
+                  type: 'string',
+                  enum: ['basic', 'detailed', 'comprehensive'],
+                  description: 'Level of analysis detail',
+                  default: 'detailed'
+                }
+              },
+              required: []
+            }
+          },
+          {
+            name: 'generate_unit_tests',
+            description: 'Generate unit tests for the provided code',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                code: {
+                  type: 'string',
+                  description: 'The code to generate tests for (optional if filePath is provided)'
+                },
+                filePath: {
+                  type: 'string',
+                  description: 'Path to code file (alternative to code parameter)'
+                },
+                language: {
+                  type: 'string',
+                  description: 'Programming language',
+                  default: 'javascript'
+                },
+                testFramework: {
+                  type: 'string',
+                  description: 'Testing framework to use (jest, mocha, pytest, junit, etc.)',
+                  default: 'jest'
+                },
+                coverageTarget: {
+                  type: 'string',
+                  enum: ['basic', 'comprehensive', 'edge-cases'],
+                  default: 'comprehensive'
+                }
+              },
+              required: []
+            }
+          },
+          {
+            name: 'generate_documentation',
+            description: 'Generate documentation for code',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                code: {
+                  type: 'string',
+                  description: 'The code to document (optional if filePath is provided)'
+                },
+                filePath: {
+                  type: 'string',
+                  description: 'Path to code file (alternative to code parameter)'
+                },
+                language: {
+                  type: 'string',
+                  description: 'Programming language',
+                  default: 'javascript'
+                },
+                docStyle: {
+                  type: 'string',
+                  enum: ['jsdoc', 'markdown', 'docstring', 'javadoc'],
+                  default: 'jsdoc'
+                },
+                includeExamples: {
+                  type: 'boolean',
+                  description: 'Include usage examples in documentation',
+                  default: true
+                }
+              },
+              required: []
+            }
+          },
+          {
+            name: 'suggest_refactoring',
+            description: 'Analyze code and suggest refactoring improvements',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                code: {
+                  type: 'string',
+                  description: 'The code to analyze for refactoring (optional if filePath is provided)'
+                },
+                filePath: {
+                  type: 'string',
+                  description: 'Path to code file (alternative to code parameter)'
+                },
+                language: {
+                  type: 'string',
+                  description: 'Programming language',
+                  default: 'javascript'
+                },
+                focusAreas: {
+                  type: 'array',
+                  items: {
+                    type: 'string',
+                    enum: ['readability', 'performance', 'maintainability', 'testability', 'security']
+                  },
+                  default: ['readability', 'maintainability']
+                }
+              },
+              required: []
+            }
+          },
+          {
+            name: 'detect_patterns',
+            description: 'Detect design patterns and anti-patterns in code',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                code: {
+                  type: 'string',
+                  description: 'The code to analyze for patterns (optional if filePath is provided)'
+                },
+                filePath: {
+                  type: 'string',
+                  description: 'Path to code file (alternative to code parameter)'
+                },
+                language: {
+                  type: 'string',
+                  description: 'Programming language',
+                  default: 'javascript'
+                },
+                patternTypes: {
+                  type: 'array',
+                  items: {
+                    type: 'string',
+                    enum: ['design-patterns', 'anti-patterns', 'code-smells', 'best-practices']
+                  },
+                  default: ['design-patterns', 'anti-patterns']
+                }
+              },
+              required: []
+            }
+          },
+          {
+            name: 'validate_syntax',
+            description: 'Validate code syntax and provide error details',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                code: {
+                  type: 'string',
+                  description: 'The code to validate (optional if filePath is provided)'
+                },
+                filePath: {
+                  type: 'string',
+                  description: 'Path to code file (alternative to code parameter)'
+                },
+                language: {
+                  type: 'string',
+                  description: 'Programming language',
+                  default: 'javascript'
+                },
+                strictMode: {
+                  type: 'boolean',
+                  description: 'Use strict validation rules',
+                  default: true
+                }
+              },
+              required: []
+            }
+          },
+          {
+            name: 'suggest_variable_names',
+            description: 'Suggest better variable and function names',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                code: {
+                  type: 'string',
+                  description: 'The code with variables to rename (optional if filePath is provided)'
+                },
+                filePath: {
+                  type: 'string',
+                  description: 'Path to code file (alternative to code parameter)'
+                },
+                language: {
+                  type: 'string',
+                  description: 'Programming language',
+                  default: 'javascript'
+                },
+                namingConvention: {
+                  type: 'string',
+                  enum: ['camelCase', 'snake_case', 'PascalCase', 'kebab-case'],
+                  default: 'camelCase'
+                }
+              },
+              required: []
+            }
+          },
+          {
+            name: 'analyze_file',
+            description: 'Analyze a file using local LLM with optional instructions',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                filePath: {
+                  type: 'string',
+                  description: 'Absolute path to the file to analyze'
+                },
+                instructions: {
+                  type: 'string',
+                  description: 'Specific analysis instructions'
+                },
+                extractFormat: {
+                  type: 'string',
+                  enum: ['json', 'list', 'summary'],
+                  description: 'Desired output format',
+                  default: 'summary'
+                }
+              },
+              required: ['filePath']
+            }
+          },
+          {
+            name: 'analyze_csv_data',
+            description: 'Analyze CSV data with specific filtering criteria',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                filePath: {
+                  type: 'string',
+                  description: 'Path to CSV file'
+                },
+                filterCriteria: {
+                  type: 'string',
+                  description: 'What to filter for (e.g., "automotive and motorsport companies")'
+                },
+                columns: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Specific columns to analyze'
+                },
+                returnFormat: {
+                  type: 'string',
+                  enum: ['json', 'csv', 'list'],
+                  default: 'json'
+                }
+              },
+              required: ['filePath', 'filterCriteria']
+            }
+          }
         ]
       };
     });
