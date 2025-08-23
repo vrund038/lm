@@ -24,6 +24,9 @@
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test:connection": "node test-connection.mjs",
+    "test:integration": "node tests/integration.test.mjs",
+    "test:tools": "node tests/tools.test.mjs",
+    "test": "npm run test:connection && npm run test:tools",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

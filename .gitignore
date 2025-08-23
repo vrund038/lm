@@ -3,10 +3,6 @@ node_modules/
 
 # Build output
 dist/
-build/
-*.js
-*.js.map
-*.d.ts
 
 # IDE
 .vscode/
@@ -39,6 +35,7 @@ coverage/
 tmp/
 temp/
 *.tmp
+test-v3-quick.mjs
 
 # Package files
 *.tgz
@@ -51,3 +48,21 @@ temp/
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Development files that shouldn't be in dist
+dist/enhanced-index.js
+dist/enhanced-index.d.ts
+dist/enhanced-index.js.map
+dist/enhanced-index.d.ts.map
+dist/enhanced-index-integration.js
+dist/enhanced-index-integration.d.ts
+dist/enhanced-index-integration.js.map
+dist/enhanced-index-integration.d.ts.map
+dist/enhanced-integration-example.js
+dist/enhanced-integration-example.d.ts
+dist/enhanced-integration-example.js.map
+dist/enhanced-integration-example.d.ts.map
+dist/enhanced-prompts-helper.js
+dist/enhanced-prompts-helper.d.ts
+dist/enhanced-prompts-helper.js.map
+dist/enhanced-prompts-helper.d.ts.map

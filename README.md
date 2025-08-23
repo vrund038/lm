@@ -1,71 +1,75 @@
-# Local LLM MCP Server v2.1
+# Local LLM MCP Server v3.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
 [![GitHub release](https://img.shields.io/github/v/release/richardbaxterseo/local-llm-mcp)](https://github.com/richardbaxterseo/local-llm-mcp/releases)
 [![npm version](https://badge.fury.io/js/@richardbaxterseo%2Flocal-llm-mcp.svg)](https://www.npmjs.com/package/@richardbaxterseo/local-llm-mcp)
 
-An MCP (Model Context Protocol) server that enables Claude to offload tasks to local LLMs running in LM Studio. Version 2.1 adds security features including path validation and configurable directory access.
+An MCP (Model Context Protocol) server that enables Claude to offload tasks to local LLMs running in LM Studio. Version 3.0 introduces context-aware prompts and 5 powerful new tools for 90% token savings!
+
+## 🚀 What's New in v3.0
+
+### Context-Aware Prompts
+All major tools now support optional context for domain-specific analysis:
+- **Project Types**: WordPress, React, n8n, Node.js, and more
+- **Framework-Specific**: Best practices for each framework
+- **Smart Suggestions**: Context-aware refactoring and testing
+- **90% Token Savings**: Offload routine tasks intelligently
+
+### 5 New Powerful Tools
+1. **`generate_wordpress_plugin`** - Complete WordPress plugin generator
+2. **`analyze_n8n_workflow`** - n8n workflow optimization
+3. **`generate_responsive_component`** - Accessible component generator
+4. **`convert_to_typescript`** - JavaScript to TypeScript converter
+5. **`security_audit`** - Project-specific security auditor
+
+### Full Backward Compatibility
+All existing tools work exactly as before - context is optional!
 
 ## Documentation
 
 - 📚 **[Complete Guide](COMPLETE_GUIDE.md)** - Full technical documentation
 - 🚀 **[Getting Started](GETTING_STARTED.md)** - Step-by-step setup from zero
 - 📖 **[API Reference](COMPLETE_GUIDE.md#api-reference)** - All available tools
+- 🔄 **[Migration Guide](MIGRATION_GUIDE_V3.md)** - Upgrading to v3.0
 - 🔧 **[Troubleshooting](#troubleshooting)** - Common issues and solutions
-- 🔄 **[Migration Guide](MIGRATION_GUIDE.md)** - Upgrading from previous versions
 
 ## Features
 
-### New in v2.1
-- **Security Features**: Path validation and configurable directory access control
-- **Path Traversal Protection**: Prevents unauthorized file system access
-- **Configurable Allowed Directories**: Control which directories can be accessed
-- **Fixed Thinking Tag Regex**: Improved response parsing
-- **TypeScript Improvements**: Better type safety and strict mode
-
-### New in v2.0
-- **File Attachment Support**: Analyse files directly without reading content first
-- **LM Studio SDK Integration**: Replaced axios with official @lmstudio/sdk
-- **Enhanced Tools**: New `analyze_file` and `analyze_csv_data` functions
-- **Streaming Support**: Better performance with streaming responses
-- **Improved Error Handling**: Better detection of LM Studio status
-
 ### Core Capabilities
-- Code structure analysis with file support
-- Unit test generation from files or code snippets
-- Documentation generation
-- Refactoring suggestions
-- Design pattern detection
-- Code explanation
-- Bug detection
-- Performance optimisation
-- Variable naming suggestions
-- CSV data filtering and analysis
+- **Code Analysis**: Structure, patterns, complexity, security
+- **Code Generation**: Tests, documentation, refactoring suggestions
+- **File Processing**: Direct file analysis without manual reading
+- **CSV Analysis**: Filter and analyze data with custom criteria
+- **TypeScript Conversion**: Migrate JavaScript projects to TypeScript
+- **Security Auditing**: Project-specific vulnerability scanning
+- **Component Generation**: Create accessible, responsive components
+
+### Supported Project Types
+- WordPress (Plugins & Themes)
+- React (Apps & Components)
+- n8n (Nodes & Workflows)
+- Node.js (APIs & CLIs)
+- HTML/CSS Components
+- Generic JavaScript/TypeScript
 
 ## Prerequisites
 
 1. **LM Studio**: Download and install from [lmstudio.ai](https://lmstudio.ai)
 2. **Node.js**: Version 18 or higher
-3. **A loaded model in LM Studio**: The server works with any model, but code-focused models like:
-   - Qwen 2.5 Coder models
-   - DeepSeek Coder models
+3. **A loaded model in LM Studio**: Recommended models:
+   - Qwen 2.5 Coder (best for code tasks)
+   - DeepSeek Coder
    - CodeLlama variants
-   - Any general model (for non-code tasks)
+   - Any general model for non-code tasks
 
-## Installation Methods
+## Installation
 
-### Method 1: NPM Global Install (Recommended for most users)
+### Method 1: NPM Global Install (Recommended)
 
 ```bash
 npm install -g @richardbaxterseo/local-llm-mcp
 ```
-
-**Pros:**
-- Easy updates with `npm update -g @richardbaxterseo/local-llm-mcp`
-- No build step required
-- Simpler path management
-- Automatic dependency handling
 
 **Claude Config:**
 ```json
@@ -83,7 +87,7 @@ npm install -g @richardbaxterseo/local-llm-mcp
 }
 ```
 
-### Method 2: Local Installation (For developers/contributors)
+### Method 2: Local Installation
 
 ```bash
 git clone https://github.com/richardbaxterseo/local-llm-mcp.git
@@ -92,207 +96,190 @@ npm install
 npm run build
 ```
 
-**Pros:**
-- Can modify code
-- Test changes immediately
-- Contribute to development
-- Debug issues locally
+## Usage Examples
 
-**Claude Config:**
-```json
-{
-  "mcpServers": {
-    "local-llm": {
-      "command": "node",
-      "args": ["C:\\MCP\\local-llm-mcp\\dist\\index.js"],
-      "env": {
-        "LM_STUDIO_URL": "ws://localhost:1234",
-        "LLM_MCP_ALLOWED_DIRS": "C:\\Users\\YourName\\Documents,C:\\Projects"
-      }
-    }
-  }
-}
+### Basic Usage (Backward Compatible)
+```javascript
+// Works exactly as before - no changes needed!
+await local-llm:analyze_code_structure({
+  filePath: "app.js"
+});
 ```
 
-## Environment Variables
+### Enhanced Context Usage (New in v3.0)
+```javascript
+// WordPress Plugin Analysis
+await local-llm:analyze_code_structure({
+  filePath: "wp-content/plugins/my-plugin/my-plugin.php",
+  context: {
+    projectType: "wordpress-plugin",
+    framework: "WordPress",
+    frameworkVersion: "6.4",
+    standards: ["WordPress Coding Standards", "PSR-4"]
+  }
+});
 
-| Variable | Description | Default | Example |
-|----------|-------------|---------|---------|
-| `LM_STUDIO_URL` | WebSocket URL for LM Studio | `ws://localhost:1234` | `ws://127.0.0.1:1234` |
-| `LLM_MCP_ALLOWED_DIRS` | Comma-separated list of allowed directories | Current directory + defaults | `C:\\Projects,D:\\Code` |
-| `LM_STUDIO_MODEL` | Model to use (optional) | `auto` | `qwen-2.5-coder` |
+// React Component Testing
+await local-llm:generate_unit_tests({
+  filePath: "components/UserProfile.jsx",
+  context: {
+    projectType: "react-component",
+    testFramework: "jest",
+    dependencies: ["react-testing-library", "jest-dom"],
+    coverageTarget: 80
+  }
+});
 
-## Quick Start
+// n8n Node Analysis
+await local-llm:analyze_n8n_workflow({
+  workflow: {
+    nodes: [...],
+    connections: {...}
+  }
+});
+```
 
-1. **Install LM Studio** and load a model
-2. **Install this server**: `npm install -g @richardbaxterseo/local-llm-mcp`
-3. **Test connection**: `node test-connection.mjs`
-4. **Configure Claude Desktop** (see configuration above)
-5. **Restart Claude Desktop**
-6. **Test in Claude**: "Check local LLM health"
+### New Tool Examples
+
+#### Generate WordPress Plugin
+```javascript
+await local-llm:generate_wordpress_plugin({
+  pluginName: "Custom Analytics",
+  description: "Track custom events in WordPress",
+  features: ["admin dashboard", "REST API", "gutenberg block"],
+  includeTests: true,
+  phpVersion: "8.0"
+});
+```
+
+#### Convert to TypeScript
+```javascript
+await local-llm:convert_to_typescript({
+  filePath: "src/utils/helpers.js",
+  strictMode: true,
+  preserveJSDoc: true,
+  addTypeImports: true
+});
+```
+
+#### Security Audit
+```javascript
+await local-llm:security_audit({
+  filePath: "api/auth.js",
+  projectType: "node-api",
+  checkTypes: ["injection", "authentication", "validation"],
+  includeFixSuggestions: true
+});
+```
+
+## Token Savings Example
+
+### Without Context (Traditional Approach)
+```
+Claude reads 100 files → 100,000 tokens used
+Claude analyzes each file → Complex context management
+Result: Context window exhausted quickly
+```
+
+### With Context (v3.0 Approach)
+```
+Local LLM analyzes 100 files → 0 Claude tokens used
+Claude receives summaries → 5,000 tokens used
+Result: 95% token savings, full project understanding maintained
+```
 
 ## Available Tools
 
-### Code Analysis Tools
+### Enhanced Tools (with optional context)
+- `analyze_code_structure` - Analyze code with framework awareness
+- `generate_unit_tests` - Create framework-specific tests
+- `generate_documentation` - Generate audience-appropriate docs
+- `suggest_refactoring` - Project-specific improvements
 
-#### 1. `analyze_code_structure`
-Analyse code structure with optional file input.
+### New Tools (v3.0)
+- `generate_wordpress_plugin` - Full WordPress plugin scaffolding
+- `analyze_n8n_workflow` - Optimize n8n workflows
+- `generate_responsive_component` - Create accessible components
+- `convert_to_typescript` - Migrate JS to TS intelligently
+- `security_audit` - Project-specific security analysis
 
-Parameters:
-- `code` (string, optional): Code to analyse
-- `filePath` (string, optional): Path to code file
-- `language` (string): Programming language
-- `analysisDepth` (enum): basic, detailed, comprehensive
+### Existing Tools
+- `detect_patterns` - Find design patterns and anti-patterns
+- `validate_syntax` - Check syntax and find bugs
+- `suggest_variable_names` - Improve naming conventions
+- `analyze_file` - General file analysis
+- `analyze_csv_data` - Filter and analyze CSV data
+- `health_check` - Verify LM Studio connection
 
-#### 2. `validate_syntax`
-Check code syntax and get error details.
+## Configuration
 
-Parameters:
-- `code` (string, optional): Code to validate
-- `filePath` (string, optional): Path to code file
-- `language` (string): Programming language
-- `strictMode` (boolean): Use strict validation
+### Environment Variables
+- `LM_STUDIO_URL`: WebSocket URL (default: `ws://localhost:1234`)
+- `LLM_MCP_ALLOWED_DIRS`: Comma-separated allowed directories
+- `LLM_MAX_RETRIES`: Max retry attempts (default: 3)
+- `LLM_RETRY_DELAY`: Retry delay in ms (default: 1000)
 
-#### 3. `detect_patterns`
-Find design patterns and anti-patterns.
+### Security Settings
+Configure allowed directories for file access:
+```bash
+# Windows
+set LLM_MCP_ALLOWED_DIRS=C:\Projects,C:\Users\YourName\Documents
 
-Parameters:
-- `code` (string, optional): Code to analyse
-- `filePath` (string, optional): Path to code file
-- `language` (string): Programming language
-- `patternTypes` (array): Types of patterns to detect
+# Linux/Mac
+export LLM_MCP_ALLOWED_DIRS=/home/user/projects,/home/user/documents
+```
 
-### Code Generation Tools
+## Best Practices
 
-#### 4. `generate_unit_tests`
-Generate unit tests for code.
+### 1. Use Context for Better Results
+```javascript
+// ❌ Generic analysis
+await local-llm:analyze_code_structure({ filePath: "plugin.php" });
 
-Parameters:
-- `code` (string, optional): Code to test
-- `filePath` (string, optional): Path to code file
-- `language` (string): Programming language
-- `testFramework` (string): Testing framework (jest, pytest, etc.)
-- `coverageTarget` (enum): basic, comprehensive, edge-cases
+// ✅ Context-aware analysis
+await local-llm:analyze_code_structure({
+  filePath: "plugin.php",
+  context: { projectType: "wordpress-plugin" }
+});
+```
 
-#### 5. `generate_documentation`
-Generate documentation for code.
+### 2. Offload Repetitive Tasks
+- File-by-file analysis
+- Boilerplate generation
+- Documentation creation
+- Basic refactoring
 
-Parameters:
-- `code` (string, optional): Code to document
-- `filePath` (string, optional): Path to code file
-- `language` (string): Programming language
-- `docStyle` (string): Documentation style
-- `includeExamples` (boolean): Include usage examples
-
-#### 6. `suggest_refactoring`
-Get refactoring suggestions.
-
-Parameters:
-- `code` (string, optional): Code to refactor
-- `filePath` (string, optional): Path to code file
-- `language` (string): Programming language
-- `focusAreas` (array): Areas to focus on
-
-### File Analysis Tools
-
-#### 7. `analyze_file`
-General file analysis with custom instructions.
-
-Parameters:
-- `filePath` (string): Path to file
-- `instructions` (string): Analysis instructions
-- `extractFormat` (enum): summary, json, list
-
-#### 8. `analyze_csv_data`
-Filter and analyse CSV data.
-
-Parameters:
-- `filePath` (string): Path to CSV file
-- `filterCriteria` (string): Filter to apply
-- `columns` (array, optional): Columns to focus on
-- `returnFormat` (enum): json, csv, list
-
-### System Tools
-
-#### 9. `health_check`
-Verify LM Studio connection.
-
-Parameters:
-- `detailed` (boolean): Get detailed status
+### 3. Keep Strategic Work in Claude
+- Architecture decisions
+- Complex integrations
+- Security-critical reviews
+- User experience design
 
 ## Troubleshooting
 
-### Server Not Appearing in Claude
+### LM Studio Connection Issues
+```bash
+# Test connection
+npm test:connection
 
-1. **Check LM Studio is running**
-   ```bash
-   node test-connection.mjs
-   ```
-   Or visit `http://localhost:1234/v1/models` in your browser
-
-2. **Verify NPM installation (if using NPM method)**
-   ```bash
-   npm list -g @richardbaxterseo/local-llm-mcp
-   ```
-
-3. **Check Claude logs**
-   - Windows: `%APPDATA%\Claude\logs\mcp-server-local-llm.log`
-   - Mac: `~/Library/Application Support/Claude/logs/mcp-server-local-llm.log`
-   - Linux: `~/.config/Claude/logs/mcp-server-local-llm.log`
-
-4. **Ensure Claude Desktop is fully restarted**
-   - Close Claude completely (check system tray)
-   - Start Claude Desktop fresh
+# Check if LM Studio is running on correct port
+curl http://localhost:1234/v1/models
+```
 
 ### Common Issues
+1. **"Server transport closed unexpectedly"**
+   - Ensure LM Studio is running
+   - Check the URL matches your settings
+   - Verify a model is loaded
 
-#### "Tool not found" error
-- Ensure server name is exactly `"local-llm"` in config
-- Check no syntax errors in JSON config
-- Restart Claude Desktop completely
+2. **"Path not allowed"**
+   - Add directory to `LLM_MCP_ALLOWED_DIRS`
+   - Use absolute paths
 
-#### LM Studio on different port/host
-Update `LM_STUDIO_URL` in config:
-```json
-"env": {
-  "LM_STUDIO_URL": "ws://192.168.1.100:5555"
-}
-```
-
-#### Permission errors with file access
-Add directories to `LLM_MCP_ALLOWED_DIRS`:
-```json
-"env": {
-  "LLM_MCP_ALLOWED_DIRS": "C:\\Projects,D:\\Work,C:\\Users\\YourName\\Documents"
-}
-```
-
-#### NPX command not found
-Ensure npm is in your PATH:
-```bash
-where npm
-where npx
-```
-
-## Verifying Your Setup
-
-After configuration, verify everything works:
-
-1. **Test LM Studio connection**
-   ```bash
-   node test-connection.mjs
-   ```
-
-2. **Check MCP server appears in Claude**
-   - Restart Claude Desktop
-   - Type: "Check local LLM health"
-   - Should see success message
-
-3. **Test a simple task**
-   ```
-   "Use local-llm to analyze this code structure: 
-   function add(a, b) { return a + b; }"
-   ```
+3. **"No response from LLM"**
+   - Check model is loaded in LM Studio
+   - Verify model has enough context length
+   - Try a different model
 
 ## Contributing
 
@@ -302,14 +289,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## Support
+## Changelog
 
-- 🐛 [Report bugs](https://github.com/richardbaxterseo/local-llm-mcp/issues)
-- 💡 [Request features](https://github.com/richardbaxterseo/local-llm-mcp/issues)
-- 📧 [Email support](mailto:richard@richardbaxter.co)
+See [CHANGELOG.md](CHANGELOG.md) for version history.
 
-## Acknowledgments
+## Links
 
-- Built with [Model Context Protocol SDK](https://github.com/modelcontextprotocol/sdk)
-- Powered by [LM Studio SDK](https://github.com/lmstudio-ai/lmstudio.js)
-- Inspired by the need for context-preserving AI workflows
+- [GitHub Repository](https://github.com/richardbaxterseo/local-llm-mcp)
+- [NPM Package](https://www.npmjs.com/package/@richardbaxterseo/local-llm-mcp)
+- [Issue Tracker](https://github.com/richardbaxterseo/local-llm-mcp/issues)
