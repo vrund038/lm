@@ -37,6 +37,30 @@ temp/
 *.tmp
 test-v3-quick.mjs
 
+# Development/handover documentation
+DEVELOPER_HANDOVER.md
+RELEASE_NOTES_v*.md
+IMPLEMENTATION_*.md
+UPGRADE_SUMMARY.md
+ENHANCED_*_GUIDE.md
+ENHANCED_*_SUMMARY.md
+COMPLETE_INTEGRATION_GUIDE.md
+SECURITY_AUDIT.md
+
+# Development test files
+test-enhanced*.mjs
+test-v3-*.mjs
+
+# Migration scripts
+migrate-*.sh
+
+# Backup directories
+*-backup/
+backup/
+
+# Cleanup scripts
+cleanup.*
+
 # Package files
 *.tgz
 
