@@ -61,6 +61,9 @@ backup/
 # Cleanup scripts
 cleanup.*
 
+# Build helper scripts
+add-shebang.js
+
 # Package files
 *.tgz
 
