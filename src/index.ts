@@ -6,6 +6,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { LMStudioClient } from '@lmstudio/sdk';
 import fs from 'fs/promises';
@@ -88,6 +90,16 @@ class LocalLLMServer {
     // Tool listing handler - returns all enhanced tool definitions
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: enhancedToolDefinitions,
+    }));
+
+    // Resources handler - we don't have resources, return empty array
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+      resources: [],
+    }));
+
+    // Prompts handler - we don't have prompts, return empty array
+    this.server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+      prompts: [],
     }));
 
     // UPDATE the tool request handler

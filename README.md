@@ -257,6 +257,18 @@ await local-llm:analyze_code_structure({
 
 ## Troubleshooting
 
+### Quick Diagnostics (v3.0.3+)
+```bash
+# Run comprehensive system diagnostics
+npm run diagnose
+
+# Check for multiple Claude processes (Windows)
+npm run check:processes
+
+# Test LM Studio connection
+npm run test:connection
+```
+
 ### LM Studio Connection Issues
 ```bash
 # Test connection

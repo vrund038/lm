@@ -5,8 +5,12 @@ src/
 
 # Test files
 test/
+tests/
 *.test.js
 *.spec.js
+*.test.mjs
+integration.test.mjs
+tools.test.mjs
 
 # Development files
 .github/
@@ -17,15 +21,14 @@ test/
 .prettierrc*
 tsconfig.json
 
-# Documentation (keep essential ones)
-CHANGELOG.md
+# Development documentation
 CODE_REVIEW_PROMPT.md
 COMPLETE_GUIDE.md
-GETTING_STARTED.md
-UPGRADE_SUMMARY.md
 SECURITY_AUDIT.md
 NPM_REVIEW_SUMMARY.md
-claude_config_example.json
+UPGRADE_SUMMARY.md
+CORRECTED_CONFIG_AND_USAGE.md
+QUICK_REFERENCE.md
 
 # Build artifacts
 *.tsbuildinfo
@@ -54,9 +57,20 @@ temp/
 *.swp
 *.swo
 *~
+diagnostic-report.json
 
-# Keep these
+# Git files
+.git/
+
+# Keep these - they're in package.json files list
 !README.md
 !LICENSE
 !package.json
 !dist/
+!diagnostics/
+!MIGRATION_GUIDE.md
+!MIGRATION_GUIDE_V3.md
+!SECURITY_CONFIG.md
+!TROUBLESHOOTING.md
+!test-connection.mjs
+!claude_config_example.json

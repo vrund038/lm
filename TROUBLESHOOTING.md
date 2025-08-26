@@ -8,6 +8,7 @@ This guide helps resolve common issues with Local LLM MCP Server setup and opera
 - [Configuration Errors](#configuration-errors)
 - [Runtime Errors](#runtime-errors)
 - [Performance Issues](#performance-issues)
+- [Known Issues](#known-issues)
 - [Debugging Tools](#debugging-tools)
 
 ## Installation Issues
@@ -233,9 +234,74 @@ This guide helps resolve common issues with Local LLM MCP Server setup and opera
    top
    ```
 
+## Known Issues
+
+### Multiple Claude.exe Processes (Windows)
+
+**Symptom:** MCP server appears to connect but tools don't work properly
+
+**Problem:** Multiple Claude.exe processes can interfere with MCP communication
+
+**Detection:**
+```bash
+# Run diagnostic script
+node diagnostics/check-claude-processes.mjs
+
+# Or manually check
+tasklist | findstr Claude.exe
+```
+
+**Solution:**
+1. Close all Claude windows
+2. Check system tray for hidden Claude instances
+3. Kill all Claude processes:
+   ```bash
+   taskkill /F /IM Claude.exe
+   ```
+4. Restart Claude Desktop once
+5. Wait 10 seconds for MCP servers to initialize
+
+**Prevention:**
+- Always fully exit Claude (not just close window)
+- Check system tray before restarting
+- Use single Claude instance
+
+### "Method not found" Errors in Logs
+
+**Symptom:** Errors for `resources/list` and `prompts/list` in Claude logs
+
+**Problem:** These are optional MCP methods not implemented in v3.0.2
+
+**Solution:** Update to v3.0.3+ which includes empty handlers for these methods
+
+**Note:** These errors don't affect functionality but can clutter logs
+
 ## Debugging Tools
 
-### 1. Connection Test Script
+### 1. Comprehensive Diagnostic Tool (NEW)
+
+**Run full system diagnostics:**
+```bash
+node diagnostics/run-diagnostics.mjs
+```
+
+This checks:
+- Node.js version
+- LM Studio connection
+- Claude configuration
+- Multiple process detection
+- MCP server startup
+
+**Output:** Creates `diagnostic-report.json` with detailed results
+
+### 2. Claude Process Checker (NEW)
+
+**Check for multiple Claude instances:**
+```bash
+node diagnostics/check-claude-processes.mjs
+```
+
+### 3. Connection Test Script
 
 Always included as `test-connection.mjs`:
 ```bash
@@ -270,7 +336,7 @@ node C:\MCP\local-llm-mcp\dist\index.js
 
 Should output nothing and wait (it's expecting MCP protocol input).
 
-### 5. Claude Log Analysis
+### 6. Claude Log Analysis
 
 Check for errors in logs:
 ```bash

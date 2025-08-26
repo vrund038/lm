@@ -1,7 +1,7 @@
 {
   "name": "@richardbaxterseo/local-llm-mcp",
-  "version": "3.0.2",
-  "description": "MCP server for offloading tasks to local LLMs via LM Studio SDK - now with context-aware prompts and 5 new tools",
+  "version": "3.0.3",
+  "description": "MCP server for offloading tasks to local LLMs via LM Studio SDK - now with context-aware prompts, diagnostics, and bug fixes",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
@@ -9,9 +9,11 @@
   },
   "files": [
     "dist/**/*",
+    "diagnostics/**/*",
     "README.md",
     "LICENSE",
     "MIGRATION_GUIDE.md",
+    "MIGRATION_GUIDE_V3.md",
     "SECURITY_CONFIG.md",
     "TROUBLESHOOTING.md",
     "test-connection.mjs",
@@ -27,6 +29,8 @@
     "test:integration": "node tests/integration.test.mjs",
     "test:tools": "node tests/tools.test.mjs",
     "test": "npm run test:connection && npm run test:tools",
+    "diagnose": "node diagnostics/run-diagnostics.mjs",
+    "check:processes": "node diagnostics/check-claude-processes.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

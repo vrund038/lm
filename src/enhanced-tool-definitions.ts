@@ -509,6 +509,22 @@ export const enhancedToolDefinitions: Tool[] = [
       },
       required: ['projectType']
     }
+  },
+
+  {
+    name: 'health_check',
+    description: 'Check if LM Studio is running and responding. Use this to verify the connection and optionally get detailed information about the loaded model.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        detailed: {
+          type: 'boolean',
+          description: 'Include detailed information about the loaded model and server status',
+          default: false
+        }
+      },
+      required: []
+    }
   }
 ];
 
