@@ -46,6 +46,15 @@ ENHANCED_*_GUIDE.md
 ENHANCED_*_SUMMARY.md
 COMPLETE_INTEGRATION_GUIDE.md
 SECURITY_AUDIT.md
+CORRECTED_CONFIG_AND_USAGE.md
+QUICK_REFERENCE.md
+HANDOVER_*.md
+NPM_REVIEW_SUMMARY.md
+CODE_REVIEW_PROMPT.md
+COMPLETE_GUIDE.md
+
+# Diagnostic output
+diagnostic-report.json
 
 # Development test files
 test-enhanced*.mjs

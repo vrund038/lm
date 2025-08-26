@@ -28,11 +28,12 @@ All existing tools work exactly as before - context is optional!
 
 ## Documentation
 
-- 📚 **[Complete Guide](COMPLETE_GUIDE.md)** - Full technical documentation
-- 🚀 **[Getting Started](GETTING_STARTED.md)** - Step-by-step setup from zero
-- 📖 **[API Reference](COMPLETE_GUIDE.md#api-reference)** - All available tools
-- 🔄 **[Migration Guide](MIGRATION_GUIDE_V3.md)** - Upgrading to v3.0
-- 🔧 **[Troubleshooting](#troubleshooting)** - Common issues and solutions
+- 🚀 **[Getting Started](GETTING_STARTED.md)** - Step-by-step setup guide
+- 🔄 **[Migration Guide v3](MIGRATION_GUIDE_V3.md)** - Upgrading to v3.0
+- 📋 **[Migration Guide v2](MIGRATION_GUIDE.md)** - Upgrading from v1.x
+- 🔒 **[Security Configuration](SECURITY_CONFIG.md)** - Security settings
+- 🔧 **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
+- 📖 **[API Reference](#available-tools)** - All available tools
 
 ## Features
 
@@ -293,9 +294,16 @@ curl http://localhost:1234/v1/models
    - Verify model has enough context length
    - Try a different model
 
-## Contributing
+4. **"Method not found" errors in logs** (Fixed in v3.0.3)
+   - Update to latest version
+   - These were harmless but are now resolved
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+5. **Multiple Claude processes** (Windows)
+   - Run `npm run check:processes` to detect
+   - Kill all processes: `taskkill /F /IM Claude.exe`
+   - Restart Claude once
+
+For more detailed troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ## License
 
