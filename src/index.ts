@@ -68,6 +68,8 @@ class LocalLLMServer {
       {
         capabilities: {
           tools: {},
+          resources: {},
+          prompts: {}
         },
       }
     );
