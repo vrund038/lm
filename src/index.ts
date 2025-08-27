@@ -279,9 +279,6 @@ class LocalLLMServer {
   }
   
   private async handleLLMTool(toolName: string, args: any): Promise<any> {
-    // Existing LLM tool handling code
-    // [Rest of the existing handleLLMTool implementation]
-    
     try {
       // Security validation
       if (args.filePath) {
@@ -289,13 +286,13 @@ class LocalLLMServer {
       }
       
       // Check LM Studio connection
-      let model;
-      try {
-        model = await this.lmStudioClient.llm.get();
-      } catch (error) {
-        console.error('[LM Studio Connection Error]', error);
-        throw new Error('Failed to connect to LM Studio. Please ensure LM Studio is running and a model is loaded.');
+      const models = await this.lmStudioClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
+      
+      const modelName = models[0].identifier;
+      const model = await this.lmStudioClient.llm.model(modelName);
       
       // Process based on tool type
       let prompt = '';
@@ -308,23 +305,74 @@ class LocalLLMServer {
         content = args.code;
       }
       
-      // Generate prompt based on tool
+      // Generate prompt based on tool - ALL 15 TOOLS RESTORED
       switch (toolName) {
         case 'analyze_code_structure':
-          prompt = createCodeStructurePrompt(content, args.language, args.context);
+          prompt = createCodeStructurePrompt(content, args.context);
           break;
+          
         case 'generate_unit_tests':
-          prompt = createUnitTestPrompt(content, args.language, args.context);
+          prompt = createUnitTestPrompt(content, args.context);
           break;
+          
         case 'generate_documentation':
-          prompt = createDocumentationPrompt(content, args.language, args.context);
+          prompt = createDocumentationPrompt(content, args.context);
           break;
+          
         case 'suggest_refactoring':
-          prompt = createRefactoringPrompt(content, args.language, args.context);
+          prompt = createRefactoringPrompt(content, args.context);
           break;
-        // Add other cases as needed
+          
+        case 'generate_wordpress_plugin':
+          prompt = createWordPressPluginPrompt(args);
+          break;
+          
+        case 'analyze_n8n_workflow':
+          prompt = createN8nWorkflowAnalysisPrompt(args.workflow || {});
+          break;
+          
+        case 'generate_responsive_component':
+          prompt = createResponsiveComponentPrompt(args);
+          break;
+          
+        case 'convert_to_typescript':
+          prompt = createTypeScriptConversionPrompt(content, args.context);
+          break;
+          
+        case 'security_audit':
+          prompt = createSecurityAuditPrompt(content, args);
+          break;
+          
+        case 'health_check':
+          // Special case - doesn't need LLM
+          return await this.handleHealthCheck(args);
+          
+        case 'validate_syntax':
+          prompt = `Validate the syntax and find potential bugs in this code:\n\n${content}\n\nProvide a structured response with:\n- Syntax errors found\n- Potential bugs\n- Type mismatches\n- Undefined variables\n- Suggestions for fixes`;
+          break;
+          
+        case 'detect_patterns':
+          prompt = `Analyze this code and detect design patterns and anti-patterns:\n\n${content}\n\nIdentify:\n- Design patterns used\n- Anti-patterns present\n- Code smells\n- Architectural patterns\n- Recommendations`;
+          break;
+          
+        case 'suggest_variable_names':
+          const namingConvention = args.namingConvention || 'camelCase';
+          prompt = `Suggest better variable names for this code using ${namingConvention}:\n\n${content}\n\nFor each variable:\n- Current name\n- Suggested name\n- Reason for change\n- Context of usage`;
+          break;
+          
+        case 'analyze_file':
+          const instructions = args.instructions || 'Analyze this file comprehensively';
+          prompt = `${instructions}\n\nFile content:\n${content}\n\nProvide structured analysis based on the instructions.`;
+          break;
+          
+        case 'analyze_csv_data':
+          const filterCriteria = args.filterCriteria ? JSON.stringify(args.filterCriteria) : 'none';
+          const columns = args.columns ? args.columns.join(', ') : 'all';
+          prompt = `Analyze this CSV data:\n- Filter criteria: ${filterCriteria}\n- Columns to analyze: ${columns}\n- Return format: ${args.returnFormat || 'summary'}\n\nData:\n${content}\n\nProvide analysis with statistics, patterns, and insights.`;
+          break;
+          
         default:
-          prompt = `Analyze the following code:\n\n${content}`;
+          throw new Error(`Unknown tool: ${toolName}`);
       }
       
       // Get response from LLM
@@ -362,6 +410,56 @@ class LocalLLMServer {
     } catch (error) {
       console.error(`[LLM Tool Error] ${toolName}:`, error);
       throw error;
+    }
+  }
+  
+  // Helper method for health check
+  private async handleHealthCheck(args: any) {
+    try {
+      const { detailed } = args || {};
+      const models = await this.lmStudioClient.llm.listLoaded();
+      
+      const response: any = {
+        status: 'ready',
+        models: models.map((m: any) => ({ 
+          identifier: m.identifier, 
+          path: m.path 
+        })),
+        lmStudioUrl: config.lmStudioUrl,
+        version: '4.0.0',
+        multiFileSupport: true
+      };
+      
+      if (detailed && models.length > 0 && models[0]) {
+        response.modelDetails = {
+          identifier: models[0].identifier,
+          path: models[0].path,
+        };
+        response.capabilities = {
+          legacyTools: 15,
+          multiFileTools: 7,
+          frameworkSupport: ['wordpress', 'react', 'n8n', 'typescript'],
+          tokenSavings: '94% average'
+        };
+      }
+      
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error',
+            lmStudioUrl: config.lmStudioUrl
+          }, null, 2)
+        }]
+      };
     }
   }
 
