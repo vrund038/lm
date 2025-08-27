@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.4] - 2025-08-27
+
+### Fixed
+- **Critical streaming issue** - Resolved `[object Object]` output when processing LLM responses
+- **LM Studio SDK compatibility** - Proper handling of object-based chunks with `content` property
+- **Qwen model support** - Fixed streaming for Qwen thinking models that output structured chunks
+
+### Added
+- **Stream handler integration** - Robust chunk processing for multiple streaming formats
+- **Test scripts**:
+  - `test-llm-streaming.mjs` - Direct LLM streaming validation
+  - `test-streaming-fix.mjs` - MCP protocol streaming test
+- **Comprehensive streaming support** for:
+  - LM Studio object chunks
+  - OpenAI-style responses
+  - Plain text strings
+  - Unknown object formats with JSON fallback
+
+### Changed
+- Replaced simple string concatenation with `handleLLMResponse` function
+- Improved error handling for malformed chunks
+
 ## [3.0.3] - 2025-08-26
 
 ### Fixed
