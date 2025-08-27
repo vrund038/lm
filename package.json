@@ -1,24 +1,10 @@
 {
-  "name": "@richardbaxterseo/local-llm-mcp",
+  "name": "local-llm-mcp",
   "version": "3.0.3",
-  "description": "MCP server for offloading tasks to local LLMs via LM Studio SDK - now with context-aware prompts, diagnostics, and bug fixes",
+  "description": "Private MCP server for offloading tasks to local LLMs via LM Studio SDK - with context-aware prompts and diagnostics",
   "main": "dist/index.js",
   "type": "module",
-  "bin": {
-    "local-llm-mcp": "dist/index.js"
-  },
-  "files": [
-    "dist/**/*",
-    "diagnostics/**/*",
-    "README.md",
-    "LICENSE",
-    "MIGRATION_GUIDE.md",
-    "MIGRATION_GUIDE_V3.md",
-    "SECURITY_CONFIG.md",
-    "TROUBLESHOOTING.md",
-    "test-connection.mjs",
-    "claude_config_example.json"
-  ],
+  "private": true,
   "scripts": {
     "build": "tsc && node add-shebang.js",
     "clean": "rimraf dist",
@@ -28,10 +14,10 @@
     "test:connection": "node test-connection.mjs",
     "test:integration": "node tests/integration.test.mjs",
     "test:tools": "node tests/tools.test.mjs",
-    "test": "npm run test:connection && npm run test:tools",
+    "test:core": "jest tests/core.test.ts",
+    "test": "npm run test:connection && npm run test:tools && npm run test:core",
     "diagnose": "node diagnostics/run-diagnostics.mjs",
-    "check:processes": "node diagnostics/check-claude-processes.mjs",
-    "prepublishOnly": "npm run build"
+    "check:processes": "node diagnostics/check-claude-processes.mjs"
   },
   "keywords": [
     "mcp",
@@ -50,16 +36,15 @@
     "type": "git",
     "url": "git+https://github.com/richardbaxterseo/local-llm-mcp.git"
   },
-  "bugs": {
-    "url": "https://github.com/richardbaxterseo/local-llm-mcp/issues"
-  },
-  "homepage": "https://github.com/richardbaxterseo/local-llm-mcp#readme",
   "dependencies": {
     "@lmstudio/sdk": "^1.5.0",
     "@modelcontextprotocol/sdk": "^1.17.3"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@jest/globals": "^29.7.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
     "rimraf": "^6.0.1",
     "typescript": "^5.3.3"
   },

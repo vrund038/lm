@@ -13,9 +13,9 @@ This guide helps resolve common issues with Local LLM MCP Server setup and opera
 
 ## Installation Issues
 
-### NPM Installation Fails
+### Local Build Fails
 
-**Symptom:** `npm install -g @richardbaxterseo/local-llm-mcp` fails
+**Symptom:** `npm run build` fails in local installation
 
 **Solutions:**
 1. Check Node.js version (requires 18+):
@@ -23,19 +23,21 @@ This guide helps resolve common issues with Local LLM MCP Server setup and opera
    node --version
    ```
 
-2. Clear npm cache:
+2. Delete node_modules and reinstall:
    ```bash
-   npm cache clean --force
+   rm -rf node_modules package-lock.json
+   npm install
    ```
 
-3. Try with administrator privileges:
-   - Windows: Run Command Prompt as Administrator
-   - Mac/Linux: Use `sudo npm install -g @richardbaxterseo/local-llm-mcp`
-
-4. Check npm registry:
+3. Ensure TypeScript is installed:
    ```bash
-   npm config get registry
-   # Should be: https://registry.npmjs.org/
+   npm list typescript
+   ```
+
+4. Try rebuilding from clean state:
+   ```bash
+   npm run clean
+   npm run build
    ```
 
 ### Local Build Fails
@@ -327,9 +329,6 @@ console.log('LLM_MCP_ALLOWED_DIRS:', process.env.LLM_MCP_ALLOWED_DIRS || 'Not se
 
 Test server directly:
 ```bash
-# NPM installation
-npx @richardbaxterseo/local-llm-mcp
-
 # Local installation
 node C:\MCP\local-llm-mcp\dist\index.js
 ```
