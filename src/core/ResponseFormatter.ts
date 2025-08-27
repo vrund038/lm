@@ -121,29 +121,68 @@ export class ResponseFormatter {
   private parseRawResponse(rawResponse: string): any {
     const result: any = {
       summary: '',
+      details: null,
       critical: [],
       recommended: [],
       optional: []
     };
     
     try {
-      // Try to parse as JSON first
-      const jsonMatch = rawResponse.match(/```json\n?([\s\S]*?)\n?```/);
+      // Step 1: Handle thinking tags if present (for thinking models)
+      const cleanedResponse = rawResponse.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      
+      // Step 2: Try to parse as JSON first
+      const jsonMatch = cleanedResponse.match(/```json\n?([\s\S]*?)\n?```/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[1]);
+        const parsed = JSON.parse(jsonMatch[1]);
+        return {
+          ...result,
+          ...parsed,
+          details: parsed,
+          summary: parsed.summary || parsed.analysis || 'Analysis complete'
+        };
       }
       
-      // Extract summary (first paragraph or line)
-      const lines = rawResponse.split('\n');
-      result.summary = lines[0].replace(/^#+\s*/, '').trim();
+      // Step 3: Try direct JSON parse (model might return raw JSON)
+      try {
+        const parsed = JSON.parse(cleanedResponse);
+        return {
+          ...result,
+          ...parsed,
+          details: parsed,
+          summary: parsed.summary || parsed.analysis || 'Analysis complete'
+        };
+      } catch {
+        // Not JSON, continue with text parsing
+      }
       
-      // Look for action items
+      // Step 4: Parse as structured text
+      const lines = cleanedResponse.split('\n').filter(line => line.trim());
+      
+      // Extract summary (first meaningful content, could be multiple lines)
+      if (lines.length > 0) {
+        // Look for a summary section or use first paragraph
+        const summaryEndIdx = lines.findIndex(line => 
+          line.match(/^(#{1,3}\s|[0-9]+\.|[-*]|\s{4})/) // Headers, lists, or code blocks
+        );
+        
+        if (summaryEndIdx > 0) {
+          result.summary = lines.slice(0, summaryEndIdx).join(' ').replace(/^#+\s*/, '').trim();
+        } else {
+          result.summary = lines[0].replace(/^#+\s*/, '').trim();
+        }
+      }
+      
+      // Step 5: Store the full response as details
+      result.details = cleanedResponse;
+      
+      // Step 6: Look for action items in the text
       const actionRegex = /(?:FIX|CHANGE|ADD|UPDATE|REPLACE|INSERT|DELETE).*?(?:line|Line)\s*(\d+).*?:(.*?)(?=\n(?:FIX|CHANGE|ADD|UPDATE|REPLACE|INSERT|DELETE)|$)/gs;
       let match;
       
-      while ((match = actionRegex.exec(rawResponse)) !== null) {
+      while ((match = actionRegex.exec(cleanedResponse)) !== null) {
         const action: ActionItem = {
-          file: 'unknown', // Would need context to determine
+          file: 'unknown',
           line: parseInt(match[1]),
           operation: this.detectOperation(match[0]),
           code: match[2].trim(),
@@ -151,24 +190,35 @@ export class ResponseFormatter {
         };
         
         // Categorize by keywords
-        if (match[0].toLowerCase().includes('critical') || match[0].toLowerCase().includes('error')) {
+        const upperMatch = match[0].toUpperCase();
+        if (upperMatch.includes('CRITICAL') || upperMatch.includes('ERROR')) {
           result.critical.push(action);
-        } else if (match[0].toLowerCase().includes('should') || match[0].toLowerCase().includes('recommended')) {
+        } else if (upperMatch.includes('RECOMMEND') || upperMatch.includes('SHOULD')) {
           result.recommended.push(action);
         } else {
           result.optional.push(action);
         }
       }
       
-      // Extract confidence if mentioned
-      const confidenceMatch = rawResponse.match(/confidence[:\s]+(\d+(?:\.\d+)?)/i);
+      // Step 7: Extract confidence if mentioned
+      const confidenceMatch = cleanedResponse.match(/confidence[:\s]+(\d+(?:\.\d+)?)/i);
       if (confidenceMatch) {
         result.confidence = parseFloat(confidenceMatch[1]);
         if (result.confidence > 1) result.confidence /= 100; // Convert percentage
       }
       
+      // Step 8: Extract any warnings or errors
+      const warningRegex = /(?:WARNING|WARN|CAUTION):\s*(.+)/gi;
+      const errorRegex = /(?:ERROR|CRITICAL):\s*(.+)/gi;
+      
+      result.warnings = [...cleanedResponse.matchAll(warningRegex)].map(m => m[1]);
+      result.errors = [...cleanedResponse.matchAll(errorRegex)].map(m => m[1]);
+      
     } catch (error) {
       console.error('Error parsing raw response:', error);
+      result.summary = 'Analysis complete';
+      result.details = rawResponse;
+      result.errors = [`Parse error: ${error.message}`];
     }
     
     return result;

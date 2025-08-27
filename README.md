@@ -58,11 +58,27 @@ All existing tools work exactly as before - context is optional!
 
 1. **LM Studio**: Download and install from [lmstudio.ai](https://lmstudio.ai)
 2. **Node.js**: Version 18 or higher
-3. **A loaded model in LM Studio**: Recommended models:
-   - Qwen 2.5 Coder (best for code tasks)
-   - DeepSeek Coder
-   - CodeLlama variants
-   - Any general model for non-code tasks
+3. **A loaded model in LM Studio**: 
+
+### ⚠️ IMPORTANT: Model Selection Guidelines
+
+**RECOMMENDED Models (Coder/Instruct variants):**
+   - **Qwen 2.5 Coder** / **Qwen 3 Coder** (excellent for code tasks)
+   - **DeepSeek-Coder** (6.7B or larger)
+   - **CodeLlama-Instruct** variants
+   - **Mistral-Instruct** / **Mixtral-Instruct**
+   - Any model with **"Instruct"** or **"Coder"** in the name
+
+**AVOID These Model Types:**
+   - ❌ **"Thinking" models** (e.g., Qwen3-4B-Thinking) - These output internal reasoning tags that interfere with response parsing
+   - ❌ **Base models** without instruction tuning - Poor at following structured output requirements
+   - ❌ **Chat models** without coding focus - May not understand code analysis tasks well
+
+**Why Model Choice Matters:**
+- **Coder/Instruct models** provide clean, structured JSON responses
+- **Thinking models** wrap responses in `<think>` tags, causing parsing issues
+- **Larger models (7B+)** generally provide better analysis quality
+- **Quantized models (Q4_K_M, Q5_K_M)** work well for most tasks
 
 ## Installation
 
