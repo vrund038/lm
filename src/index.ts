@@ -43,6 +43,9 @@ import {
 } from './core/MultiFileAnalysis.js';
 import { ResponseFormatter } from './core/ResponseFormatter.js';
 
+// Import the streaming handler to fix [object Object] issue
+import { handleLLMResponse, formatWithSchema } from './utils/streamHandler.js';
+
 // Security: Get allowed directories from config
 const ALLOWED_DIRECTORIES = securityConfig.getAllowedDirectories();
 
@@ -387,10 +390,8 @@ class LocalLLMServer {
         }
       ]);
       
-      let response = '';
-      for await (const text of prediction) {
-        response += text;
-      }
+      // Get response from LLM using proper stream handler
+      const response = await handleLLMResponse(prediction);
       
       // Format response
       const formattedResponse = this.responseFormatter.format({
