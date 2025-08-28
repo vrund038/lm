@@ -6,20 +6,20 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 
-// Type definitions for plugin requirements
-interface WordPressPluginRequirements {
+// Type definitions for WordPress plugin requirements
+interface WPPluginRequirements {
   name: string;
   description: string;
   features: string[];
   prefix: string;
   wpVersion?: string;
   phpVersion?: string;
+  textDomain?: string;
   includeAdmin?: boolean;
   includeDatabase?: boolean;
   includeAjax?: boolean;
   includeRest?: boolean;
   includeGutenberg?: boolean;
-  textDomain?: string;
 }
 
 export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugin {
@@ -40,9 +40,9 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
     },
     features: {
       type: 'array' as const,
-      items: { type: 'string' as const },
       description: 'List of features to include',
-      required: true
+      required: true,
+      items: { type: 'string' as const }
     },
     prefix: {
       type: 'string' as const,
@@ -60,6 +60,11 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
       description: 'Minimum PHP version',
       required: false,
       default: '7.4'
+    },
+    textDomain: {
+      type: 'string' as const,
+      description: 'Text domain for internationalization',
+      required: false
     },
     includeAdmin: {
       type: 'boolean' as const,
@@ -90,11 +95,6 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
       description: 'Include Gutenberg blocks',
       required: false,
       default: false
-    },
-    textDomain: {
-      type: 'string' as const,
-      description: 'Text domain for internationalization',
-      required: false
     }
   };
 
@@ -105,19 +105,19 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
     }
     
     // Prepare requirements
-    const requirements: WordPressPluginRequirements = {
+    const requirements: WPPluginRequirements = {
       name: params.name,
       description: params.description,
       features: params.features,
       prefix: params.prefix,
       wpVersion: params.wpVersion || '6.0',
       phpVersion: params.phpVersion || '7.4',
+      textDomain: params.textDomain || params.prefix,
       includeAdmin: params.includeAdmin !== false,
       includeDatabase: params.includeDatabase || false,
       includeAjax: params.includeAjax || false,
       includeRest: params.includeRest || false,
-      includeGutenberg: params.includeGutenberg || false,
-      textDomain: params.textDomain || params.prefix
+      includeGutenberg: params.includeGutenberg || false
     };
     
     // Generate prompt
@@ -130,17 +130,22 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
     return {
       content: response,
       metadata: {
-        pluginName: requirements.name,
-        prefix: requirements.prefix,
-        features: requirements.features,
-        components: this.getIncludedComponents(requirements)
+        pluginName: params.name,
+        prefix: params.prefix,
+        components: {
+          admin: requirements.includeAdmin,
+          database: requirements.includeDatabase,
+          ajax: requirements.includeAjax,
+          rest: requirements.includeRest,
+          gutenberg: requirements.includeGutenberg
+        }
       }
     };
   }
 
   getPrompt(params: any): string {
     const requirements = params.requirements;
-    const { name, description, features, wpVersion = '6.0+', phpVersion = '7.4+', prefix } = requirements;
+    const { name, description, features, wpVersion = '6.0', phpVersion = '7.4', prefix } = requirements;
     
     return `Create a WordPress plugin following these specifications:
 
@@ -148,8 +153,8 @@ Plugin Details:
 - Name: ${name}
 - Purpose: ${description}
 - Features: ${features.join(', ')}
-- WordPress Version: ${wpVersion}
-- PHP Version: ${phpVersion}
+- WordPress Version: ${wpVersion}+
+- PHP Version: ${phpVersion}+
 - Text Domain: ${requirements.textDomain || prefix}
 
 Required Components:
@@ -257,19 +262,7 @@ ${prefix}/
 │   └── js/
 └── languages/
 
-Provide complete, production-ready code for each file with proper error handling, security measures, and WordPress best practices.`;
-  }
-
-  private getIncludedComponents(requirements: WordPressPluginRequirements): string[] {
-    const components = ['Core', 'Activation/Deactivation', 'Uninstall'];
-    
-    if (requirements.includeAdmin) components.push('Admin Interface');
-    if (requirements.includeDatabase) components.push('Database Handler');
-    if (requirements.includeAjax) components.push('AJAX Handlers');
-    if (requirements.includeRest) components.push('REST API');
-    if (requirements.includeGutenberg) components.push('Gutenberg Blocks');
-    
-    return components;
+Provide complete, working code for each file with proper WordPress standards and security practices.`;
   }
 }
 
