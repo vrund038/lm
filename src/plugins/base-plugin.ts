@@ -3,7 +3,7 @@
  * All prompt plugins extend from this base class
  */
 
-import { IPromptPlugin, ParameterDefinition } from '../prompts/shared/types';
+import { IPromptPlugin, ParameterDefinition } from '../prompts/shared/types.js';
 
 export abstract class BasePlugin implements Partial<IPromptPlugin> {
   abstract name: string;

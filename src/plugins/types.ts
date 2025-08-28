@@ -12,4 +12,4 @@ export {
   Suggestion,
   Metrics,
   LLMClient
-} from '../prompts/shared/types';
+} from '../prompts/shared/types.js';

@@ -3,10 +3,10 @@
  * Checks if LM Studio is running and responding
  */
 
-import { BasePlugin } from '../plugins/base-plugin';
-import { IPromptPlugin } from '../plugins/types';
+import { BasePlugin } from '../plugins/base-plugin.js';
+import { IPromptPlugin } from '../plugins/types.js';
 import { LMStudioClient } from '@lmstudio/sdk';
-import { config } from '../config';
+import { config } from '../config.js';
 
 export class HealthCheckPlugin extends BasePlugin implements IPromptPlugin {
   name = 'health_check';

@@ -3,8 +3,8 @@
  * Dynamically loads and manages all prompt plugins
  */
 
-import { IPromptPlugin } from './types';
-import { BasePlugin } from './base-plugin';
+import { IPromptPlugin } from './types.js';
+import { BasePlugin } from './base-plugin.js';
 import path from 'path';
 import { promises as fs } from 'fs';
 

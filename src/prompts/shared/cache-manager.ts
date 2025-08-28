@@ -3,8 +3,8 @@
  * Handles cache operations for multi-file analysis
  */
 
-import { BasePlugin } from '../../plugins/base-plugin';
-import { IPromptPlugin } from './types';
+import { BasePlugin } from '../../plugins/base-plugin.js';
+import { IPromptPlugin } from './types.js';
 
 export class CacheManager {
   private static cache: Map<string, any> = new Map();
