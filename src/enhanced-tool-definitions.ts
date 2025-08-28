@@ -6,8 +6,8 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 export const enhancedToolDefinitions: Tool[] = [
   // Enhanced existing tools with context support
   {
-    name: 'analyze_code_structure',
-    description: 'Analyze the structure of code with optional context for framework-specific insights. Provide context for WordPress, React, n8n, or other project types for better analysis.',
+    name: 'analyze_single_file',
+    description: 'Analyze the structure of a single code file with optional context for framework-specific insights. Provide context for WordPress, React, n8n, or other project types for better analysis.',
     inputSchema: {
       type: 'object',
       properties: {

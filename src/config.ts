@@ -11,7 +11,7 @@ export const config: Config = {
   supportedFileTypes: ['.csv', '.json', '.txt', '.js', '.ts', '.py', '.md', '.log', '.jsx', '.tsx', '.java', '.c', '.cpp', '.rs', '.go', '.php', '.rb', '.swift'],
   
   taskPrompts: {
-    [TaskType.CODE_STRUCTURE]: {
+    [TaskType.ANALYZE_SINGLE_FILE]: {
       systemPrompt: 'You are a code analysis assistant. Provide clear, structured analysis of code. Be concise and technical.',
       prompt: (content: string, language?: string) => 
         `Analyse the structure of this ${language || 'code'} and provide:

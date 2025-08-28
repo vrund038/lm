@@ -1,7 +1,7 @@
 {
   "name": "local-llm-mcp",
-  "version": "3.0.4",
-  "description": "Private MCP server for offloading tasks to local LLMs via LM Studio SDK - with context-aware prompts and diagnostics",
+  "version": "4.0.0",
+  "description": "Private MCP server for offloading tasks to local LLMs via LM Studio SDK - with multi-file analysis and automatic cache population",
   "main": "dist/index.js",
   "type": "module",
   "private": true,

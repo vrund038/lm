@@ -206,7 +206,7 @@ export function getSecurityChecklist(projectType: ProjectType): string {
   return checklists[projectType] || checklists.generic;
 }
 
-// Enhanced analyze_code_structure prompt
+// Enhanced analyze_single_file prompt
 export function createCodeStructurePrompt(content: string, context?: CodeContext): string {
   const projectType = context?.projectType || 'generic';
   const framework = context?.framework || 'none specified';
@@ -1139,7 +1139,7 @@ function getAuditDepthChecks(depth: string): string {
 
 // Export all prompt creators
 export const enhancedPromptCreators = {
-  [TaskType.CODE_STRUCTURE]: createCodeStructurePrompt,
+  [TaskType.ANALYZE_SINGLE_FILE]: createCodeStructurePrompt,
   [TaskType.GENERATE_TESTS]: createUnitTestPrompt,
   [TaskType.DOCUMENT_FUNCTION]: createDocumentationPrompt,
   [TaskType.SUGGEST_REFACTOR]: createRefactoringPrompt,

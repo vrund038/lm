@@ -1,0 +1,242 @@
+/**
+ * Enhanced FileContextManager with method body tracking
+ * This fixes the trace_execution_path functionality
+ */
+
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as crypto from 'crypto';
+
+// Enhanced interfaces with method body tracking
+interface MethodInfo {
+  className: string;
+  name: string;
+  line: number;
+  endLine?: number;  // NEW: Track where method ends
+  parameters: ParameterInfo[];
+  returnType?: string;
+  visibility: 'public' | 'private' | 'protected';
+  static: boolean;
+  async: boolean;
+  bodyLines?: number[]; // NEW: Line numbers of method body
+  callsWithin?: MethodCall[]; // NEW: Calls made from within this method
+}
+
+interface FunctionInfo {
+  name: string;
+  line: number;
+  endLine?: number; // NEW: Track where function ends
+  parameters: ParameterInfo[];
+  returnType?: string;
+  async: boolean;
+  bodyLines?: number[]; // NEW: Line numbers of function body
+  callsWithin?: MethodCall[]; // NEW: Calls made from within this function
+}
+
+interface MethodCall {
+  from: string; // Enhanced: now includes specific method/function origin
+  to: string;
+  line: number;
+  parameters?: string[];
+  context?: string; // NEW: The actual line of code making the call
+}
+
+export class EnhancedFileContextManager {
+  private fileCache: Map<string, ParsedFile>;
+  private relationships: Map<string, FileRelationship[]>;
+  private symbolTable: Map<string, any>;
+  private callGraph: Map<string, MethodCall[]>;
+  private methodBodies: Map<string, MethodBodyInfo>; // NEW: Store method bodies
+  
+  constructor() {
+    this.fileCache = new Map();
+    this.relationships = new Map();
+    this.symbolTable = new Map();
+    this.callGraph = new Map();
+    this.methodBodies = new Map();
+  }
+
+  /**
+   * NEW: Find all calls made from within a specific method or function
+   */
+  findCallsFromMethod(className: string | null, methodName: string): MethodCall[] {
+    const calls: MethodCall[] = [];
+    
+    // Build the key for lookup
+    const methodKey = className ? `${className}::${methodName}` : methodName;
+    
+    // Search through all parsed files
+    for (const [filePath, parsed] of this.fileCache.entries()) {
+      if (className) {
+        // Look for class method
+        const classInfo = parsed.classes.find(c => c.name === className);
+        if (classInfo) {
+          const methodInfo = parsed.methods.find(
+            m => m.className === className && m.name === methodName
+          );
+          if (methodInfo && methodInfo.callsWithin) {
+            calls.push(...methodInfo.callsWithin);
+          }
+        }
+      } else {
+        // Look for function
+        const funcInfo = parsed.functions.find(f => f.name === methodName);
+        if (funcInfo && funcInfo.callsWithin) {
+          calls.push(...funcInfo.callsWithin);
+        }
+      }
+    }
+    
+    return calls;
+  }
+
+  /**
+   * Enhanced parseJavaScriptFile with method body tracking
+   */
+  private parseJavaScriptFile(parsed: ParsedFile): void {
+    const { lines } = parsed;
+    let currentClass: string | null = null;
+    let currentMethod: MethodInfo | null = null;
+    let currentFunction: FunctionInfo | null = null;
+    let braceStack: Array<{type: 'class' | 'method' | 'function', name: string}> = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line) continue;
+      
+      const lineNum = i + 1;
+      
+      // Track brace depth to know when methods/functions end
+      const openBraces = (line.match(/{/g) || []).length;
+      const closeBraces = (line.match(/}/g) || []).length;
+      
+      // Parse classes
+      const classMatch = line.match(/^(export\s+)?(default\s+)?class\s+(\w+)(\s+extends\s+(\w+))?(\s+implements\s+(.+?))?/);
+      if (classMatch) {
+        currentClass = classMatch[3];
+        const classInfo: ClassInfo = {
+          name: classMatch[3],
+          line: lineNum,
+          extends: classMatch[5],
+          implements: classMatch[7]?.split(',').map(s => s.trim()),
+          methods: [],
+          properties: []
+        };
+        parsed.classes.push(classInfo);
+        braceStack.push({type: 'class', name: currentClass});
+      }
+      
+      // Parse methods (within classes)
+      if (currentClass) {
+        const methodMatch = line.match(/^\s*(public|private|protected)?\s*(static)?\s*(async)?\s*(\w+)\s*\(([^)]*)\)/);
+        if (methodMatch && !line.includes('function')) {
+          const methodInfo: MethodInfo = {
+            className: currentClass,
+            name: methodMatch[4],
+            line: lineNum,
+            parameters: this.parseParameters(methodMatch[5]),
+            visibility: (methodMatch[1] as any) || 'public',
+            static: !!methodMatch[2],
+            async: !!methodMatch[3],
+            bodyLines: [],
+            callsWithin: []
+          };
+          parsed.methods.push(methodInfo);
+          currentMethod = methodInfo;
+          braceStack.push({type: 'method', name: methodMatch[4]});
+        }
+      }
+      
+      // Parse functions
+      const funcMatch = line.match(/^(export\s+)?(async\s+)?function\s+(\w+)\s*\(([^)]*)\)/);
+      if (funcMatch) {
+        const funcInfo: FunctionInfo = {
+          name: funcMatch[3],
+          line: lineNum,
+          parameters: this.parseParameters(funcMatch[4]),
+          async: !!funcMatch[2],
+          bodyLines: [],
+          callsWithin: []
+        };
+        parsed.functions.push(funcInfo);
+        currentFunction = funcInfo;
+        braceStack.push({type: 'function', name: funcMatch[3]});
+      }
+      
+      // Track method/function bodies and extract calls within them
+      if (currentMethod || currentFunction) {
+        const current = currentMethod || currentFunction;
+        current!.bodyLines!.push(lineNum);
+        
+        // Extract method calls from this line
+        // Pattern 1: this.methodName() or object.method()
+        const methodCallMatches = line.matchAll(/\b(\w+|this)\.(\w+)\s*\(/g);
+        for (const match of methodCallMatches) {
+          const callInfo: MethodCall = {
+            from: currentMethod 
+              ? `${currentMethod.className}::${currentMethod.name}` 
+              : currentFunction!.name,
+            to: `${match[1]}.${match[2]}`,
+            line: lineNum,
+            context: line.trim()
+          };
+          current!.callsWithin!.push(callInfo);
+        }
+        
+        // Pattern 2: function calls functionName()
+        const funcCallMatches = line.matchAll(/\b(\w+)\s*\(/g);
+        for (const match of funcCallMatches) {
+          // Skip language keywords and the current function name
+          const funcName = match[1];
+          if (!['if', 'for', 'while', 'switch', 'catch', 'function', 'async', 'await'].includes(funcName) &&
+              funcName !== current!.name) {
+            const callInfo: MethodCall = {
+              from: currentMethod 
+                ? `${currentMethod.className}::${currentMethod.name}` 
+                : currentFunction!.name,
+              to: funcName,
+              line: lineNum,
+              context: line.trim()
+            };
+            current!.callsWithin!.push(callInfo);
+          }
+        }
+      }
+      
+      // Track brace closures to know when methods/functions end
+      for (let j = 0; j < closeBraces; j++) {
+        const popped = braceStack.pop();
+        if (popped) {
+          if (popped.type === 'method' && currentMethod) {
+            currentMethod.endLine = lineNum;
+            currentMethod = null;
+          } else if (popped.type === 'function' && currentFunction) {
+            currentFunction.endLine = lineNum;
+            currentFunction = null;
+          } else if (popped.type === 'class') {
+            currentClass = null;
+          }
+        }
+      }
+      
+      // Add open braces to stack
+      for (let j = 0; j < openBraces; j++) {
+        // Braces are already tracked when we encounter class/method/function
+      }
+    }
+  }
+
+  /**
+   * Get parsed file data (for debugging)
+   */
+  getParsedFile(filePath: string): ParsedFile | undefined {
+    return this.fileCache.get(path.normalize(filePath));
+  }
+
+  /**
+   * Get the call graph
+   */
+  getCallGraph(): Map<string, MethodCall[]> {
+    return this.callGraph;
+  }
+}

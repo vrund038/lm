@@ -111,12 +111,12 @@ class ToolTester {
     this.results.push({ toolName, testCase, success, details });
   }
 
-  async testAnalyzeCodeStructure() {
-    console.log('\n🔍 Testing analyze_code_structure');
+  async testAnalyzeSingleFile() {
+    console.log('\n🔍 Testing analyze_single_file');
     
     // Test without context (backward compatibility)
     this.logTest(
-      'analyze_code_structure',
+      'analyze_single_file',
       'Works without context',
       true,
       'Backward compatibility maintained'
@@ -124,7 +124,7 @@ class ToolTester {
     
     // Test with WordPress context
     this.logTest(
-      'analyze_code_structure',
+      'analyze_single_file',
       'WordPress context analysis',
       true,
       'Detects hooks, database usage, security patterns'
@@ -132,7 +132,7 @@ class ToolTester {
     
     // Test with React context
     this.logTest(
-      'analyze_code_structure',
+      'analyze_single_file',
       'React context analysis',
       true,
       'Identifies hooks, state management, lifecycle'
@@ -300,7 +300,7 @@ class ToolTester {
     }
     
     // Run test suites
-    await this.testAnalyzeCodeStructure();
+    await this.testAnalyzeSingleFile();
     await this.testGenerateUnitTests();
     await this.testNewTools();
     await this.testContextValidation();

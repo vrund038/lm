@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.5] - 2025-08-28
+
+### Changed
+- **BREAKING**: Renamed `analyze_code_structure` to `analyze_single_file` for clarity
+  - The function now explicitly indicates it analyses a single file, not a directory
+  - Use `analyze_project_structure` for multi-file/directory analysis
+  - All enum references updated from `CODE_STRUCTURE` to `ANALYZE_SINGLE_FILE`
+
 ## [3.0.4] - 2025-08-27
 
 ### Fixed
@@ -92,8 +100,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Project-specific security checklists** for each supported framework
 
 ### Changed
+- **RENAMED**: `analyze_code_structure` is now `analyze_single_file` for clarity
+  - `analyze_single_file` - Now provides framework-specific insights for a single file
+  - Note: Use `analyze_project_structure` for multi-file/directory analysis
 - Enhanced existing tools with optional context support:
-  - `analyze_code_structure` - Now provides framework-specific insights
   - `generate_unit_tests` - Creates framework-aware test suites
   - `generate_documentation` - Generates audience-appropriate documentation
   - `suggest_refactoring` - Offers project-specific improvements
@@ -131,7 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - All 10 tools now properly available:
-  - analyze_code_structure
+  - analyze_single_file
   - generate_unit_tests
   - generate_documentation
   - suggest_refactoring

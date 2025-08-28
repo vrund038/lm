@@ -2,7 +2,7 @@
 // This file provides improved type definitions for context-aware prompting
 
 export enum TaskType {
-  CODE_STRUCTURE = 'analyze_code_structure',
+  ANALYZE_SINGLE_FILE = 'analyze_single_file',
   GENERATE_TESTS = 'generate_unit_tests',
   DOCUMENT_FUNCTION = 'generate_documentation',
   SUGGEST_REFACTOR = 'suggest_refactoring',

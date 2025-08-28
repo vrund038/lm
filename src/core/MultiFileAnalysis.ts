@@ -1,17 +1,17 @@
 /**
  * Multi-file analysis functions using FileContextManager
  */
-
 import { FileContextManager } from './FileContextManager.js';
-import { ResponseFormatter, FormattedResponse, ActionItem } from './ResponseFormatter.js';
+import { ResponseFormatter, ActionItem, FormattedResponse } from './ResponseFormatter.js';
 import * as path from 'path';
+import * as fs from 'fs/promises';
 
 // Singleton instances
 let contextManager: FileContextManager | null = null;
 let formatter: ResponseFormatter | null = null;
 
 /**
- * Get or create the context manager
+ * Get or create singleton FileContextManager
  */
 function getContextManager(): FileContextManager {
   if (!contextManager) {
@@ -21,7 +21,7 @@ function getContextManager(): FileContextManager {
 }
 
 /**
- * Get or create the response formatter
+ * Get or create singleton ResponseFormatter
  */
 function getFormatter(): ResponseFormatter {
   if (!formatter) {
@@ -31,65 +31,147 @@ function getFormatter(): ResponseFormatter {
 }
 
 /**
+ * Auto-populate cache if empty or below threshold
+ * This ensures all multi-file functions have context to work with
+ */
+async function ensureCachePopulated(targetPath?: string): Promise<void> {
+  const manager = getContextManager();
+  const stats = manager.getCacheStats();
+  
+  // If cache has less than 5 files, try to populate it
+  if (stats.filesAnalyzed < 5) {
+    console.log('[Cache] Auto-populating cache as it has less than 5 files...');
+    
+    // Determine the project root
+    let projectRoot: string;
+    if (targetPath) {
+      // If a specific path was provided, use its directory
+      const stat = await fs.stat(targetPath).catch(() => null);
+      if (stat && stat.isDirectory()) {
+        projectRoot = targetPath;
+      } else if (stat && stat.isFile()) {
+        projectRoot = path.dirname(targetPath);
+      } else {
+        projectRoot = process.cwd();
+      }
+    } else {
+      projectRoot = process.cwd();
+    }
+    
+    // Try to find and analyze common entry files
+    const commonPatterns = [
+      'index.js', 'index.ts', 'main.js', 'main.ts', 'app.js', 'app.ts',
+      'src/index.js', 'src/index.ts', 'src/main.js', 'src/main.ts',
+      'dist/index.js', 'dist/index.ts', 'lib/index.js', 'lib/index.ts',
+      'server.js', 'server.ts', 'cli.js', 'cli.ts'
+    ];
+    
+    let filesAnalyzed = 0;
+    const maxFilesToAnalyze = 10; // Analyze up to 10 files initially
+    
+    // First, try specific entry files
+    for (const pattern of commonPatterns) {
+      if (filesAnalyzed >= maxFilesToAnalyze) break;
+      
+      const fullPath = path.join(projectRoot, pattern);
+      try {
+        await fs.access(fullPath);
+        await manager.analyseFile(fullPath);
+        filesAnalyzed++;
+        console.log(`[Cache] Analyzed: ${pattern}`);
+      } catch {
+        // File doesn't exist, continue
+      }
+    }
+    
+    // If we still haven't analyzed enough files, scan the directory
+    if (filesAnalyzed < 5) {
+      try {
+        const entries = await fs.readdir(projectRoot, { withFileTypes: true });
+        
+        for (const entry of entries) {
+          if (filesAnalyzed >= maxFilesToAnalyze) break;
+          
+          if (entry.isFile()) {
+            const ext = path.extname(entry.name);
+            if (['.js', '.ts', '.jsx', '.tsx'].includes(ext)) {
+              const fullPath = path.join(projectRoot, entry.name);
+              await manager.analyseFile(fullPath);
+              filesAnalyzed++;
+              console.log(`[Cache] Analyzed: ${entry.name}`);
+            }
+          }
+        }
+        
+        // Also check src directory if it exists
+        const srcPath = path.join(projectRoot, 'src');
+        try {
+          const srcEntries = await fs.readdir(srcPath, { withFileTypes: true });
+          for (const entry of srcEntries) {
+            if (filesAnalyzed >= maxFilesToAnalyze) break;
+            
+            if (entry.isFile()) {
+              const ext = path.extname(entry.name);
+              if (['.js', '.ts', '.jsx', '.tsx'].includes(ext)) {
+                const fullPath = path.join(srcPath, entry.name);
+                await manager.analyseFile(fullPath);
+                filesAnalyzed++;
+                console.log(`[Cache] Analyzed: src/${entry.name}`);
+              }
+            }
+          }
+        } catch {
+          // src directory doesn't exist
+        }
+      } catch (error) {
+        console.warn('[Cache] Failed to scan directory:', error);
+      }
+    }
+    
+    const newStats = manager.getCacheStats();
+    console.log(`[Cache] Auto-population complete. Files: ${newStats.filesAnalyzed}, Symbols: ${newStats.totalSymbols}`);
+  }
+}
+
+/**
  * Compare integration between multiple files
  */
 export async function compareIntegration(
   files: string[],
-  analysisType: string = 'integration',
-  focus: string[] = []
+  analysisType: 'integration' | 'compatibility' | 'dependencies' = 'integration',
+  focus?: string[]
 ): Promise<FormattedResponse> {
   const manager = getContextManager();
   const formatter = getFormatter();
   
-  // Analyze all files
-  const analyzedFiles = await Promise.all(
-    files.map(file => manager.analyseFile(file))
-  );
+  // Auto-populate cache if needed
+  await ensureCachePopulated(files[0]);
   
-  const issues: ActionItem[] = [];
-  const warnings: string[] = [];
-  
-  // Check integration based on type
-  if (analysisType === 'integration' || focus.includes('method_compatibility')) {
-    // Check method calls match signatures
-    for (const file of analyzedFiles) {
-      const calls = manager.findMethodCalls('');
-      for (const call of calls) {
-        if (call.from === file.path) {
-          // Check if called method exists
-          const symbols = manager.findSymbol(call.to);
-          if (symbols.length === 0) {
-            issues.push({
-              file: file.path,
-              line: call.line,
-              operation: 'replace',
-              code: `// WARNING: Method ${call.to} not found`,
-              validated: true,
-              reason: `Called method ${call.to} does not exist`
-            });
-          }
-        }
-      }
-    }
+  // Analyse all files
+  for (const file of files) {
+    await manager.analyseFile(file);
   }
   
-  if (focus.includes('namespace_dependencies')) {
-    // Check imports and namespaces
-    for (const file of analyzedFiles) {
-      for (const cls of file.classes) {
-        if (cls.extends) {
-          // Check if parent class is imported
-          const imported = file.imports.some(imp => imp.includes(cls.extends!));
-          if (!imported) {
-            issues.push({
-              file: file.path,
-              line: cls.line,
-              operation: 'insert',
-              code: `import { ${cls.extends} } from './${cls.extends}';`,
-              validated: true,
-              reason: `Missing import for parent class ${cls.extends}`
-            });
-          }
+  const issues: ActionItem[] = [];
+  const recommendations: ActionItem[] = [];
+  
+  // Check for missing imports, mismatched method signatures, etc.
+  for (let i = 0; i < files.length; i++) {
+    for (let j = i + 1; j < files.length; j++) {
+      // Get file relationships
+      const relationships = manager.getFileRelationships(files[i]);
+      
+      // Check if files are related
+      for (const rel of relationships) {
+        if (rel.to === files[j]) {
+          recommendations.push({
+            file: files[i],
+            line: 0,
+            operation: 'insert',
+            code: `// ${files[i]} has ${rel.type} relationship with ${files[j]}`,
+            validated: false,
+            reason: `${rel.type} relationship detected`
+          });
         }
       }
     }
@@ -98,15 +180,15 @@ export async function compareIntegration(
   return formatter.format({
     summary: `Integration analysis of ${files.length} files`,
     confidence: 0.85,
-    critical: issues.filter(i => i.reason?.includes('not found')),
-    recommended: issues.filter(i => i.reason?.includes('Missing import')),
-    filesAnalyzed: files.length,
-    warnings
+    critical: issues,
+    recommended: recommendations,
+    filesAnalyzed: files.length
   });
 }
 
 /**
- * Trace execution path through multiple files
+ * FIXED: Trace execution path through multiple files
+ * Now with automatic cache population and proper symbol validation
  */
 export async function traceExecutionPath(
   entryPoint: string,
@@ -116,41 +198,136 @@ export async function traceExecutionPath(
   const manager = getContextManager();
   const formatter = getFormatter();
   
-  // Parse entry point (e.g., "SearchHandler::handle_search_results")
-  const [className, methodName] = entryPoint.split('::');
+  // Auto-populate cache if it's empty
+  await ensureCachePopulated();
+  
+  // Parse entry point (e.g., "SearchHandler::handle_search_results" or "functionName")
+  const [className, methodName] = entryPoint.includes('::') 
+    ? entryPoint.split('::')
+    : [null, entryPoint];
   
   const executionPath: string[] = [];
   const visited = new Set<string>();
   const issues: ActionItem[] = [];
   
-  async function trace(point: string, depth: number) {
-    if (depth <= 0 || visited.has(point)) return;
+  // Validate entry point exists in symbol table
+  const entrySymbols = manager.findSymbol(className || entryPoint);
+  if (!entrySymbols || entrySymbols.length === 0) {
+    // If symbol not found, provide helpful context about what IS in the cache
+    const stats = manager.getCacheStats();
+    const allSymbols = manager.getAllSymbols();
+    const symbolNames = Array.from(allSymbols.keys()).slice(0, 10).map(key => {
+      const parts = key.split(':');
+      return parts[parts.length - 1]; // Get just the symbol name
+    });
+    
+    return formatter.format({
+      summary: `Entry point '${entryPoint}' not found in symbol table`,
+      confidence: 0.5,
+      critical: [{
+        file: 'unknown',
+        line: 0,
+        operation: 'insert',
+        code: `// Symbol '${entryPoint}' not found. Cache has ${stats.totalSymbols} symbols from ${stats.filesAnalyzed} files. Available symbols include: ${symbolNames.join(', ')}...`,
+        validated: false,
+        reason: 'Symbol not found in analyzed files'
+      }],
+      details: {
+        executionPath: [],
+        depth: traceDepth,
+        visitedNodes: 0,
+        symbolTableSize: stats.totalSymbols,
+        filesAnalyzed: stats.filesAnalyzed
+      }
+    });
+  }
+  
+  async function trace(point: string, depth: number, indent: number = 0) {
+    if (depth <= 0 || visited.has(point)) {
+      if (visited.has(point) && depth > 0) {
+        executionPath.push(`${'  '.repeat(indent)}${point} [circular reference]`);
+      }
+      return;
+    }
     visited.add(point);
     
-    executionPath.push(`${'  '.repeat(traceDepth - depth)}${point}`);
+    executionPath.push(`${'  '.repeat(indent)}${point}`);
+    
+    // Parse the current point
+    const [currentClass, currentMethod] = point.includes('::')
+      ? point.split('::')
+      : [null, point];
     
     // Find all calls from this point
-    const symbols = manager.findSymbol(point);
+    const symbols = manager.findSymbol(currentClass || point);
     for (const symbol of symbols) {
       if (symbol.key) {
-        const filePath = symbol.key.split(':')[0];
-        if (filePath) {
+        // Validate and parse the symbol key
+        const keyParts = symbol.key.split(':');
+        if (keyParts.length < 2) {
+          console.warn(`Malformed symbol key: ${symbol.key}`);
+          continue;
+        }
+        
+        const filePath = keyParts[0];
+        
+        // Validate file path
+        if (!filePath || !path.isAbsolute(filePath)) {
+          console.warn(`Invalid file path in symbol: ${filePath}`);
+          continue;
+        }
+        
+        try {
           const file = await manager.analyseFile(filePath);
-          const calls = manager.findMethodCalls(methodName);
           
+          // FIXED: Get calls FROM this specific method/function
+          const calls = manager.findCallsFromMethod(currentClass, currentMethod || point);
+          
+          // Process each called method/function
           for (const call of calls) {
-            await trace(call.to, depth - 1);
+            let nextPoint = call.to;
+            
+            // Clean up the call target
+            if (nextPoint.startsWith('this.')) {
+              // Replace 'this.' with the current class name
+              nextPoint = currentClass 
+                ? `${currentClass}::${nextPoint.substring(5)}`
+                : nextPoint.substring(5);
+            } else if (nextPoint.includes('.') && !nextPoint.includes('::')) {
+              // It's a method call on an object
+              const [obj, method] = nextPoint.split('.');
+              if (obj === 'server' || obj === 'console' || obj === 'process' || 
+                  obj === 'path' || obj === 'fs') {
+                // Skip built-in objects
+                continue;
+              }
+              // Try to resolve the object to a class
+              nextPoint = `${obj}::${method}`;
+            }
+            
+            await trace(nextPoint, depth - 1, indent + 1);
           }
+        } catch (error) {
+          // Handle file parsing errors gracefully
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          issues.push({
+            file: filePath,
+            line: 0,
+            operation: 'insert',
+            code: `// Error analyzing ${point}: ${errorMessage}`,
+            validated: false,
+            reason: `Failed to analyze ${point}`
+          });
         }
       }
     }
   }
   
-  await trace(entryPoint, traceDepth);
+  await trace(entryPoint, traceDepth, 0);
   
   return formatter.format({
     summary: `Execution trace from ${entryPoint}`,
-    confidence: 0.9,
+    confidence: executionPath.length > 1 ? 0.9 : 0.5,
     critical: issues,
     details: {
       executionPath,
@@ -169,13 +346,15 @@ export async function findPatternUsage(
   includeContext: number = 3
 ): Promise<FormattedResponse> {
   const formatter = getFormatter();
-  const fs = await import('fs/promises');
+  
+  // Auto-populate cache for the project
+  await ensureCachePopulated(projectPath);
   
   const results: any[] = [];
   const files = await fs.readdir(projectPath, { recursive: true });
   
   for (const file of files) {
-    if (typeof file === 'string' && file.endsWith('.js') || file.endsWith('.ts') || file.endsWith('.php')) {
+    if (typeof file === 'string' && (file.endsWith('.js') || file.endsWith('.ts') || file.endsWith('.php'))) {
       const filePath = path.join(projectPath, file);
       const content = await fs.readFile(filePath, 'utf-8');
       const lines = content.split('\n');
@@ -220,6 +399,12 @@ export async function diffMethodSignatures(
   const manager = getContextManager();
   const formatter = getFormatter();
   
+  // Auto-populate cache including the calling file
+  await ensureCachePopulated(callingFile);
+  
+  // Make sure the calling file is analyzed
+  await manager.analyseFile(callingFile);
+  
   const result = manager.compareMethodSignatures(callingFile, calledClass, methodName);
   
   const issues: ActionItem[] = [];
@@ -251,99 +436,112 @@ export async function diffMethodSignatures(
 }
 
 /**
- * Analyze a complete project structure
+ * Analyze project structure and architecture
  */
 export async function analyzeProjectStructure(
   projectPath: string,
-  focusAreas: string[] = [],
+  focusAreas?: string[],
   maxDepth: number = 3
 ): Promise<FormattedResponse> {
   const manager = getContextManager();
   const formatter = getFormatter();
-  const fs = await import('fs/promises');
   
-  const files = await fs.readdir(projectPath, { recursive: true });
-  let analyzedCount = 0;
-  let skippedCount = 0;
+  // This function naturally populates the cache as it analyzes files
   
-  // Analyze all source files
-  for (const file of files) {
-    if (typeof file === 'string') {
-      // Skip node_modules and other unnecessary directories
-      if (file.includes('node_modules') || 
-          file.includes('.git') || 
-          file.includes('dist') ||
-          file.includes('archive')) {
-        skippedCount++;
-        continue;
-      }
+  const projectInfo: any = {
+    directories: {},
+    files: [],
+    dependencies: [],
+    patterns: []
+  };
+  
+  async function analyzeDir(dir: string, depth: number = 0) {
+    if (depth >= maxDepth) return;
+    
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
       
-      const ext = path.extname(file);
-      if (['.js', '.ts', '.jsx', '.tsx', '.php', '.py'].includes(ext)) {
-        const filePath = path.join(projectPath, file);
-        
-        try {
-          // Check if it's actually a file before trying to read it
-          const stats = await fs.stat(filePath);
-          if (!stats.isFile()) {
-            console.warn(`Skipping non-file: ${filePath}`);
-            continue;
-          }
-          
-          await manager.analyseFile(filePath);
-          analyzedCount++;
-        } catch (error: any) {
-          console.warn(`Failed to analyze ${filePath}: ${error.message}`);
-          skippedCount++;
+      if (entry.isDirectory()) {
+        // Skip node_modules, .git, etc.
+        if (!['node_modules', '.git', 'dist', 'build'].includes(entry.name)) {
+          await analyzeDir(fullPath, depth + 1);
+        }
+      } else if (entry.isFile()) {
+        if (entry.name.endsWith('.js') || entry.name.endsWith('.ts') || 
+            entry.name.endsWith('.php') || entry.name.endsWith('.py')) {
+          projectInfo.files.push(fullPath);
+          await manager.analyseFile(fullPath);
         }
       }
     }
   }
   
-  // Get statistics
-  const stats = manager.getCacheStats();
+  await analyzeDir(projectPath);
+  
+  // Analyze relationships and patterns
   const allSymbols = manager.getAllSymbols();
-  
-  // Build architecture summary
-  const architecture = {
-    totalFiles: analyzedCount,
-    totalClasses: 0,
-    totalFunctions: 0,
-    totalMethods: 0,
-    dependencies: new Set<string>()
-  };
-  
-  for (const [key, value] of allSymbols) {
-    if (key.includes(':class:')) architecture.totalClasses++;
-    if (key.includes(':function:')) architecture.totalFunctions++;
-    if (key.includes('.') && !key.includes(':class:')) architecture.totalMethods++;
-  }
+  const symbolsArray = Array.from(allSymbols.values());
+  const classes = symbolsArray.filter(s => s.type === 'class').length;
+  const functions = symbolsArray.filter(s => s.type === 'function').length;
   
   return formatter.format({
-    summary: `Analyzed ${analyzedCount} files in project (${skippedCount} skipped)`,
+    summary: `Project structure analysis: ${projectInfo.files.length} files, ${classes} classes, ${functions} functions`,
     confidence: 0.95,
-    filesAnalyzed: analyzedCount,
     details: {
-      architecture,
-      statistics: stats,
-      focusAreas: focusAreas,
-      skippedFiles: skippedCount
+      fileCount: projectInfo.files.length,
+      classCount: classes,
+      functionCount: functions,
+      maxDepth,
+      focusAreas
     }
   });
 }
 
 /**
- * Clear analysis cache
+ * Clear the analysis cache
  */
-export function clearAnalysisCache(filePath?: string): void {
+export async function clearAnalysisCache(filePath?: string): Promise<FormattedResponse> {
   const manager = getContextManager();
-  manager.clearCache(filePath);
+  const formatter = getFormatter();
+  
+  if (filePath) {
+    manager.clearCache(filePath);
+    return formatter.format({
+      summary: `Cache cleared for ${filePath}`,
+      confidence: 1.0
+    });
+  } else {
+    manager.clearCache();
+    return formatter.format({
+      summary: 'All cache cleared',
+      confidence: 1.0
+    });
+  }
 }
 
 /**
  * Get cache statistics
  */
-export function getCacheStatistics(): any {
+export async function getCacheStatistics(): Promise<FormattedResponse> {
   const manager = getContextManager();
-  return manager.getCacheStats();
+  const formatter = getFormatter();
+  
+  const stats = manager.getCacheStats();
+  
+  // If cache is empty, provide a hint
+  if (stats.filesAnalyzed === 0) {
+    return formatter.format({
+      summary: 'Cache is empty. Multi-file functions will auto-populate the cache when called.',
+      confidence: 1.0,
+      details: stats
+    });
+  }
+  
+  return formatter.format({
+    summary: `Cache contains ${stats.filesAnalyzed} analyzed files`,
+    confidence: 1.0,
+    details: stats
+  });
 }

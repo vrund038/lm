@@ -54,7 +54,7 @@ class IntegrationTestRunner {
 
   async testBackwardCompatibility() {
     console.log('  Testing tools work without context...');
-    // Test analyze_code_structure without context
+    // Test analyze_single_file without context
     // Test generate_unit_tests without context
     // Test generate_documentation without context
     // Test suggest_refactoring without context

@@ -229,19 +229,7 @@ class LocalLLMServer {
           break;
           
         case 'get_cache_statistics':
-          const stats = getCacheStatistics();
-          result = {
-            summary: `Cache contains ${stats.filesAnalyzed} analyzed files`,
-            confidence: 1.0,
-            actions: { critical: [], recommended: [], optional: [] },
-            details: stats,
-            metadata: {
-              filesAnalyzed: stats.filesAnalyzed,
-              tokensSaved: 0,
-              executionTime: 0,
-              timestamp: new Date().toISOString()
-            }
-          };
+          result = await getCacheStatistics();
           break;
           
         default:
@@ -310,7 +298,7 @@ class LocalLLMServer {
       
       // Generate prompt based on tool - ALL 15 TOOLS RESTORED
       switch (toolName) {
-        case 'analyze_code_structure':
+        case 'analyze_single_file':
           prompt = createCodeStructurePrompt(content, args.context);
           break;
           
