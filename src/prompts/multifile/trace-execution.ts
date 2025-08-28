@@ -74,8 +74,6 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
       fileContents
     });
     
-    // Execute and return
-    const response = await llmClient.complete(prompt);
     try {
       // Get the loaded model from LM Studio
       const models = await llmClient.llm.listLoaded();
