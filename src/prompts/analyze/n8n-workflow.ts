@@ -61,21 +61,56 @@ export class N8nWorkflowAnalyzer extends BasePlugin implements IPromptPlugin {
     // Generate prompt
     const prompt = this.getPrompt({ workflow: params.workflow, context });
     
-    // Execute and return
-    const response = await llmClient.complete(prompt);
-    
-    // Format response
-    return {
-      content: response,
-      metadata: {
-        workflowNodes: params.workflow.nodes?.length || 0,
-        optimizationFocus: context.optimizationFocus,
-        checksPerformed: {
-          credentials: context.includeCredentialCheck,
-          alternativeNodes: context.suggestAlternativeNodes
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
+      }
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are an expert n8n workflow analyst. Optimize workflows for efficiency, identify bottlenecks, suggest improvements, and ensure proper error handling. Focus on practical, actionable recommendations.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.2,
+        maxTokens: 4000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
         }
       }
-    };
+      
+      // Format response
+      return {
+        analysis: response,
+        metadata: {
+          workflowNodes: params.workflow.nodes?.length || 0,
+          optimizationFocus: context.optimizationFocus,
+          checksPerformed: {
+            credentials: context.includeCredentialCheck,
+            alternativeNodes: context.suggestAlternativeNodes
+          },
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to analyze n8n workflow: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {

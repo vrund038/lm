@@ -123,24 +123,59 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
     // Generate prompt
     const prompt = this.getPrompt({ requirements });
     
-    // Execute and return
-    const response = await llmClient.complete(prompt);
-    
-    // Format response
-    return {
-      content: response,
-      metadata: {
-        pluginName: params.name,
-        prefix: params.prefix,
-        components: {
-          admin: requirements.includeAdmin,
-          database: requirements.includeDatabase,
-          ajax: requirements.includeAjax,
-          rest: requirements.includeRest,
-          gutenberg: requirements.includeGutenberg
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
+      }
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are an expert WordPress plugin developer. Generate complete, production-ready WordPress plugins following WordPress coding standards, security best practices, and modern PHP patterns. Include proper hooks, nonces, capabilities, and internationalization.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.3,
+        maxTokens: 6000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
         }
       }
-    };
+      
+      // Format response
+      return {
+        plugin: response,
+        metadata: {
+          pluginName: params.name,
+          prefix: params.prefix,
+          components: {
+            admin: requirements.includeAdmin,
+            database: requirements.includeDatabase,
+            ajax: requirements.includeAjax,
+            rest: requirements.includeRest,
+            gutenberg: requirements.includeGutenberg
+          },
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to generate WordPress plugin: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {
