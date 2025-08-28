@@ -33,13 +33,14 @@ export class PluginLoader {
         const files = await fs.readdir(categoryPath);
         
         for (const file of files) {
-          if (file.endsWith('.ts') || file.endsWith('.js')) {
+          if (file.endsWith('.js')) { // Only load .js files, skip .d.ts
             await this.loadPlugin(path.join(categoryPath, file), category as any);
           }
         }
-      } catch (error) {
-        console.error(`Error loading plugins from ${category}:`, error);
-      }
+    } catch (error) {
+      // Silent error handling to avoid JSON-RPC interference
+      // console.error(`Error loading plugins from ${category}:`, error);
+    }
     }
     
     // Load system plugins from shared
@@ -51,7 +52,14 @@ export class PluginLoader {
    */
   private async loadPlugin(filePath: string, category: 'analyze' | 'generate' | 'multifile' | 'system'): Promise<void> {
     try {
-      const module = await import(filePath);
+      // Skip .d.ts files (TypeScript declaration files)
+      if (filePath.endsWith('.d.ts')) {
+        return;
+      }
+      
+      // Convert Windows path to proper file:// URL
+      const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+      const module = await import(fileUrl);
       const PluginClass = module.default;
       
       if (PluginClass && typeof PluginClass === 'function') {
@@ -59,11 +67,12 @@ export class PluginLoader {
         
         if (plugin instanceof BasePlugin) {
           this.registerPlugin(plugin);
-          console.log(`Loaded plugin: ${plugin.name} from ${path.basename(filePath)}`);
+          // Removed console.log to avoid JSON-RPC interference
         }
       }
     } catch (error) {
-      console.error(`Error loading plugin from ${filePath}:`, error);
+      // Silent error handling to avoid JSON-RPC interference
+      // console.error(`Error loading plugin from ${filePath}:`, error);
     }
   }
   
@@ -81,7 +90,8 @@ export class PluginLoader {
         this.registerPlugin(new cacheModule.CacheStatisticsPlugin());
       }
     } catch (error) {
-      console.error('Error loading cache management plugins:', error);
+      // Silent error handling to avoid JSON-RPC interference  
+      // console.error('Error loading cache management plugins:', error);
     }
   }
   

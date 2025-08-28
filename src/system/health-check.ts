@@ -4,7 +4,7 @@
  */
 
 import { BasePlugin } from '../plugins/base-plugin.js';
-import { IPromptPlugin } from '../plugins/types.js';
+import { IPromptPlugin } from '../prompts/shared/types.js';
 import { LMStudioClient } from '@lmstudio/sdk';
 import { config } from '../config.js';
 

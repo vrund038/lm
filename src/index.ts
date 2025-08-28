@@ -65,7 +65,7 @@ class LocalLLMServer {
     if (this.pluginsInitialized) return;
 
     try {
-      console.log('[Plugin Server] Loading plugins...');
+      // Removed console.log to avoid JSON-RPC interference
       
       // Load plugins from prompts directory
       const promptsDir = path.join(__dirname, 'prompts');
@@ -76,16 +76,10 @@ class LocalLLMServer {
       
       this.pluginsInitialized = true;
       
-      const stats = this.getPluginStats();
-      console.log(`[Plugin Server] Loaded ${stats.totalPlugins} plugins:`);
-      console.log(`  - Analyze: ${stats.categories.analyze}`);
-      console.log(`  - Generate: ${stats.categories.generate}`);
-      console.log(`  - Multifile: ${stats.categories.multifile}`);
-      console.log(`  - System: ${stats.categories.system}`);
-      console.log(`[Plugin Server] Available tools:`, stats.pluginNames);
+      // Silent initialization - no console output
       
     } catch (error) {
-      console.error('[Plugin Server] Failed to initialize plugins:', error);
+      // Silent error handling to avoid JSON-RPC interference
       throw error;
     }
   }
@@ -101,13 +95,14 @@ class LocalLLMServer {
       const files = await fs.readdir(systemDir);
       
       for (const file of files) {
-        if (file.endsWith('.ts') || file.endsWith('.js')) {
+        if (file.endsWith('.js')) { // Only load .js files, skip .d.ts
           const filePath = path.join(systemDir, file);
           await this.loadSystemPlugin(filePath);
         }
       }
     } catch (error) {
-      console.error('[Plugin Server] Error loading system plugins:', error);
+      // Silent error handling to avoid JSON-RPC interference
+      // console.error('[Plugin Server] Error loading system plugins:', error);
     }
   }
 
@@ -116,18 +111,19 @@ class LocalLLMServer {
    */
   private async loadSystemPlugin(filePath: string): Promise<void> {
     try {
-      // Convert to file:// URL for proper ESM import
-      const fileUrl = `file://${filePath.replace(/\\/g, '/')}`;
+      // Convert to proper file:// URL for Windows
+      const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
       const module = await import(fileUrl);
       const PluginClass = module.default;
       
       if (PluginClass && typeof PluginClass === 'function') {
         const plugin = new PluginClass();
         this.pluginLoader.registerPlugin(plugin);
-        console.log(`[Plugin Server] Loaded system plugin: ${plugin.name}`);
+        // Removed console.log to avoid JSON-RPC interference
       }
     } catch (error) {
-      console.error(`[Plugin Server] Error loading system plugin ${filePath}:`, error);
+      // Silent error handling to avoid JSON-RPC interference
+      // console.error(`[Plugin Server] Error loading system plugin ${filePath}:`, error);
     }
   }
 
@@ -143,7 +139,7 @@ class LocalLLMServer {
       
       const tools = this.pluginLoader.getPlugins().map(plugin => plugin.getToolDefinition());
       
-      console.log(`[Plugin Server] Listing ${tools.length} tools`);
+      // Silent operation - no console output
       return { tools };
     });
 
@@ -161,8 +157,7 @@ class LocalLLMServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name: toolName, arguments: args } = request.params;
       
-      console.log(`[Plugin Server] Executing tool: ${toolName}`);
-      console.log(`[Plugin Server] Arguments:`, JSON.stringify(args, null, 2));
+      // Silent operation - no console output unless error
       
       if (!this.pluginsInitialized) {
         await this.initializePlugins();
@@ -172,7 +167,7 @@ class LocalLLMServer {
         // Execute plugin
         const result = await this.pluginLoader.executePlugin(toolName, args, this.lmStudioClient);
         
-        console.log(`[Plugin Server] Tool ${toolName} executed successfully`);
+        // Silent success - no console output
         
         // Return standardized MCP response
         return {
@@ -185,7 +180,7 @@ class LocalLLMServer {
         };
         
       } catch (error: any) {
-        console.error(`[Plugin Server] Tool execution failed for ${toolName}:`, error);
+        // Silent error handling - only return error response without logging
         
         // Return error as MCP response
         return {
@@ -228,19 +223,18 @@ class LocalLLMServer {
    * Start the server
    */
   async start(): Promise<void> {
-    console.log('[Plugin Server] Starting Local LLM MCP Server v4.0 (Plugin Architecture)');
-    console.log('[Plugin Server] LM Studio URL:', config.lmStudioUrl);
+    // Silent startup - no console output to avoid JSON-RPC interference
     
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     
-    console.log('[Plugin Server] Server started and ready for connections');
+    // Server started silently
   }
 }
 
 // Start the server
 const server = new LocalLLMServer();
 server.start().catch((error) => {
-  console.error('[Plugin Server] Failed to start server:', error);
+  // Silent error handling - only exit on critical startup failure
   process.exit(1);
 });
