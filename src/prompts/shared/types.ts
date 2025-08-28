@@ -10,6 +10,7 @@ export interface IPromptPlugin {
   execute(params: any, llmClient: any): Promise<any>;
   getPrompt(params: any): string;
   validateParams?(params: any): void;
+  getToolDefinition(): any;
 }
 
 export interface ParameterSchema {
