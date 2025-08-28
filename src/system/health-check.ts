@@ -52,8 +52,7 @@ export class HealthCheckPlugin extends BasePlugin implements IPromptPlugin {
         if (models.length > 0) {
           response.details.activeModel = {
             path: models[0].path,
-            identifier: models[0].identifier,
-            architecture: models[0].architecture
+            identifier: models[0].identifier
           };
         }
       }

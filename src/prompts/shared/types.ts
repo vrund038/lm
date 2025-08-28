@@ -69,15 +69,3 @@ export interface LLMClient {
   complete(prompt: string): Promise<string>;
   completeWithSchema<T>(prompt: string, schema: any): Promise<T>;
 }
-
-export default {
-  IPromptPlugin,
-  ParameterSchema,
-  ParameterDefinition,
-  PluginContext,
-  AnalysisResult,
-  Finding,
-  Suggestion,
-  Metrics,
-  LLMClient
-};
