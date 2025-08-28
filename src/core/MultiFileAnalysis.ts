@@ -264,15 +264,38 @@ export async function analyzeProjectStructure(
   
   const files = await fs.readdir(projectPath, { recursive: true });
   let analyzedCount = 0;
+  let skippedCount = 0;
   
   // Analyze all source files
   for (const file of files) {
     if (typeof file === 'string') {
+      // Skip node_modules and other unnecessary directories
+      if (file.includes('node_modules') || 
+          file.includes('.git') || 
+          file.includes('dist') ||
+          file.includes('archive')) {
+        skippedCount++;
+        continue;
+      }
+      
       const ext = path.extname(file);
       if (['.js', '.ts', '.jsx', '.tsx', '.php', '.py'].includes(ext)) {
         const filePath = path.join(projectPath, file);
-        await manager.analyseFile(filePath);
-        analyzedCount++;
+        
+        try {
+          // Check if it's actually a file before trying to read it
+          const stats = await fs.stat(filePath);
+          if (!stats.isFile()) {
+            console.warn(`Skipping non-file: ${filePath}`);
+            continue;
+          }
+          
+          await manager.analyseFile(filePath);
+          analyzedCount++;
+        } catch (error: any) {
+          console.warn(`Failed to analyze ${filePath}: ${error.message}`);
+          skippedCount++;
+        }
       }
     }
   }
@@ -297,13 +320,14 @@ export async function analyzeProjectStructure(
   }
   
   return formatter.format({
-    summary: `Analyzed ${analyzedCount} files in project`,
+    summary: `Analyzed ${analyzedCount} files in project (${skippedCount} skipped)`,
     confidence: 0.95,
     filesAnalyzed: analyzedCount,
     details: {
       architecture,
       statistics: stats,
-      focusAreas: focusAreas
+      focusAreas: focusAreas,
+      skippedFiles: skippedCount
     }
   });
 }
