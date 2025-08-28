@@ -4,7 +4,7 @@
  */
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
-import { IPromptPlugin } from '../../plugins/types.js';
+import { IPromptPlugin } from '../shared/types.js';
 import { readFileContent } from '../shared/helpers.js';
 
 // Type definitions for analysis context
