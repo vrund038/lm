@@ -7,8 +7,8 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
 
-// Type definitions for security audit context
-interface SecurityAuditContext {
+// Type definitions for security context
+interface SecurityContext {
   projectType: string;
   auditDepth?: string;
   includeOwasp?: boolean;
@@ -36,7 +36,7 @@ export class SecurityAuditor extends BasePlugin implements IPromptPlugin {
       type: 'string' as const,
       description: 'Project type for specific security checks',
       required: true,
-      enum: ['wordpress-plugin', 'wordpress-theme', 'react-app', 'react-component', 'node-api', 'n8n-node', 'n8n-workflow', 'html-component', 'browser-extension', 'cli-tool', 'generic']
+      enum: ['wordpress-plugin', 'wordpress-theme', 'react-app', 'react-component', 'node-api', 'browser-extension', 'cli-tool', 'n8n-node', 'n8n-workflow', 'html-component', 'generic']
     },
     auditDepth: {
       type: 'string' as const,
@@ -59,9 +59,9 @@ export class SecurityAuditor extends BasePlugin implements IPromptPlugin {
     },
     customChecks: {
       type: 'array' as const,
-      items: { type: 'string' as const },
       description: 'Additional custom security checks',
-      required: false
+      required: false,
+      items: { type: 'string' as const }
     }
   };
 
@@ -71,7 +71,7 @@ export class SecurityAuditor extends BasePlugin implements IPromptPlugin {
       throw new Error('Either code or filePath must be provided');
     }
     
-    // Validate required projectType
+    // Validate projectType is provided
     if (!params.projectType) {
       throw new Error('projectType is required for security audit');
     }
@@ -82,8 +82,8 @@ export class SecurityAuditor extends BasePlugin implements IPromptPlugin {
       codeToAudit = await readFileContent(params.filePath);
     }
     
-    // Prepare context with defaults
-    const context: SecurityAuditContext = {
+    // Prepare context
+    const context: SecurityContext = {
       projectType: params.projectType,
       auditDepth: params.auditDepth || 'standard',
       includeOwasp: params.includeOwasp !== false,
@@ -92,7 +92,7 @@ export class SecurityAuditor extends BasePlugin implements IPromptPlugin {
     };
     
     // Generate prompt
-    const prompt = this.getPrompt({ ...params, code: codeToAudit, context });
+    const prompt = this.getPrompt({ code: codeToAudit, context });
     
     // Execute and return
     const response = await llmClient.complete(prompt);
@@ -101,17 +101,17 @@ export class SecurityAuditor extends BasePlugin implements IPromptPlugin {
     return {
       content: response,
       metadata: {
-        projectType: context.projectType,
+        projectType: params.projectType,
         auditDepth: context.auditDepth,
-        includeOwasp: context.includeOwasp,
-        includeDependencies: context.includeDependencies
+        includesOwasp: context.includeOwasp,
+        includesDependencies: context.includeDependencies
       }
     };
   }
 
   getPrompt(params: any): string {
     const code = params.code;
-    const context = params.context || params;
+    const context = params.context;
     
     const { projectType, auditDepth = 'standard' } = context;
     
@@ -175,8 +175,8 @@ Analyze for:
    - LDAP injection
 
 ${context.includeOwasp !== false ? `
-7. **OWASP Top 10 Analysis**:
-   - Map findings to OWASP categories
+7. **OWASP Top 10 Compliance**:
+   - Check against current OWASP Top 10
    - Provide OWASP references
    - Suggest OWASP recommended fixes` : ''}
 
@@ -216,12 +216,22 @@ Provide:
 Format as a professional security audit report.`;
   }
 
+  private getAuditDepthChecks(depth: string): string {
+    const checks: Record<string, string> = {
+      basic: 'Common vulnerabilities, obvious security flaws',
+      standard: 'OWASP Top 10, framework-specific issues, basic cryptography',
+      comprehensive: 'Advanced attack vectors, race conditions, side-channel attacks, cryptographic analysis, business logic flaws'
+    };
+    
+    return checks[depth] || checks.standard;
+  }
+
   private getSecurityChecklist(projectType: string): string {
     const checklists: Record<string, string> = {
       'wordpress-plugin': `
-1. Nonce verification on all forms and AJAX requests
-2. Capability checks before any admin actions
-3. Data sanitization with sanitize_text_field(), etc.
+1. Nonce verification on all forms
+2. Capability checks for privileged operations
+3. SQL injection prevention with $wpdb->prepare()
 4. XSS prevention with esc_html(), esc_attr(), etc.
 5. CSRF protection on state-changing operations
 6. File upload validation and sanitization
@@ -319,16 +329,6 @@ Format as a professional security audit report.`;
     };
 
     return checklists[projectType] || checklists.generic;
-  }
-
-  private getAuditDepthChecks(depth: string): string {
-    const checks: Record<string, string> = {
-      basic: 'Common vulnerabilities, obvious security flaws',
-      standard: 'OWASP Top 10, framework-specific issues, basic cryptography',
-      comprehensive: 'Advanced attack vectors, race conditions, side-channel attacks, cryptographic analysis, business logic flaws'
-    };
-
-    return checks[depth] || checks.standard;
   }
 }
 

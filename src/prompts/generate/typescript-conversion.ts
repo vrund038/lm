@@ -7,8 +7,8 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
 
-// Type definitions for conversion context
-interface TypeScriptContext {
+// Type definitions for TypeScript context
+interface TSContext {
   strict?: boolean;
   target?: string;
   module?: string;
@@ -91,7 +91,7 @@ export class TypeScriptConverter extends BasePlugin implements IPromptPlugin {
     }
     
     // Prepare context with defaults
-    const context: TypeScriptContext = {
+    const context: TSContext = {
       strict: params.strict !== false,
       target: params.target || 'ES2020',
       module: params.module || 'ESNext',
@@ -102,7 +102,7 @@ export class TypeScriptConverter extends BasePlugin implements IPromptPlugin {
     };
     
     // Generate prompt
-    const prompt = this.getPrompt({ ...params, jsCode, context });
+    const prompt = this.getPrompt({ code: jsCode, context });
     
     // Execute and return
     const response = await llmClient.complete(prompt);
@@ -113,14 +113,13 @@ export class TypeScriptConverter extends BasePlugin implements IPromptPlugin {
       metadata: {
         strict: context.strict,
         target: context.target,
-        module: context.module,
-        originalFile: params.filePath
+        module: context.module
       }
     };
   }
 
   getPrompt(params: any): string {
-    const jsCode = params.jsCode;
+    const jsCode = params.code;
     const context = params.context || {};
     
     const { strict = true, target = 'ES2020', module = 'ESNext' } = context;
