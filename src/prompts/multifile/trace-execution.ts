@@ -76,16 +76,53 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
     
     // Execute and return
     const response = await llmClient.complete(prompt);
-    
-    return {
-      content: response,
-      metadata: {
-        entryPoint: params.entryPoint,
-        traceDepth,
-        filesAnalyzed: Object.keys(fileContents).length,
-        showParameters
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
-    };
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are an expert code execution tracer. Analyze code execution paths, function call sequences, and data flow through multiple files. Provide detailed execution traces with clear call chains.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.1,
+        maxTokens: 4000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
+        }
+      }
+      
+      return {
+        trace: response,
+        metadata: {
+          entryPoint: params.entryPoint,
+          traceDepth,
+          filesAnalyzed: Object.keys(fileContents).length,
+          showParameters,
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to trace execution path: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {

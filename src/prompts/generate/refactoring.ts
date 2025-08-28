@@ -113,19 +113,54 @@ export class RefactoringAnalyzer extends BasePlugin implements IPromptPlugin {
     // Generate prompt
     const prompt = this.getPrompt({ ...params, code: codeToRefactor, context });
     
-    // Execute and return
-    const response = await llmClient.complete(prompt);
-    
-    // Format response
-    return {
-      content: response,
-      metadata: {
-        language: params.language || 'javascript',
-        focusAreas: context.focusAreas,
-        preserveApi: context.preserveApi,
-        modernizationLevel: context.modernizationLevel
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
-    };
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are an expert software architect specializing in code refactoring. Provide specific, actionable refactoring suggestions that improve code quality, maintainability, and performance while preserving functionality.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.3,
+        maxTokens: 4000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
+        }
+      }
+      
+      // Format response
+      return {
+        suggestions: response,
+        metadata: {
+          language: params.language || 'javascript',
+          focusAreas: context.focusAreas,
+          preserveApi: context.preserveApi,
+          modernizationLevel: context.modernizationLevel,
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to suggest refactoring: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {

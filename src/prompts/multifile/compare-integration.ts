@@ -93,19 +93,55 @@ export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
     });
     
     // Execute and return
-    const response = await llmClient.complete(prompt);
-    
-    return {
-      content: response,
-      metadata: {
-        filesAnalyzed: validFiles.length,
-        analysisType: params.analysisType || 'integration',
-        focusAreas: params.focus || [],
-        errors: Object.entries(fileContents)
-          .filter(([_, data]) => data.error)
-          .map(([path, data]) => ({ path, error: data.error }))
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
-    };
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are an expert software integration analyst. Identify compatibility issues, missing imports, method signature mismatches, and integration problems across multiple code files. Provide specific, actionable fixes.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.1,
+        maxTokens: 4000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
+        }
+      }
+      
+      return {
+        analysis: response,
+        metadata: {
+          filesAnalyzed: validFiles.length,
+          analysisType: params.analysisType || 'integration',
+          focusAreas: params.focus || [],
+          errors: Object.entries(fileContents)
+            .filter(([_, data]) => data.error)
+            .map(([path, data]) => ({ path, error: data.error })),
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to compare integration: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {

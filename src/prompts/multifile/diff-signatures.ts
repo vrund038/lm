@@ -92,17 +92,54 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
     
     // Execute and return
     const response = await llmClient.complete(prompt);
-    
-    return {
-      content: response,
-      metadata: {
-        callingFile: basename(callingFile),
-        calledClass: params.calledClass,
-        methodName: params.methodName,
-        classFilesFound: classFiles.length,
-        classFilesAnalyzed: Object.keys(classFileContents).length
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
-    };
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are an expert method signature analyst. Compare method signatures between callers and callees, identify parameter mismatches, type incompatibilities, and provide specific fixes.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.1,
+        maxTokens: 3000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
+        }
+      }
+      
+      return {
+        comparison: response,
+        metadata: {
+          callingFile: basename(callingFile),
+          calledClass: params.calledClass,
+          methodName: params.methodName,
+          classFilesFound: classFiles.length,
+          classFilesAnalyzed: Object.keys(classFileContents).length,
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to diff method signatures: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {

@@ -110,18 +110,55 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
     
     // Execute and return
     const response = await llmClient.complete(prompt);
-    
-    return {
-      content: response,
-      metadata: {
-        projectPath,
-        patterns: params.patterns,
-        filesSearched: codeFiles.length,
-        matchesFound: results.reduce((sum, r) => sum + r.matches.length, 0),
-        filesWithMatches: results.length,
-        errors: errors.length > 0 ? errors : undefined
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
-    };
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are an expert pattern analyst. Find, analyze, and explain usage patterns across multiple code files. Provide insights about pattern distribution, consistency, and potential improvements.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.2,
+        maxTokens: 4000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
+        }
+      }
+      
+      return {
+        analysis: response,
+        metadata: {
+          projectPath,
+          patterns: params.patterns,
+          filesSearched: codeFiles.length,
+          matchesFound: results.reduce((sum, r) => sum + r.matches.length, 0),
+          filesWithMatches: results.length,
+          errors: errors.length > 0 ? errors : undefined,
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to find pattern usage: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {

@@ -108,19 +108,54 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
       maxDepth
     });
     
-    // Execute and return
-    const response = await llmClient.complete(prompt);
-    
-    return {
-      content: response,
-      metadata: {
-        projectPath: basename(projectPath),
-        totalFiles: structure.statistics.totalFiles,
-        totalDirectories: structure.statistics.totalDirectories,
-        maxDepth: structure.statistics.maxDepth,
-        focusAreas
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
-    };
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are a senior software architect with expertise in project analysis, code organization, and architectural patterns. Provide comprehensive analysis of project structures, identifying patterns, potential issues, and improvement opportunities.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.2,
+        maxTokens: 5000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
+        }
+      }
+      
+      return {
+        analysis: response,
+        metadata: {
+          projectPath: basename(projectPath),
+          totalFiles: structure.statistics.totalFiles,
+          totalDirectories: structure.statistics.totalDirectories,
+          maxDepth: structure.statistics.maxDepth,
+          focusAreas,
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to analyze project structure: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {

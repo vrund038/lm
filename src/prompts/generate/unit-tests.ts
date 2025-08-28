@@ -114,19 +114,54 @@ export class UnitTestGenerator extends BasePlugin implements IPromptPlugin {
     // Generate prompt
     const prompt = this.getPrompt({ ...params, code: codeToTest, context });
     
-    // Execute and return
-    const response = await llmClient.complete(prompt);
-    
-    // Format response
-    return {
-      content: response,
-      metadata: {
-        language: params.language || 'javascript',
-        testFramework: context.testFramework,
-        coverageTarget: context.coverageTarget,
-        projectType: context.projectType
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
-    };
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are an expert test engineer. Generate comprehensive, well-structured unit tests that follow best practices and provide excellent code coverage. Focus on readability, maintainability, and thorough edge case testing.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.2,
+        maxTokens: 4000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
+        }
+      }
+      
+      // Format response
+      return {
+        tests: response,
+        metadata: {
+          language: params.language || 'javascript',
+          testFramework: context.testFramework,
+          coverageTarget: context.coverageTarget,
+          projectType: context.projectType,
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to generate unit tests: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {

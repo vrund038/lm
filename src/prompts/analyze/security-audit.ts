@@ -94,19 +94,54 @@ export class SecurityAuditor extends BasePlugin implements IPromptPlugin {
     // Generate prompt
     const prompt = this.getPrompt({ code: codeToAudit, context });
     
-    // Execute and return
-    const response = await llmClient.complete(prompt);
-    
-    // Format response
-    return {
-      content: response,
-      metadata: {
-        projectType: params.projectType,
-        auditDepth: context.auditDepth,
-        includesOwasp: context.includeOwasp,
-        includesDependencies: context.includeDependencies
+    try {
+      // Get the loaded model from LM Studio
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
-    };
+      
+      // Use the first loaded model
+      const model = models[0];
+      
+      // Call the model with proper LM Studio SDK pattern
+      const prediction = model.respond([
+        {
+          role: 'system',
+          content: 'You are a cybersecurity expert specializing in code security audits. Provide comprehensive, actionable security analysis with specific vulnerability identification and remediation advice.'
+        },
+        {
+          role: 'user', 
+          content: prompt
+        }
+      ], {
+        temperature: 0.1,
+        maxTokens: 3000
+      });
+      
+      // Stream the response
+      let response = '';
+      for await (const chunk of prediction) {
+        if (chunk.content) {
+          response += chunk.content;
+        }
+      }
+      
+      // Format response
+      return {
+        audit: response,
+        metadata: {
+          projectType: params.projectType,
+          auditDepth: context.auditDepth,
+          includesOwasp: context.includeOwasp,
+          includesDependencies: context.includeDependencies,
+          modelUsed: model.identifier || 'unknown'
+        }
+      };
+      
+    } catch (error: any) {
+      throw new Error(`Failed to perform security audit: ${error.message}`);
+    }
   }
 
   getPrompt(params: any): string {
