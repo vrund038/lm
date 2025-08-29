@@ -195,6 +195,25 @@ export interface GenerateDocumentationResponse extends BaseResponse {
   };
 }
 
+export interface GenerateProjectDocumentationResponse extends BaseResponse {
+  data: {
+    documentation: string;
+    metadata: {
+      projectName: string;
+      projectType: string;
+      version: string;
+      generatedAt: string;
+      documentationStyle: string;
+    };
+    sections: Record<string, string>;
+    statistics: {
+      totalLines: number;
+      wordCount: number;
+      estimatedReadTime: string;
+    };
+  };
+}
+
 export interface SuggestRefactoringResponse extends BaseResponse {
   data: {
     suggestions: Array<{
@@ -505,6 +524,7 @@ export type FunctionResponseMap = {
   // Generation functions
   'generate_unit_tests': GenerateUnitTestsResponse;
   'generate_documentation': GenerateDocumentationResponse;
+  'generate_project_documentation': GenerateProjectDocumentationResponse;
   'suggest_refactoring': SuggestRefactoringResponse;
   'generate_wordpress_plugin': GenerateWordpressPluginResponse;
   'generate_responsive_component': GenerateResponsiveComponentResponse;
