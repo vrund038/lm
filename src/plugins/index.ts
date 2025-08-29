@@ -40,7 +40,7 @@ export class PluginLoader {
    * Load all plugins from the prompts directory
    */
   async loadPlugins(promptsDir: string): Promise<void> {
-    const categories = ['analyze', 'generate', 'multifile', 'custom'];
+    const categories = ['analyze', 'generate', 'multifile', 'custom', 'system'];
     
     for (const category of categories) {
       const categoryPath = path.join(promptsDir, category);
@@ -49,7 +49,7 @@ export class PluginLoader {
         const files = await fs.readdir(categoryPath);
         
         for (const file of files) {
-          if (file.endsWith('.js')) { // Only load .js files, skip .d.ts
+          if (file.endsWith('.js') && !file.includes('.test.')) { // Only load .js files, skip .d.ts and tests
             await this.loadPlugin(path.join(categoryPath, file), category as any);
           }
         }
@@ -59,7 +59,7 @@ export class PluginLoader {
     }
     }
     
-    // Load system plugins from shared
+    // Load system plugins from shared (cache management)
     await this.loadSystemPlugins(path.join(promptsDir, 'shared'));
   }
   
