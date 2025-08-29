@@ -11,6 +11,7 @@ import { PromptStages } from '../../types/prompt-stages.js';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, basename } from 'path';
 import { validateAndNormalizePath } from '../shared/helpers.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
   name = 'compare_integration';
@@ -41,74 +42,76 @@ export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate required parameters
-    if (!params.files || !Array.isArray(params.files) || params.files.length < 2) {
-      throw new Error('At least 2 files are required for integration comparison');
-    }
-    
-    // Read all files with security checks
-    const fileContents: Record<string, { content: string; error?: string }> = {};
-    
-    for (const filePath of params.files) {
-      try {
-        // Validate and resolve path using secure path validation
-        const resolvedPath = await validateAndNormalizePath(filePath);
-        
-        if (!existsSync(resolvedPath)) {
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate required parameters
+      if (!secureParams.files || !Array.isArray(secureParams.files) || secureParams.files.length < 2) {
+        throw new Error('At least 2 files are required for integration comparison');
+      }
+      
+      // Read all files with security checks
+      const fileContents: Record<string, { content: string; error?: string }> = {};
+      
+      for (const filePath of secureParams.files) {
+        try {
+          // Validate and resolve path using secure path validation
+          const resolvedPath = await validateAndNormalizePath(filePath);
+          
+          if (!existsSync(resolvedPath)) {
+            fileContents[filePath] = {
+              content: '',
+              error: 'File not found'
+            };
+            continue;
+          }
+          
+          // Read file content securely
+          const { readFileContent } = await import('../shared/helpers.js');
+          const content = await readFileContent(resolvedPath);
+          fileContents[filePath] = { content };
+        } catch (error) {
           fileContents[filePath] = {
             content: '',
-            error: 'File not found'
+            error: error instanceof Error ? error.message : 'Unknown error reading file'
           };
-          continue;
         }
-        
-        // Read file content securely
-        const { readFileContent } = await import('../shared/helpers.js');
-        const content = await readFileContent(resolvedPath);
-        fileContents[filePath] = { content };
-      } catch (error) {
-        fileContents[filePath] = {
-          content: '',
-          error: error instanceof Error ? error.message : 'Unknown error reading file'
-        };
       }
-    }
-    
-    // Check if we have at least 2 valid files
-    const validFiles = Object.entries(fileContents).filter(([_, data]) => !data.error && data.content);
-    if (validFiles.length < 2) {
-      const errors = Object.entries(fileContents)
-        .filter(([_, data]) => data.error)
-        .map(([path, data]) => `${path}: ${data.error}`)
-        .join('\n');
-      throw new Error(`Could not read enough files for comparison. Errors:\n${errors}`);
-    }
-    
-    // Get model for context limit detection
-    const models = await llmClient.llm.listLoaded();
-    if (models.length === 0) {
-      throw new Error('No model loaded in LM Studio. Please load a model first.');
-    }
-    
-    const model = models[0];
-    const contextLength = await model.getContextLength() || 23832;
-    const systemOverhead = 2000; // System instructions overhead
-    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
-    
-    // Early chunking decision: Estimate content size
-    const contentData = Object.fromEntries(
-      Object.entries(fileContents).map(([path, data]) => [path, data.content])
-    );
-    const totalContentLength = Object.values(contentData).join('').length;
-    const estimatedTokens = Math.floor(totalContentLength / 4) + systemOverhead; // Rough token estimate
-    
-    if (estimatedTokens > availableTokens) {
-      // Process with chunking for large content
-      return await this.executeWithChunking(params, contentData, llmClient, model, availableTokens);
-    }
-    
-    // Process normally for small operations
-    return await this.executeSinglePass(params, contentData, llmClient, model);
+      
+      // Check if we have at least 2 valid files
+      const validFiles = Object.entries(fileContents).filter(([_, data]) => !data.error && data.content);
+      if (validFiles.length < 2) {
+        const errors = Object.entries(fileContents)
+          .filter(([_, data]) => data.error)
+          .map(([path, data]) => `${path}: ${data.error}`)
+          .join('\n');
+        throw new Error(`Could not read enough files for comparison. Errors:\n${errors}`);
+      }
+      
+      // Get model for context limit detection
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
+      }
+      
+      const model = models[0];
+      const contextLength = await model.getContextLength() || 23832;
+      const systemOverhead = 2000; // System instructions overhead
+      const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
+      
+      // Early chunking decision: Estimate content size
+      const contentData = Object.fromEntries(
+        Object.entries(fileContents).map(([path, data]) => [path, data.content])
+      );
+      const totalContentLength = Object.values(contentData).join('').length;
+      const estimatedTokens = Math.floor(totalContentLength / 4) + systemOverhead; // Rough token estimate
+      
+      if (estimatedTokens > availableTokens) {
+        // Process with chunking for large content
+        return await this.executeWithChunking(secureParams, contentData, llmClient, model, availableTokens);
+      }
+      
+      // Process normally for small operations
+      return await this.executeSinglePass(secureParams, contentData, llmClient, model);
+    });
   }
   
   /**

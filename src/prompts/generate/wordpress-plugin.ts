@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for WordPress plugin requirements
 interface WPPluginRequirements {
@@ -100,45 +101,46 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate required parameters
-    if (!params.name || !params.description || !params.features || !params.prefix) {
-      throw new Error('name, description, features, and prefix are required');
-    }
-    
-    // Prepare requirements
-    const requirements: WPPluginRequirements = {
-      name: params.name,
-      description: params.description,
-      features: params.features,
-      prefix: params.prefix,
-      wpVersion: params.wpVersion || '6.0',
-      phpVersion: params.phpVersion || '7.4',
-      textDomain: params.textDomain || params.prefix,
-      includeAdmin: params.includeAdmin !== false,
-      includeDatabase: params.includeDatabase || false,
-      includeAjax: params.includeAjax || false,
-      includeRest: params.includeRest || false,
-      includeGutenberg: params.includeGutenberg || false
-    };
-    
-    // Generate prompt
-    const prompt = this.getPrompt({ requirements });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate required parameters
+      if (!secureParams.name || !secureParams.description || !secureParams.features || !secureParams.prefix) {
+        throw new Error('name, description, features, and prefix are required');
       }
       
-      // Use the first loaded model
-      const model = models[0];
+      // Prepare requirements
+      const requirements: WPPluginRequirements = {
+        name: secureParams.name,
+        description: secureParams.description,
+        features: secureParams.features,
+        prefix: secureParams.prefix,
+        wpVersion: secureParams.wpVersion || '6.0',
+        phpVersion: secureParams.phpVersion || '7.4',
+        textDomain: secureParams.textDomain || secureParams.prefix,
+        includeAdmin: secureParams.includeAdmin !== false,
+        includeDatabase: secureParams.includeDatabase || false,
+        includeAjax: secureParams.includeAjax || false,
+        includeRest: secureParams.includeRest || false,
+        includeGutenberg: secureParams.includeGutenberg || false
+      };
       
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert WordPress plugin developer. Generate complete, production-ready WordPress plugins following WordPress coding standards, security best practices, and modern PHP patterns. Include proper hooks, nonces, capabilities, and internationalization.'
+      // Generate prompt
+      const prompt = this.getPrompt({ requirements });
+      
+      try {
+        // Get the loaded model from LM Studio
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        // Use the first loaded model
+        const model = models[0];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond([
+          {
+            role: 'system',
+            content: 'You are an expert WordPress plugin developer. Generate complete, production-ready WordPress plugins following WordPress coding standards, security best practices, and modern PHP patterns. Include proper hooks, nonces, capabilities, and internationalization.'
         },
         {
           role: 'user', 

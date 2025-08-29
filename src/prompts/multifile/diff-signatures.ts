@@ -11,6 +11,7 @@ import { PromptStages } from '../../types/prompt-stages.js';
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
 import { validateAndNormalizePath } from '../shared/helpers.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
   name = 'diff_method_signatures';
@@ -36,45 +37,46 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate required parameters
-    if (!params.callingFile || typeof params.callingFile !== 'string') {
-      throw new Error('callingFile is required and must be a string path');
-    }
-    
-    if (!params.calledClass || typeof params.calledClass !== 'string') {
-      throw new Error('calledClass is required and must be a string');
-    }
-    
-    if (!params.methodName || typeof params.methodName !== 'string') {
-      throw new Error('methodName is required and must be a string');
-    }
-    
-    // Validate and resolve calling file using secure path validation
-    const callingFile = await validateAndNormalizePath(params.callingFile);
-    
-    if (!existsSync(callingFile)) {
-      throw new Error(`Calling file does not exist: ${callingFile}`);
-    }
-    
-    // Read calling file securely
-    let callingFileContent: string;
-    try {
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate required parameters
+      if (!secureParams.callingFile || typeof secureParams.callingFile !== 'string') {
+        throw new Error('callingFile is required and must be a string path');
+      }
+      
+      if (!secureParams.calledClass || typeof secureParams.calledClass !== 'string') {
+        throw new Error('calledClass is required and must be a string');
+      }
+      
+      if (!secureParams.methodName || typeof secureParams.methodName !== 'string') {
+        throw new Error('methodName is required and must be a string');
+      }
+      
+      // Validate and resolve calling file using secure path validation
+      const callingFile = await validateAndNormalizePath(secureParams.callingFile);
+      
+      if (!existsSync(callingFile)) {
+        throw new Error(`Calling file does not exist: ${callingFile}`);
+      }
+      
+      // Read calling file securely
+      let callingFileContent: string;
+      try {
+        const { readFileContent } = await import('../shared/helpers.js');
+        callingFileContent = await readFileContent(callingFile);
+      } catch (error) {
+        throw new Error(`Failed to read calling file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+      
+      // Try to find the class definition file
+      const classFiles = await this.findClassDefinition(secureParams.calledClass, dirname(callingFile));
+      
+      if (classFiles.length === 0) {
+        throw new Error(`Could not find definition for class: ${secureParams.calledClass}`);
+      }
+      
+      // Read class definition files
+      const classFileContents: Record<string, string> = {};
       const { readFileContent } = await import('../shared/helpers.js');
-      callingFileContent = await readFileContent(callingFile);
-    } catch (error) {
-      throw new Error(`Failed to read calling file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-    
-    // Try to find the class definition file
-    const classFiles = await this.findClassDefinition(params.calledClass, dirname(callingFile));
-    
-    if (classFiles.length === 0) {
-      throw new Error(`Could not find definition for class: ${params.calledClass}`);
-    }
-    
-    // Read class definition files
-    const classFileContents: Record<string, string> = {};
-    const { readFileContent } = await import('../shared/helpers.js');
     for (const classFile of classFiles) {
       try {
         classFileContents[classFile] = await readFileContent(classFile);

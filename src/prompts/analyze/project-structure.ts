@@ -9,6 +9,7 @@ import { ResponseFactory } from '../../validation/response-factory.js';
 import { readdirSync, statSync, readFileSync, existsSync } from 'fs';
 import { resolve, join, extname, relative, basename } from 'path';
 import { validateAndNormalizePath } from '../shared/helpers.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 interface ProjectStructure {
   directories: Map<string, DirectoryInfo>;
@@ -68,95 +69,97 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate project path
-    if (!params.projectPath || typeof params.projectPath !== 'string') {
-      throw new Error('projectPath is required and must be a string');
-    }
-    
-    // Validate and resolve project path using secure path validation
-    const projectPath = await validateAndNormalizePath(params.projectPath);
-    
-    if (!existsSync(projectPath)) {
-      throw new Error(`Project path does not exist: ${projectPath}`);
-    }
-    
-    if (!statSync(projectPath).isDirectory()) {
-      throw new Error(`Project path is not a directory: ${projectPath}`);
-    }
-    
-    // Parse parameters
-    const focusAreas = params.focusAreas || [];
-    const maxDepth = Math.min(Math.max(params.maxDepth || 3, 1), 10);
-    
-    // Analyze project structure
-    const structure = await this.analyzeProjectStructure(projectPath, maxDepth);
-    
-    // Read key configuration files
-    const configFiles = await this.readConfigurationFiles(projectPath);
-    
-    // Sample code files for pattern analysis
-    const codeSamples = await this.sampleCodeFiles(projectPath, structure);
-    
-    // Generate analysis prompt
-    const prompt = this.getPrompt({
-      projectPath,
-      structure,
-      configFiles,
-      codeSamples,
-      focusAreas,
-      maxDepth
-    });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate project path
+      if (!secureParams.projectPath || typeof secureParams.projectPath !== 'string') {
+        throw new Error('projectPath is required and must be a string');
       }
       
-      // Use the first loaded model
-      const model = models[0];
+      // Validate and resolve project path using secure path validation
+      const projectPath = await validateAndNormalizePath(secureParams.projectPath);
       
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are a senior software architect with expertise in project analysis, code organization, and architectural patterns. Provide comprehensive analysis of project structures, identifying patterns, potential issues, and improvement opportunities.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
-        temperature: 0.2,
-        maxTokens: 5000
+      if (!existsSync(projectPath)) {
+        throw new Error(`Project path does not exist: ${projectPath}`);
+      }
+      
+      if (!statSync(projectPath).isDirectory()) {
+        throw new Error(`Project path is not a directory: ${projectPath}`);
+      }
+      
+      // Parse parameters
+      const focusAreas = secureParams.focusAreas || [];
+      const maxDepth = Math.min(Math.max(secureParams.maxDepth || 3, 1), 10);
+      
+      // Analyze project structure
+      const structure = await this.analyzeProjectStructure(projectPath, maxDepth);
+      
+      // Read key configuration files
+      const configFiles = await this.readConfigurationFiles(projectPath);
+      
+      // Sample code files for pattern analysis
+      const codeSamples = await this.sampleCodeFiles(projectPath, structure);
+      
+      // Generate analysis prompt
+      const prompt = this.getPrompt({
+        projectPath,
+        structure,
+        configFiles,
+        codeSamples,
+        focusAreas,
+        maxDepth
       });
       
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
+      try {
+        // Get the loaded model from LM Studio
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
         }
+        
+        // Use the first loaded model
+        const model = models[0];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond([
+          {
+            role: 'system',
+            content: 'You are a senior software architect with expertise in project analysis, code organization, and architectural patterns. Provide comprehensive analysis of project structures, identifying patterns, potential issues, and improvement opportunities.'
+          },
+          {
+            role: 'user', 
+            content: prompt
+          }
+        ], {
+          temperature: 0.2,
+          maxTokens: 5000
+        });
+        
+        // Stream the response
+        let response = '';
+        for await (const chunk of prediction) {
+          if (chunk.content) {
+            response += chunk.content;
+          }
+        }
+        
+        // Use ResponseFactory for consistent, spec-compliant output
+        ResponseFactory.setStartTime();
+        return ResponseFactory.parseAndCreateResponse(
+          'analyze_project_structure',
+          response,
+          model.identifier || 'unknown'
+        );
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'analyze_project_structure',
+          'MODEL_ERROR',
+          `Failed to analyze project structure: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
       }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'analyze_project_structure',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'analyze_project_structure',
-        'MODEL_ERROR',
-        `Failed to analyze project structure: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
+    });
   }
 
   getPrompt(params: any): string {

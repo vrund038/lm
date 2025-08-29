@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from './types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 export class CacheManager {
   private static cache: Map<string, any> = new Map();
@@ -50,21 +51,23 @@ export class ClearCachePlugin extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    const entriesBefore = CacheManager.getCacheSize();
-    CacheManager.clear(params.filePath);
-    
-    // Use ResponseFactory for consistent, spec-compliant output
-    ResponseFactory.setStartTime();
-    return ResponseFactory.createSystemResponse({
-      status: 'success',
-      details: {
-        success: true,
-        message: params.filePath 
-          ? `Cache cleared for ${params.filePath}`
-          : 'All cache entries cleared',
-        filesCleared: params.filePath ? 1 : entriesBefore,
-        memoryFreed: CacheManager.estimateMemoryUsage()
-      }
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      const entriesBefore = CacheManager.getCacheSize();
+      CacheManager.clear(secureParams.filePath);
+      
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.createSystemResponse({
+        status: 'success',
+        details: {
+          success: true,
+          message: secureParams.filePath 
+            ? `Cache cleared for ${secureParams.filePath}`
+            : 'All cache entries cleared',
+          filesCleared: secureParams.filePath ? 1 : entriesBefore,
+          memoryFreed: CacheManager.estimateMemoryUsage()
+        }
+      });
     });
   }
 
@@ -82,24 +85,26 @@ export class CacheStatisticsPlugin extends BasePlugin implements IPromptPlugin {
   parameters = {};
 
   async execute(params: any, llmClient: any) {
-    const stats = CacheManager.getStatistics();
-    
-    // Use ResponseFactory for consistent, spec-compliant output
-    ResponseFactory.setStartTime();
-    return ResponseFactory.createSystemResponse({
-      status: 'active',
-      details: {
-        totalEntries: stats.totalEntries,
-        memoryUsage: stats.memoryUsage,
-        files: stats.files,
-        oldestEntry: stats.files.length > 0 ? new Date().toISOString() : 'none',
-        newestEntry: stats.files.length > 0 ? new Date().toISOString() : 'none',
-        hitRate: 0, // Would need actual hit tracking
-        statistics: {
-          byType: { 'analysis': stats.totalEntries },
-          bySize: { 'small': stats.totalEntries }
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      const stats = CacheManager.getStatistics();
+      
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.createSystemResponse({
+        status: 'active',
+        details: {
+          totalEntries: stats.totalEntries,
+          memoryUsage: stats.memoryUsage,
+          files: stats.files,
+          oldestEntry: stats.files.length > 0 ? new Date().toISOString() : 'none',
+          newestEntry: stats.files.length > 0 ? new Date().toISOString() : 'none',
+          hitRate: 0, // Would need actual hit tracking
+          statistics: {
+            byType: { 'analysis': stats.totalEntries },
+            bySize: { 'small': stats.totalEntries }
+          }
         }
-      }
+      });
     });
   }
 

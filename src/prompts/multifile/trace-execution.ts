@@ -11,6 +11,7 @@ import { PromptStages } from '../../types/prompt-stages.js';
 import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
 import { readFileContent } from '../shared/helpers.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
   name = 'trace_execution_path';
@@ -38,55 +39,56 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate entry point
-    if (!params.entryPoint || typeof params.entryPoint !== 'string') {
-      throw new Error('Entry point is required and must be a string (e.g., "ClassName::methodName" or "functionName")');
-    }
-    
-    // Validate and constrain trace depth
-    const traceDepth = Math.min(Math.max(params.traceDepth || 5, 1), 10);
-    const showParameters = params.showParameters || false;
-    
-    // Parse entry point to determine starting context
-    const entryPointInfo = this.parseEntryPoint(params.entryPoint);
-    
-    // Try to find the entry point file(s)
-    const projectRoot = this.findProjectRoot();
-    const relevantFiles = await this.findRelevantFiles(projectRoot, entryPointInfo);
-    
-    if (relevantFiles.length === 0) {
-      throw new Error(`Could not find files containing entry point: ${params.entryPoint}`);
-    }
-    
-    // Read relevant files using secure file reading
-    const fileContents: Record<string, string> = {};
-    for (const filePath of relevantFiles) {
-      try {
-        const content = await readFileContent(filePath);
-        fileContents[filePath] = content;
-      } catch (error) {
-        console.warn(`Could not read file: ${filePath}`, error);
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate entry point
+      if (!secureParams.entryPoint || typeof secureParams.entryPoint !== 'string') {
+        throw new Error('Entry point is required and must be a string (e.g., "ClassName::methodName" or "functionName")');
       }
-    }
-    
-    // Get model for context limit detection
-    const models = await llmClient.llm.listLoaded();
-    if (models.length === 0) {
-      throw new Error('No model loaded in LM Studio. Please load a model first.');
-    }
-    
-    const model = models[0];
-    const contextLength = await model.getContextLength() || 23832;
-    const systemOverhead = 2000; // System instructions overhead
-    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
-    
-    // Early chunking decision: Estimate content size
-    const totalContentLength = Object.values(fileContents).join('').length;
-    const estimatedTokens = Math.floor(totalContentLength / 4) + systemOverhead; // Rough token estimate
-    
-    if (estimatedTokens > availableTokens) {
-      // Process with chunking for large content
-      return await this.executeWithChunking(params, fileContents, entryPointInfo, traceDepth, showParameters, llmClient, model, availableTokens);
+      
+      // Validate and constrain trace depth
+      const traceDepth = Math.min(Math.max(secureParams.traceDepth || 5, 1), 10);
+      const showParameters = secureParams.showParameters || false;
+      
+      // Parse entry point to determine starting context
+      const entryPointInfo = this.parseEntryPoint(secureParams.entryPoint);
+      
+      // Try to find the entry point file(s)
+      const projectRoot = this.findProjectRoot();
+      const relevantFiles = await this.findRelevantFiles(projectRoot, entryPointInfo);
+      
+      if (relevantFiles.length === 0) {
+        throw new Error(`Could not find files containing entry point: ${secureParams.entryPoint}`);
+      }
+      
+      // Read relevant files using secure file reading
+      const fileContents: Record<string, string> = {};
+      for (const filePath of relevantFiles) {
+        try {
+          const content = await readFileContent(filePath);
+          fileContents[filePath] = content;
+        } catch (error) {
+          console.warn(`Could not read file: ${filePath}`, error);
+        }
+      }
+      
+      // Get model for context limit detection
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
+      }
+      
+      const model = models[0];
+      const contextLength = await model.getContextLength() || 23832;
+      const systemOverhead = 2000; // System instructions overhead
+      const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
+      
+      // Early chunking decision: Estimate content size
+      const totalContentLength = Object.values(fileContents).join('').length;
+      const estimatedTokens = Math.floor(totalContentLength / 4) + systemOverhead; // Rough token estimate
+      
+      if (estimatedTokens > availableTokens) {
+        // Process with chunking for large content
+        return await this.executeWithChunking(secureParams, fileContents, entryPointInfo, traceDepth, showParameters, llmClient, model, availableTokens);
     }
     
     // Process normally for small operations

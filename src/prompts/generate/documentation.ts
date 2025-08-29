@@ -7,6 +7,7 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../shared/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for documentation context
 interface DocContext {
@@ -91,81 +92,83 @@ export class DocumentationGenerator extends BasePlugin implements IPromptPlugin 
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate at least one input provided
-    if (!params.code && !params.filePath) {
-      throw new Error('Either code or filePath must be provided');
-    }
-    
-    // Read file if needed
-    let codeToDocument = params.code;
-    if (params.filePath) {
-      codeToDocument = await readFileContent(params.filePath);
-    }
-    
-    // Prepare context with defaults
-    const context: DocContext = {
-      projectType: params.context?.projectType || 'generic',
-      docStyle: params.docStyle || 'jsdoc',
-      detailLevel: params.context?.detailLevel || 'standard',
-      includeExamples: params.includeExamples !== false,
-      audience: params.context?.audience || 'developer',
-      includeApiReference: params.context?.includeApiReference !== false,
-      includeTroubleshooting: params.context?.includeTroubleshooting !== false
-    };
-    
-    // Generate prompt
-    const prompt = this.getPrompt({ ...params, code: codeToDocument, context });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate at least one input provided
+      if (!secureParams.code && !secureParams.filePath) {
+        throw new Error('Either code or filePath must be provided');
       }
       
-      // Use the first loaded model
-      const model = models[0];
-      
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are a documentation expert. Generate clear, comprehensive documentation that helps developers understand and use code effectively. Follow the specified documentation style and include practical examples.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
-        temperature: 0.1,
-        maxTokens: 2500
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
+      // Read file if needed
+      let codeToDocument = secureParams.code;
+      if (secureParams.filePath) {
+        codeToDocument = await readFileContent(secureParams.filePath);
       }
       
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'generate_documentation',
-        response,
-        model.identifier || 'unknown'
-      );
+      // Prepare context with defaults
+      const context: DocContext = {
+        projectType: secureParams.context?.projectType || 'generic',
+        docStyle: secureParams.docStyle || 'jsdoc',
+        detailLevel: secureParams.context?.detailLevel || 'standard',
+        includeExamples: secureParams.includeExamples !== false,
+        audience: secureParams.context?.audience || 'developer',
+        includeApiReference: secureParams.context?.includeApiReference !== false,
+        includeTroubleshooting: secureParams.context?.includeTroubleshooting !== false
+      };
       
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'generate_documentation',
-        'MODEL_ERROR',
-        `Failed to generate documentation: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
+      // Generate prompt
+      const prompt = this.getPrompt({ ...secureParams, code: codeToDocument, context });
+      
+      try {
+        // Get the loaded model from LM Studio
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        // Use the first loaded model
+        const model = models[0];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond([
+          {
+            role: 'system',
+            content: 'You are a documentation expert. Generate clear, comprehensive documentation that helps developers understand and use code effectively. Follow the specified documentation style and include practical examples.'
+          },
+          {
+            role: 'user', 
+            content: prompt
+          }
+        ], {
+          temperature: 0.1,
+          maxTokens: 2500
+        });
+        
+        // Stream the response
+        let response = '';
+        for await (const chunk of prediction) {
+          if (chunk.content) {
+            response += chunk.content;
+          }
+        }
+        
+        // Use ResponseFactory for consistent, spec-compliant output
+        ResponseFactory.setStartTime();
+        return ResponseFactory.parseAndCreateResponse(
+          'generate_documentation',
+          response,
+          model.identifier || 'unknown'
+        );
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'generate_documentation',
+          'MODEL_ERROR',
+          `Failed to generate documentation: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
+      }
+    });
   }
 
   getPrompt(params: any): string {

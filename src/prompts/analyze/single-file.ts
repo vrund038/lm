@@ -7,6 +7,7 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../shared/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for analysis context
 interface AnalysisContext {
@@ -81,81 +82,83 @@ export class CodeStructureAnalyzer extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate at least one input provided
-    if (!params.code && !params.filePath) {
-      throw new Error('Either code or filePath must be provided');
-    }
-    
-    // Read file if needed
-    let codeToAnalyze = params.code;
-    if (params.filePath) {
-      codeToAnalyze = await readFileContent(params.filePath);
-    }
-    
-    // Prepare context with defaults
-    const context: AnalysisContext = {
-      projectType: params.context?.projectType || 'generic',
-      framework: params.context?.framework || 'none specified',
-      frameworkVersion: params.context?.frameworkVersion,
-      standards: params.context?.standards,
-      environment: params.context?.environment,
-      language: params.language || 'javascript',
-      languageVersion: params.context?.languageVersion
-    };
-    
-    // Generate prompt
-    const prompt = this.getPrompt({ ...params, code: codeToAnalyze, context });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate at least one input provided
+      if (!secureParams.code && !secureParams.filePath) {
+        throw new Error('Either code or filePath must be provided');
       }
       
-      // Use the first loaded model
-      const model = models[0];
-      
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert code analyst. Provide structured, actionable analysis of code architecture, patterns, and potential improvements. Be concise but thorough.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
-        temperature: 0.1,
-        maxTokens: 2000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
+      // Read file if needed
+      let codeToAnalyze = secureParams.code;
+      if (secureParams.filePath) {
+        codeToAnalyze = await readFileContent(secureParams.filePath);
       }
       
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'analyze_single_file',
-        response,
-        model.identifier || 'unknown'
-      );
+      // Prepare context with defaults
+      const context: AnalysisContext = {
+        projectType: secureParams.context?.projectType || 'generic',
+        framework: secureParams.context?.framework || 'none specified',
+        frameworkVersion: secureParams.context?.frameworkVersion,
+        standards: secureParams.context?.standards,
+        environment: secureParams.context?.environment,
+        language: secureParams.language || 'javascript',
+        languageVersion: secureParams.context?.languageVersion
+      };
       
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'analyze_single_file',
-        'MODEL_ERROR',
-        `Failed to analyze code: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
+      // Generate prompt
+      const prompt = this.getPrompt({ ...secureParams, code: codeToAnalyze, context });
+      
+      try {
+        // Get the loaded model from LM Studio
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        // Use the first loaded model
+        const model = models[0];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond([
+          {
+            role: 'system',
+            content: 'You are an expert code analyst. Provide structured, actionable analysis of code architecture, patterns, and potential improvements. Be concise but thorough.'
+          },
+          {
+            role: 'user', 
+            content: prompt
+          }
+        ], {
+          temperature: 0.1,
+          maxTokens: 2000
+        });
+        
+        // Stream the response
+        let response = '';
+        for await (const chunk of prediction) {
+          if (chunk.content) {
+            response += chunk.content;
+          }
+        }
+        
+        // Use ResponseFactory for consistent, spec-compliant output
+        ResponseFactory.setStartTime();
+        return ResponseFactory.parseAndCreateResponse(
+          'analyze_single_file',
+          response,
+          model.identifier || 'unknown'
+        );
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'analyze_single_file',
+          'MODEL_ERROR',
+          `Failed to analyze code: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
+      }
+    });
   }
 
   getPrompt(params: any): string {

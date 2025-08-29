@@ -41,6 +41,14 @@ export interface Config {
   maxFileSize: number;
   supportedFileTypes: string[];
   taskPrompts: Record<TaskType, TaskPrompt>;
+  security?: {
+    enableSanitisation: boolean;
+    enableInjectionDetection: boolean;
+    enableOutputEncoding: boolean;
+    injectionThreshold: number;
+    allowedDirectories: string[];
+    maxInputSize: Record<string, number>;
+  };
 }
 
 export interface FileAnalysisParams {

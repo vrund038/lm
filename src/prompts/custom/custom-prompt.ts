@@ -10,6 +10,7 @@ import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
 import { basename } from 'path';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
   name = 'custom_prompt';
@@ -53,45 +54,46 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    try {
-      // Validate required parameters
-      if (!params.prompt || typeof params.prompt !== 'string') {
-        throw new Error('Prompt is required and must be a string');
-      }
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      try {
+        // Validate required parameters
+        if (!secureParams.prompt || typeof secureParams.prompt !== 'string') {
+          throw new Error('Prompt is required and must be a string');
+        }
 
-      // Read files if provided - using secure file reading
-      const fileContents: Record<string, string> = {};
-      if (params.files && Array.isArray(params.files)) {
-        // Import secure file reading helper
-        const { readFileContent } = await import('../shared/helpers.js');
-        
-        for (const filePath of params.files) {
-          try {
-            // Use secure file reading which includes path validation
-            const content = await readFileContent(filePath);
-            fileContents[filePath] = content;
-          } catch (error: any) {
-            // Silently skip files that can't be read - security errors will be thrown by readFileContent
+        // Read files if provided - using secure file reading
+        const fileContents: Record<string, string> = {};
+        if (secureParams.files && Array.isArray(secureParams.files)) {
+          // Import secure file reading helper
+          const { readFileContent } = await import('../shared/helpers.js');
+          
+          for (const filePath of secureParams.files) {
+            try {
+              // Use secure file reading which includes path validation
+              const content = await readFileContent(filePath);
+              fileContents[filePath] = content;
+            } catch (error: any) {
+              // Silently skip files that can't be read - security errors will be thrown by readFileContent
+            }
           }
         }
-      }
 
-      // Get model info
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
-      }
-      
-      const model = models[0];
-      
-      // Build comprehensive prompt with context
-      const fullPrompt = this.buildFullPrompt(params, fileContents);
-      
-      // Execute with 3-stage architecture for large content
-      const contextLength = await model.getContextLength() || 23832;
-      const estimatedTokens = Math.floor(fullPrompt.length / 4);
-      
-      if (estimatedTokens > contextLength * 0.8) {
+        // Get model info
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        const model = models[0];
+        
+        // Build comprehensive prompt with context
+        const fullPrompt = this.buildFullPrompt(secureParams, fileContents);
+        
+        // Execute with 3-stage architecture for large content
+        const contextLength = await model.getContextLength() || 23832;
+        const estimatedTokens = Math.floor(fullPrompt.length / 4);
+        
+        if (estimatedTokens > contextLength * 0.8) {
         return await this.executeWithChunking(params, fileContents, llmClient, model);
       } else {
         return await this.executeDirect(fullPrompt, llmClient, model, params);

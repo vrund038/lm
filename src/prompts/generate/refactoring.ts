@@ -7,6 +7,7 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for refactoring context
 interface RefactorContext {
@@ -89,81 +90,83 @@ export class RefactoringAnalyzer extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate at least one input provided
-    if (!params.code && !params.filePath) {
-      throw new Error('Either code or filePath must be provided');
-    }
-    
-    // Read file if needed
-    let codeToRefactor = params.code;
-    if (params.filePath) {
-      codeToRefactor = await readFileContent(params.filePath);
-    }
-    
-    // Prepare context with defaults
-    const context: RefactorContext = {
-      projectType: params.context?.projectType || 'generic',
-      focusAreas: params.focusAreas || ['readability', 'maintainability'],
-      preserveApi: params.context?.preserveApi !== false,
-      modernizationLevel: params.context?.modernizationLevel || 'moderate',
-      targetComplexity: params.context?.targetComplexity || 10,
-      standards: params.context?.standards,
-      teamConventions: params.context?.teamConventions
-    };
-    
-    // Generate prompt
-    const prompt = this.getPrompt({ ...params, code: codeToRefactor, context });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate at least one input provided
+      if (!secureParams.code && !secureParams.filePath) {
+        throw new Error('Either code or filePath must be provided');
       }
       
-      // Use the first loaded model
-      const model = models[0];
-      
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert software architect specializing in code refactoring. Provide specific, actionable refactoring suggestions that improve code quality, maintainability, and performance while preserving functionality.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
-        temperature: 0.3,
-        maxTokens: 4000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
+      // Read file if needed
+      let codeToRefactor = secureParams.code;
+      if (secureParams.filePath) {
+        codeToRefactor = await readFileContent(secureParams.filePath);
       }
       
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'suggest_refactoring',
-        response,
-        model.identifier || 'unknown'
-      );
+      // Prepare context with defaults
+      const context: RefactorContext = {
+        projectType: secureParams.context?.projectType || 'generic',
+        focusAreas: secureParams.focusAreas || ['readability', 'maintainability'],
+        preserveApi: secureParams.context?.preserveApi !== false,
+        modernizationLevel: secureParams.context?.modernizationLevel || 'moderate',
+        targetComplexity: secureParams.context?.targetComplexity || 10,
+        standards: secureParams.context?.standards,
+        teamConventions: secureParams.context?.teamConventions
+      };
       
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'suggest_refactoring',
-        'MODEL_ERROR',
-        `Failed to suggest refactoring: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
+      // Generate prompt
+      const prompt = this.getPrompt({ ...secureParams, code: codeToRefactor, context });
+      
+      try {
+        // Get the loaded model from LM Studio
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        // Use the first loaded model
+        const model = models[0];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond([
+          {
+            role: 'system',
+            content: 'You are an expert software architect specializing in code refactoring. Provide specific, actionable refactoring suggestions that improve code quality, maintainability, and performance while preserving functionality.'
+          },
+          {
+            role: 'user', 
+            content: prompt
+          }
+        ], {
+          temperature: 0.3,
+          maxTokens: 4000
+        });
+        
+        // Stream the response
+        let response = '';
+        for await (const chunk of prediction) {
+          if (chunk.content) {
+            response += chunk.content;
+          }
+        }
+        
+        // Use ResponseFactory for consistent, spec-compliant output
+        ResponseFactory.setStartTime();
+        return ResponseFactory.parseAndCreateResponse(
+          'suggest_refactoring',
+          response,
+          model.identifier || 'unknown'
+        );
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'suggest_refactoring',
+          'MODEL_ERROR',
+          `Failed to suggest refactoring: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
+      }
+    });
   }
 
   getPrompt(params: any): string {

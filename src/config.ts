@@ -10,6 +10,21 @@ export const config: Config = {
   maxFileSize: 200 * 1024 * 1024,  // 200MB limit
   supportedFileTypes: ['.csv', '.json', '.txt', '.js', '.ts', '.py', '.md', '.log', '.jsx', '.tsx', '.java', '.c', '.cpp', '.rs', '.go', '.php', '.rb', '.swift'],
   
+  // Security configuration
+  security: {
+    enableSanitisation: true,
+    enableInjectionDetection: true,
+    enableOutputEncoding: true,
+    injectionThreshold: 0.5, // 0-1 scale for detection sensitivity
+    allowedDirectories: process.env.LLM_MCP_ALLOWED_DIRS?.split(',') || [process.cwd()],
+    maxInputSize: {
+      'file-path': 1000,
+      'code': 100000,
+      'general': 50000,
+      'prompt': 20000
+    }
+  },
+  
   taskPrompts: {
     [TaskType.ANALYZE_SINGLE_FILE]: {
       systemPrompt: 'You are a code analysis assistant. Provide clear, structured analysis of code. Be concise and technical.',

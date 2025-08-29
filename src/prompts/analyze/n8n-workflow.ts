@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for n8n workflow analysis
 interface N8nAnalysisContext {
@@ -47,71 +48,73 @@ export class N8nWorkflowAnalyzer extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate workflow is provided
-    if (!params.workflow) {
-      throw new Error('workflow object is required');
-    }
-    
-    // Prepare context
-    const context: N8nAnalysisContext = {
-      optimizationFocus: params.optimizationFocus || 'all',
-      includeCredentialCheck: params.includeCredentialCheck !== false,
-      suggestAlternativeNodes: params.suggestAlternativeNodes !== false
-    };
-    
-    // Generate prompt
-    const prompt = this.getPrompt({ workflow: params.workflow, context });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate workflow is provided
+      if (!secureParams.workflow) {
+        throw new Error('workflow object is required');
       }
       
-      // Use the first loaded model
-      const model = models[0];
+      // Prepare context
+      const context: N8nAnalysisContext = {
+        optimizationFocus: secureParams.optimizationFocus || 'all',
+        includeCredentialCheck: secureParams.includeCredentialCheck !== false,
+        suggestAlternativeNodes: secureParams.suggestAlternativeNodes !== false
+      };
       
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert n8n workflow analyst. Optimize workflows for efficiency, identify bottlenecks, suggest improvements, and ensure proper error handling. Focus on practical, actionable recommendations.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
-        temperature: 0.2,
-        maxTokens: 4000
-      });
+      // Generate prompt
+      const prompt = this.getPrompt({ workflow: secureParams.workflow, context });
       
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
+      try {
+        // Get the loaded model from LM Studio
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
         }
+        
+        // Use the first loaded model
+        const model = models[0];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond([
+          {
+            role: 'system',
+            content: 'You are an expert n8n workflow analyst. Optimize workflows for efficiency, identify bottlenecks, suggest improvements, and ensure proper error handling. Focus on practical, actionable recommendations.'
+          },
+          {
+            role: 'user', 
+            content: prompt
+          }
+        ], {
+          temperature: 0.2,
+          maxTokens: 4000
+        });
+        
+        // Stream the response
+        let response = '';
+        for await (const chunk of prediction) {
+          if (chunk.content) {
+            response += chunk.content;
+          }
+        }
+        
+        // Use ResponseFactory for consistent, spec-compliant output
+        ResponseFactory.setStartTime();
+        return ResponseFactory.parseAndCreateResponse(
+          'analyze_n8n_workflow',
+          response,
+          model.identifier || 'unknown'
+        );
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'analyze_n8n_workflow',
+          'MODEL_ERROR',
+          `Failed to analyze n8n workflow: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
       }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'analyze_n8n_workflow',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'analyze_n8n_workflow',
-        'MODEL_ERROR',
-        `Failed to analyze n8n workflow: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
+    });
   }
 
   getPrompt(params: any): string {

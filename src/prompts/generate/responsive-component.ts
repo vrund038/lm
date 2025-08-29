@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for component specifications
 interface ComponentSpecs {
@@ -76,55 +77,56 @@ export class ResponsiveComponentGenerator extends BasePlugin implements IPromptP
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate required parameters
-    if (!params.name || !params.type) {
-      throw new Error('name and type are required');
-    }
-    
-    // Prepare specifications
-    const specs: ComponentSpecs = {
-      name: params.name,
-      type: params.type,
-      framework: params.framework || 'vanilla',
-      designSystem: params.designSystem || 'custom',
-      responsive: params.responsive !== false,
-      accessible: params.accessible !== false,
-      animations: params.animations || false,
-      darkMode: params.darkMode || false
-    };
-    
-    // Generate prompt
-    const prompt = this.getPrompt({ specs });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate required parameters
+      if (!secureParams.name || !secureParams.type) {
+        throw new Error('name and type are required');
       }
       
-      // Use the first loaded model
-      const model = models[0];
+      // Prepare specifications
+      const specs: ComponentSpecs = {
+        name: secureParams.name,
+        type: secureParams.type,
+        framework: secureParams.framework || 'vanilla',
+        designSystem: secureParams.designSystem || 'custom',
+        responsive: secureParams.responsive !== false,
+        accessible: secureParams.accessible !== false,
+        animations: secureParams.animations || false,
+        darkMode: secureParams.darkMode || false
+      };
       
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert frontend developer specializing in responsive, accessible web components. Create production-ready HTML/CSS/JavaScript components following modern web standards, WCAG accessibility guidelines, and responsive design principles.'
-        },
-        {
-          role: 'user', 
-          content: prompt
+      // Generate prompt
+      const prompt = this.getPrompt({ specs });
+      
+      try {
+        // Get the loaded model from LM Studio
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
         }
-      ], {
-        temperature: 0.3,
-        maxTokens: 5000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
+        
+        // Use the first loaded model
+        const model = models[0];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond([
+          {
+            role: 'system',
+            content: 'You are an expert frontend developer specializing in responsive, accessible web components. Create production-ready HTML/CSS/JavaScript components following modern web standards, WCAG accessibility guidelines, and responsive design principles.'
+          },
+          {
+            role: 'user', 
+            content: prompt
+          }
+        ], {
+          temperature: 0.3,
+          maxTokens: 5000
+        });
+        
+        // Stream the response
+        let response = '';
+        for await (const chunk of prediction) {
+          if (chunk.content) {
           response += chunk.content;
         }
       }
@@ -146,6 +148,8 @@ export class ResponsiveComponentGenerator extends BasePlugin implements IPromptP
         'unknown'
       );
     }
+    });
+  }
   }
 
   getPrompt(params: any): string {

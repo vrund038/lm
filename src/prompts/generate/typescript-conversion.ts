@@ -7,6 +7,7 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for TypeScript context
 interface TSContext {
@@ -80,45 +81,46 @@ export class TypeScriptConverter extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate at least one input provided
-    if (!params.code && !params.filePath) {
-      throw new Error('Either code or filePath must be provided');
-    }
-    
-    // Read file if needed
-    let jsCode = params.code;
-    if (params.filePath) {
-      jsCode = await readFileContent(params.filePath);
-    }
-    
-    // Prepare context with defaults
-    const context: TSContext = {
-      strict: params.strict !== false,
-      target: params.target || 'ES2020',
-      module: params.module || 'ESNext',
-      preserveComments: params.preserveComments !== false,
-      addTypeGuards: params.addTypeGuards !== false,
-      useInterfaces: params.useInterfaces !== false,
-      useEnums: params.useEnums !== false
-    };
-    
-    // Generate prompt
-    const prompt = this.getPrompt({ code: jsCode, context });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate at least one input provided
+      if (!secureParams.code && !secureParams.filePath) {
+        throw new Error('Either code or filePath must be provided');
       }
       
-      // Use the first loaded model
-      const model = models[0];
+      // Read file if needed
+      let jsCode = secureParams.code;
+      if (secureParams.filePath) {
+        jsCode = await readFileContent(secureParams.filePath);
+      }
       
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
+      // Prepare context with defaults
+      const context: TSContext = {
+        strict: secureParams.strict !== false,
+        target: secureParams.target || 'ES2020',
+        module: secureParams.module || 'ESNext',
+        preserveComments: secureParams.preserveComments !== false,
+        addTypeGuards: secureParams.addTypeGuards !== false,
+        useInterfaces: secureParams.useInterfaces !== false,
+        useEnums: secureParams.useEnums !== false
+      };
+      
+      // Generate prompt
+      const prompt = this.getPrompt({ code: jsCode, context });
+      
+      try {
+        // Get the loaded model from LM Studio
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        // Use the first loaded model
+        const model = models[0];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond([
+          {
+            role: 'system',
           content: 'You are an expert TypeScript developer. Convert JavaScript code to TypeScript with comprehensive type annotations, proper interfaces, and modern TypeScript best practices. Focus on type safety and maintainability.'
         },
         {

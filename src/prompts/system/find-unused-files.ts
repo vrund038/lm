@@ -9,6 +9,7 @@ import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for the comprehensive analysis
 interface UnusedFilesContext {
@@ -59,35 +60,36 @@ export class FindUnusedFiles extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Security validation using enhanced path validation
-    if (!params.projectPath || typeof params.projectPath !== 'string') {
-      throw new Error('Invalid project path');
-    }
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Security validation using enhanced path validation
+      if (!secureParams.projectPath || typeof secureParams.projectPath !== 'string') {
+        throw new Error('Invalid project path');
+      }
 
-    // Import the secure path validation helper
-    const { validateAndNormalizePath } = await import('../shared/helpers.js');
-    
-    // Use secure path validation and normalization
-    const projectPath = await validateAndNormalizePath(params.projectPath);
+      // Import the secure path validation helper
+      const { validateAndNormalizePath } = await import('../shared/helpers.js');
+      
+      // Use secure path validation and normalization
+      const projectPath = await validateAndNormalizePath(secureParams.projectPath);
 
-    // Prepare context with defaults
-    const context: UnusedFilesContext = {
-      projectPath: projectPath,
-      entryPoints: params.entryPoints || ['index.ts', 'main.ts', 'app.ts'],
-      excludePatterns: params.excludePatterns || ['*.test.ts', '*.spec.ts', '*.d.ts'],
-      includeDevArtifacts: params.includeDevArtifacts || false,
-      analyzeComments: params.analyzeComments || true
-    };
+      // Prepare context with defaults
+      const context: UnusedFilesContext = {
+        projectPath: projectPath,
+        entryPoints: secureParams.entryPoints || ['index.ts', 'main.ts', 'app.ts'],
+        excludePatterns: secureParams.excludePatterns || ['*.test.ts', '*.spec.ts', '*.d.ts'],
+        includeDevArtifacts: secureParams.includeDevArtifacts || false,
+        analyzeComments: secureParams.analyzeComments || true
+      };
 
-    // Perform the comprehensive file analysis
-    const analysisResult = await this.performFileAnalysis(context);
+      // Perform the comprehensive file analysis
+      const analysisResult = await this.performFileAnalysis(context);
 
-    // Generate the prompt for LLM processing
-    const prompt = this.getPrompt({ 
-      ...params, 
-      analysisResult,
-      context 
-    });
+      // Generate the prompt for LLM processing
+      const prompt = this.getPrompt({ 
+        ...secureParams, 
+        analysisResult,
+        context 
+      });
 
     // Get LLM response
     const models = await llmClient.llm.listLoaded();

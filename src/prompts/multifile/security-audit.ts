@@ -12,6 +12,7 @@ import { PromptStages } from '../../types/prompt-stages.js';
 import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, relative, basename } from 'path';
 import { readFileContent, validateAndNormalizePath } from '../shared/helpers.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 interface SecurityFile {
   path: string;
@@ -96,7 +97,7 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
     }
     
     // Validate and resolve project path using secure path validation
-    const projectPath = await validateAndNormalizePath(params.projectPath);
+    const projectPath = await validateAndNormalizePath(secureParams.projectPath);
     
     if (!existsSync(projectPath)) {
       throw new Error(`Project path does not exist: ${projectPath}`);
@@ -112,7 +113,7 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
     }
 
     // Find and categorize security-relevant files
-    const securityFiles = await this.findSecurityRelevantFiles(projectPath, params.projectType);
+    const securityFiles = await this.findSecurityRelevantFiles(projectPath, secureParams.projectType);
     
     if (securityFiles.length === 0) {
       throw new Error(`No security-relevant files found in project: ${projectPath}`);
@@ -133,11 +134,11 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
     
     if (estimatedTokens > availableTokens) {
       // Use file chunking for large projects
-      return await this.executeWithFileChunking(securityFiles, params, llmClient, model, availableTokens);
+      return await this.executeWithFileChunking(securityFiles, secureParams, llmClient, model, availableTokens);
     }
     
     // Process all files in single pass
-    return await this.executeSinglePass(securityFiles, params, llmClient, model);
+    return await this.executeSinglePass(securityFiles, secureParams, llmClient, model);
   }
 
   /**

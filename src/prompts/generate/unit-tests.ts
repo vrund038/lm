@@ -7,6 +7,7 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for test context
 interface TestContext {
@@ -90,35 +91,36 @@ export class UnitTestGenerator extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate at least one input provided
-    if (!params.code && !params.filePath) {
-      throw new Error('Either code or filePath must be provided');
-    }
-    
-    // Read file if needed
-    let codeToTest = params.code;
-    if (params.filePath) {
-      codeToTest = await readFileContent(params.filePath);
-    }
-    
-    // Prepare context with defaults
-    const context: TestContext = {
-      projectType: params.context?.projectType || 'generic',
-      testFramework: params.testFramework || 'jest',
-      coverageTarget: this.getCoverageTargetPercent(params.coverageTarget),
-      testStyle: params.context?.testStyle || 'descriptive',
-      mockStrategy: params.context?.mockStrategy || 'minimal',
-      includeEdgeCases: params.context?.includeEdgeCases !== false,
-      includePerformanceTests: params.context?.includePerformanceTests || false
-    };
-    
-    // Generate prompt
-    const prompt = this.getPrompt({ ...params, code: codeToTest, context });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate at least one input provided
+      if (!secureParams.code && !secureParams.filePath) {
+        throw new Error('Either code or filePath must be provided');
+      }
+      
+      // Read file if needed
+      let codeToTest = secureParams.code;
+      if (secureParams.filePath) {
+        codeToTest = await readFileContent(secureParams.filePath);
+      }
+      
+      // Prepare context with defaults
+      const context: TestContext = {
+        projectType: secureParams.context?.projectType || 'generic',
+        testFramework: secureParams.testFramework || 'jest',
+        coverageTarget: this.getCoverageTargetPercent(secureParams.coverageTarget),
+        testStyle: secureParams.context?.testStyle || 'descriptive',
+        mockStrategy: secureParams.context?.mockStrategy || 'minimal',
+        includeEdgeCases: secureParams.context?.includeEdgeCases !== false,
+        includePerformanceTests: secureParams.context?.includePerformanceTests || false
+      };
+      
+      // Generate prompt
+      const prompt = this.getPrompt({ ...secureParams, code: codeToTest, context });
+      
+      try {
+        // Get the loaded model from LM Studio
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
         throw new Error('No model loaded in LM Studio. Please load a model first.');
       }
       

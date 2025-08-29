@@ -11,6 +11,7 @@ import { PromptStages } from '../../types/prompt-stages.js';
 import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, relative } from 'path';
 import { readFileContent, validateAndNormalizePath } from '../shared/helpers.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 
 interface FileMatch {
   file: string;
@@ -48,57 +49,59 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate parameters
-    if (!params.projectPath || typeof params.projectPath !== 'string') {
-      throw new Error('projectPath is required and must be a string');
-    }
-    
-    if (!params.patterns || !Array.isArray(params.patterns) || params.patterns.length === 0) {
-      throw new Error('patterns is required and must be a non-empty array');
-    }
-    
-    // Validate and resolve project path using secure path validation
-    const projectPath = await validateAndNormalizePath(params.projectPath);
-    
-    if (!existsSync(projectPath)) {
-      throw new Error(`Project path does not exist: ${projectPath}`);
-    }
-    
-    if (!statSync(projectPath).isDirectory()) {
-      throw new Error(`Project path is not a directory: ${projectPath}`);
-    }
-    
-    // Validate context lines
-    const includeContext = Math.min(Math.max(params.includeContext || 3, 0), 10);
-    
-    // Find all code files in the project
-    const codeFiles = await this.findCodeFiles(projectPath);
-    
-    if (codeFiles.length === 0) {
-      throw new Error(`No code files found in project: ${projectPath}`);
-    }
-    
-    // Early chunking decision: Check if we need to process files in chunks
-    const estimatedFilesTokens = codeFiles.length * 500; // Rough estimate per file
-    const systemOverhead = 2000; // System instructions overhead
-    
-    // Get model for context limit detection
-    const models = await llmClient.llm.listLoaded();
-    if (models.length === 0) {
-      throw new Error('No model loaded in LM Studio. Please load a model first.');
-    }
-    
-    const model = models[0];
-    const contextLength = await model.getContextLength() || 23832;
-    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
-    
-    if (estimatedFilesTokens > availableTokens) {
-      // Process files in chunks
-      return await this.executeWithFileChunking(codeFiles, params, llmClient, model, availableTokens);
-    }
-    
-    // Process normally for small operations
-    return await this.executeSinglePass(codeFiles, params, llmClient, model);
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Validate parameters
+      if (!secureParams.projectPath || typeof secureParams.projectPath !== 'string') {
+        throw new Error('projectPath is required and must be a string');
+      }
+      
+      if (!secureParams.patterns || !Array.isArray(secureParams.patterns) || secureParams.patterns.length === 0) {
+        throw new Error('patterns is required and must be a non-empty array');
+      }
+      
+      // Validate and resolve project path using secure path validation
+      const projectPath = await validateAndNormalizePath(secureParams.projectPath);
+      
+      if (!existsSync(projectPath)) {
+        throw new Error(`Project path does not exist: ${projectPath}`);
+      }
+      
+      if (!statSync(projectPath).isDirectory()) {
+        throw new Error(`Project path is not a directory: ${projectPath}`);
+      }
+      
+      // Validate context lines
+      const includeContext = Math.min(Math.max(secureParams.includeContext || 3, 0), 10);
+      
+      // Find all code files in the project
+      const codeFiles = await this.findCodeFiles(projectPath);
+      
+      if (codeFiles.length === 0) {
+        throw new Error(`No code files found in project: ${projectPath}`);
+      }
+      
+      // Early chunking decision: Check if we need to process files in chunks
+      const estimatedFilesTokens = codeFiles.length * 500; // Rough estimate per file
+      const systemOverhead = 2000; // System instructions overhead
+      
+      // Get model for context limit detection
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio. Please load a model first.');
+      }
+      
+      const model = models[0];
+      const contextLength = await model.getContextLength() || 23832;
+      const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
+      
+      if (estimatedFilesTokens > availableTokens) {
+        // Process files in chunks
+        return await this.executeWithFileChunking(codeFiles, secureParams, llmClient, model, availableTokens);
+      }
+      
+      // Process normally for small operations
+      return await this.executeSinglePass(codeFiles, secureParams, llmClient, model);
+    });
   }
 
   /**
