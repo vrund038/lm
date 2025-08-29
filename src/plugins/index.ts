@@ -5,12 +5,14 @@
 
 import { IPromptPlugin } from './types.js';
 import { BasePlugin } from './base-plugin.js';
+import { ContextWindowManager } from '../core/ContextWindowManager.js';
 import path from 'path';
 import { promises as fs } from 'fs';
 
 export class PluginLoader {
   private plugins: Map<string, IPromptPlugin> = new Map();
   private categories: Map<string, IPromptPlugin[]> = new Map();
+  private contextManager: ContextWindowManager;
   
   constructor() {
     // Initialize category maps
@@ -18,6 +20,18 @@ export class PluginLoader {
     this.categories.set('generate', []);
     this.categories.set('multifile', []);
     this.categories.set('system', []);
+    
+    // Initialize context window manager
+    try {
+      this.contextManager = new ContextWindowManager({
+        contextLimit: 23000, // Based on testing observations
+        safetyMargin: 0.8,   // Use 80% of context window
+        notificationThreshold: 15000, // Notify for tasks > 15K tokens
+        enableUserNotifications: true
+      });
+    } catch (error) {
+      throw error;
+    }
   }
   
   /**
@@ -146,7 +160,7 @@ export class PluginLoader {
   }
   
   /**
-   * Execute a plugin by name
+   * Execute a plugin by name with intelligent context window management
    */
   async executePlugin(name: string, params: any, llmClient: any): Promise<any> {
     const plugin = this.getPlugin(name);
@@ -161,7 +175,22 @@ export class PluginLoader {
       plugin.validateParams(params);
     }
     
-    return await plugin.execute(params, llmClient);
+    // Check if chunking is needed for this operation
+    try {
+      const estimatedTokens = this.contextManager.estimateTokens(params, name);
+      const shouldChunk = this.contextManager.shouldChunk(estimatedTokens, name);
+      
+      if (shouldChunk) {
+        // Use context window manager for chunking
+        return await this.contextManager.executeWithChunking(plugin, params, llmClient);
+      } else {
+        // Execute normally without chunking
+        return await plugin.execute(params, llmClient);
+      }
+    } catch (error) {
+      // Fall back to normal execution if context management fails
+      return await plugin.execute(params, llmClient);
+    }
   }
 }
 

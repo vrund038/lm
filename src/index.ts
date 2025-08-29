@@ -51,7 +51,9 @@ class LocalLLMServer {
     this.setupHandlers();
     
     // Error handling
-    this.server.onerror = (error) => console.error('[MCP Error]', error);
+    this.server.onerror = (error) => {
+      // Silent error handling for MCP protocol compliance
+    };
     process.on('SIGINT', async () => {
       await this.server.close();
       process.exit(0);

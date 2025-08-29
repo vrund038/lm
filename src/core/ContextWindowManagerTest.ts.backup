@@ -1,0 +1,281 @@
+/**
+ * Context Window Manager Test Utility
+ * 
+ * This utility demonstrates and tests the Context Window Manager's
+ * chunking capabilities with different scenarios.
+ */
+
+import { ContextWindowManager } from '../core/ContextWindowManager.js';
+import { TokenEstimator } from '../core/TokenEstimator.js';
+import { UserNotificationService } from '../core/UserNotificationService.js';
+import { ChunkingStrategyFactory } from '../core/ChunkingStrategies.js';
+
+interface MockPlugin {
+  name: string;
+  execute: (params: any, llmClient: any) => Promise<any>;
+}
+
+interface MockLLMClient {
+  complete: (prompt: string) => Promise<string>;
+}
+
+export class ContextWindowManagerTest {
+  private contextManager: ContextWindowManager;
+  private mockLLMClient: MockLLMClient;
+
+  constructor() {
+    // Initialize Context Window Manager with test configuration
+    this.contextManager = new ContextWindowManager({
+      contextLimit: 1000, // Small limit for testing
+      safetyMargin: 0.8,
+      notificationThreshold: 500,
+      enableUserNotifications: true
+    }, async (progress) => {
+      console.log(`📊 Progress: ${progress.percentComplete}% - ${progress.message}`);
+    });
+
+    // Mock LLM client for testing
+    this.mockLLMClient = {
+      complete: async (prompt: string) => {
+        // Simulate LLM processing time
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return `Processed: ${prompt.substring(0, 50)}...`;
+      }
+    };
+  }
+
+  /**
+   * Test token estimation accuracy
+   */
+  async testTokenEstimation(): Promise<void> {
+    console.log('\n🧮 Testing Token Estimation...');
+    
+    const testCases = [
+      { input: 'Hello world', expected: 3 },
+      { input: 'This is a longer piece of text that should have more tokens', expected: 15 },
+      { input: ['file1.js', 'file2.js', 'file3.js'], expected: 10 },
+      { input: { code: 'function test() { return true; }' }, expected: 12 }
+    ];
+
+    for (const testCase of testCases) {
+      const estimated = this.contextManager.estimateTokens(testCase.input);
+      const difference = Math.abs(estimated - testCase.expected);
+      const accuracy = (1 - difference / testCase.expected) * 100;
+      
+      console.log(`  • Input: ${JSON.stringify(testCase.input).substring(0, 30)}...`);
+      console.log(`    Estimated: ${estimated}, Expected: ~${testCase.expected}, Accuracy: ${accuracy.toFixed(1)}%`);
+    }
+  }
+
+  /**
+   * Test chunking strategies
+   */
+  async testChunkingStrategies(): Promise<void> {
+    console.log('\n✂️ Testing Chunking Strategies...');
+
+    // Test file-based chunking
+    const fileStrategy = ChunkingStrategyFactory.getStrategy('find_pattern_usage');
+    const fileData = {
+      files: ['src/file1.js', 'src/file2.js', 'src/file3.js', 'src/file4.js', 'src/file5.js']
+    };
+
+    console.log(`  • Testing ${fileStrategy.name}:`);
+    const fileChunks = await fileStrategy.chunk(fileData, 200);
+    console.log(`    Created ${fileChunks.length} chunks from ${fileData.files.length} files`);
+    fileChunks.forEach((chunk, i) => {
+      console.log(`    Chunk ${i + 1}: ${chunk.metadata.fileCount} files, ~${chunk.metadata.estimatedTokens} tokens`);
+    });
+
+    // Test token-based chunking
+    const tokenStrategy = ChunkingStrategyFactory.getStrategy('analyze_single_file');
+    const codeData = `function complexFunction(param1, param2, param3) {
+  const result = [];
+  for (let i = 0; i < param1.length; i++) {
+    if (param2.includes(param1[i])) {
+      result.push(param3.transform(param1[i]));
+    }
+  }
+  return result.filter(item => item !== null);
+}
+
+class DataProcessor {
+  constructor(config) {
+    this.config = config;
+    this.cache = new Map();
+  }
+  
+  process(data) {
+    if (this.cache.has(data.id)) {
+      return this.cache.get(data.id);
+    }
+    
+    const processed = this.transform(data);
+    this.cache.set(data.id, processed);
+    return processed;
+  }
+}`;
+
+    console.log(`  • Testing ${tokenStrategy.name}:`);
+    const tokenChunks = await tokenStrategy.chunk(codeData, 100);
+    console.log(`    Created ${tokenChunks.length} chunks from code (${codeData.length} chars)`);
+    tokenChunks.forEach((chunk, i) => {
+      console.log(`    Chunk ${i + 1}: ${chunk.content.length} chars, ~${chunk.metadata.estimatedTokens} tokens`);
+    });
+  }
+
+  /**
+   * Test complete chunking workflow
+   */
+  async testChunkingWorkflow(): Promise<void> {
+    console.log('\n🔄 Testing Complete Chunking Workflow...');
+
+    // Create a mock plugin that simulates multi-file analysis
+    const mockPlugin: MockPlugin = {
+      name: 'find_pattern_usage',
+      execute: async (params: any, llmClient: any) => {
+        const files = params.files || params;
+        return {
+          patterns: ['pattern1', 'pattern2'],
+          files: files.length || 1,
+          matches: Math.floor(Math.random() * 10) + 1
+        };
+      }
+    };
+
+    // Large input that should trigger chunking
+    const largeInput = {
+      projectPath: '/large/project',
+      patterns: ['async function', 'await', 'Promise'],
+      files: Array.from({ length: 20 }, (_, i) => `src/component${i + 1}.js`)
+    };
+
+    console.log(`  • Input size: ${JSON.stringify(largeInput).length} characters`);
+    console.log(`  • Estimated tokens: ${this.contextManager.estimateTokens(largeInput)}`);
+    console.log(`  • Should chunk: ${this.contextManager.shouldChunk(this.contextManager.estimateTokens(largeInput), mockPlugin.name)}`);
+
+    const startTime = Date.now();
+    const result = await this.contextManager.executeWithChunking(mockPlugin, largeInput, this.mockLLMClient);
+    const executionTime = Date.now() - startTime;
+
+    console.log(`  • Result:`, result);
+    console.log(`  • Execution time: ${executionTime}ms`);
+  }
+
+  /**
+   * Test user notification system
+   */
+  async testUserNotifications(): Promise<void> {
+    console.log('\n🔔 Testing User Notification System...');
+
+    const notificationService = new UserNotificationService((progress) => {
+      console.log(`  📢 Notification: ${progress.message} (${progress.percentComplete}%)`);
+      return Promise.resolve();
+    });
+
+    // Simulate a large task
+    const taskInfo = {
+      taskId: 'test-task-123',
+      functionName: 'analyze_large_project',
+      estimatedTokens: 25000,
+      estimatedChunks: 5,
+      estimatedProcessingTimeMs: 10000,
+      inputSize: 50000,
+      startTime: Date.now()
+    };
+
+    await notificationService.notifyLargeTask(taskInfo);
+
+    // Simulate progress updates
+    for (let i = 1; i <= 5; i++) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      await notificationService.updateProgress(
+        taskInfo.taskId,
+        i,
+        5,
+        `Processing chunk ${i} of 5...`
+      );
+    }
+
+    // Complete the task
+    await notificationService.completeTask(taskInfo.taskId, {
+      success: true,
+      processingTimeMs: Date.now() - taskInfo.startTime,
+      chunksProcessed: 5
+    });
+
+    console.log('  ✅ Notification test completed');
+  }
+
+  /**
+   * Run all tests
+   */
+  async runAllTests(): Promise<void> {
+    console.log('🧪 Context Window Manager Test Suite');
+    console.log('====================================');
+
+    try {
+      await this.testTokenEstimation();
+      await this.testChunkingStrategies();
+      await this.testUserNotifications();
+      await this.testChunkingWorkflow();
+
+      console.log('\n✅ All tests completed successfully!');
+    } catch (error) {
+      console.error('\n❌ Test failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Performance benchmark
+   */
+  async benchmarkPerformance(): Promise<void> {
+    console.log('\n⚡ Performance Benchmark...');
+
+    const sizes = [100, 500, 1000, 2000, 5000];
+    
+    for (const size of sizes) {
+      const largeData = Array.from({ length: size }, (_, i) => `file${i}.js`);
+      
+      const startTime = Date.now();
+      const tokens = this.contextManager.estimateTokens(largeData);
+      const shouldChunk = this.contextManager.shouldChunk(tokens, 'find_pattern_usage');
+      const endTime = Date.now();
+      
+      console.log(`  • ${size} files: ${tokens} tokens, chunking: ${shouldChunk}, time: ${endTime - startTime}ms`);
+    }
+  }
+}
+
+// CLI interface for testing
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const tester = new ContextWindowManagerTest();
+  
+  const args = process.argv.slice(2);
+  const command = args[0] || 'all';
+  
+  switch (command) {
+    case 'tokens':
+      await tester.testTokenEstimation();
+      break;
+    case 'chunks':
+      await tester.testChunkingStrategies();
+      break;
+    case 'notifications':
+      await tester.testUserNotifications();
+      break;
+    case 'workflow':
+      await tester.testChunkingWorkflow();
+      break;
+    case 'benchmark':
+      await tester.benchmarkPerformance();
+      break;
+    case 'all':
+    default:
+      await tester.runAllTests();
+      await tester.benchmarkPerformance();
+      break;
+  }
+}
+
+export default ContextWindowManagerTest;

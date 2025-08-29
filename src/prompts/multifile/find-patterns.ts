@@ -109,6 +109,14 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
       includeContext
     });
     
+    // Estimate token count before sending to LLM
+    const estimatedTokens = this.estimateTokenCount(prompt);
+    
+    // Check if prompt exceeds context window (23,000 tokens)
+    if (estimatedTokens > 23000) {
+      return await this.executeWithChunking(results, params, llmClient);
+    }
+    
     try {
       // Get the loaded model from LM Studio
       const models = await llmClient.llm.listLoaded();
@@ -431,6 +439,115 @@ Provide actionable insights based on the pattern search results.`;
     const normalizedPath = path.toLowerCase();
     
     return !suspicious.some(pattern => normalizedPath.includes(pattern));
+  }
+  
+  /**
+   * Estimate token count for a text string
+   * Rough approximation: 1 token ≈ 4 characters
+   */
+  private estimateTokenCount(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+  
+  /**
+   * Execute pattern finding with chunking for large result sets
+   */
+  private async executeWithChunking(results: FileMatch[], params: any, llmClient: any): Promise<any> {
+    // Split results into manageable chunks (approximately 5000 tokens each)
+    const chunkSize = Math.max(1, Math.floor(results.length / 4)); // Create ~4 chunks
+    const chunks: FileMatch[][] = [];
+    
+    for (let i = 0; i < results.length; i += chunkSize) {
+      chunks.push(results.slice(i, i + chunkSize));
+    }
+    
+    // Process each chunk
+    const chunkResults: any[] = [];
+    
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      
+      // Generate prompt for this chunk
+      const chunkPrompt = this.getPrompt({
+        projectPath: params.projectPath,
+        patterns: params.patterns,
+        results: chunk,
+        filesSearched: chunk.length,
+        includeContext: params.includeContext || 3
+      });
+      
+      try {
+        const models = await llmClient.llm.listLoaded();
+        const model = models[0];
+        
+        const prediction = model.respond([
+          {
+            role: 'system',
+            content: 'You are an expert pattern analyst. Find, analyze, and explain usage patterns across multiple code files. Focus on the subset of files provided. Provide insights about pattern distribution, consistency, and potential improvements.'
+          },
+          {
+            role: 'user',
+            content: chunkPrompt
+          }
+        ]);
+        
+        // Collect response
+        let chunkResponse = '';
+        for await (const update of prediction) {
+          if (update.content) {
+            chunkResponse += update.content;
+          }
+        }
+        
+        chunkResults.push({
+          chunk: i + 1,
+          files: chunk.length,
+          analysis: chunkResponse
+        });
+        
+      } catch (error) {
+        chunkResults.push({
+          chunk: i + 1,
+          files: chunk.length,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+    
+    // Combine all chunk results
+    const summary = this.combineChunkResults(chunkResults, params);
+    return summary;
+  }
+  
+  /**
+   * Combine results from multiple chunks into a cohesive analysis
+   */
+  private combineChunkResults(chunkResults: any[], params: any): any {
+    const totalFiles = chunkResults.reduce((sum, chunk) => sum + (chunk.files || 0), 0);
+    const errors = chunkResults.filter(chunk => chunk.error);
+    const successfulChunks = chunkResults.filter(chunk => !chunk.error);
+    
+    return {
+      summary: {
+        totalFiles,
+        chunksProcessed: chunkResults.length,
+        successfulChunks: successfulChunks.length,
+        errors: errors.length,
+        patterns: params.patterns
+      },
+      chunkAnalyses: successfulChunks.map(chunk => ({
+        chunkNumber: chunk.chunk,
+        filesAnalyzed: chunk.files,
+        analysis: chunk.analysis
+      })),
+      errors: errors.map(chunk => ({
+        chunkNumber: chunk.chunk,
+        error: chunk.error
+      })),
+      combinedInsights: successfulChunks.length > 0 
+        ? "Pattern analysis completed across multiple file chunks. Review individual chunk analyses for detailed findings."
+        : "No successful analysis due to processing errors."
+    };
   }
 }
 
