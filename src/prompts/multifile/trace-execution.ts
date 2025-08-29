@@ -89,10 +89,11 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
       if (estimatedTokens > availableTokens) {
         // Process with chunking for large content
         return await this.executeWithChunking(secureParams, fileContents, entryPointInfo, traceDepth, showParameters, llmClient, model, availableTokens);
-    }
-    
-    // Process normally for small operations
-    return await this.executeSinglePass(params, fileContents, entryPointInfo, traceDepth, showParameters, llmClient, model);
+      }
+      
+      // Process normally for small operations
+      return await this.executeSinglePass(secureParams, fileContents, entryPointInfo, traceDepth, showParameters, llmClient, model);
+    });
   }
   
   /**

@@ -141,41 +141,42 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
           {
             role: 'system',
             content: 'You are an expert WordPress plugin developer. Generate complete, production-ready WordPress plugins following WordPress coding standards, security best practices, and modern PHP patterns. Include proper hooks, nonces, capabilities, and internationalization.'
-        },
-        {
-          role: 'user', 
-          content: prompt
+          },
+          {
+            role: 'user', 
+            content: prompt
+          }
+        ], {
+          temperature: 0.3,
+          maxTokens: 6000
+        });
+        
+        // Stream the response
+        let response = '';
+        for await (const chunk of prediction) {
+          if (chunk.content) {
+            response += chunk.content;
+          }
         }
-      ], {
-        temperature: 0.3,
-        maxTokens: 6000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
+        
+        // Use ResponseFactory for consistent, spec-compliant output
+        ResponseFactory.setStartTime();
+        return ResponseFactory.parseAndCreateResponse(
+          'generate_wordpress_plugin',
+          response,
+          model.identifier || 'unknown'
+        );
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'generate_wordpress_plugin',
+          'MODEL_ERROR',
+          `Failed to generate WordPress plugin: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
       }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'generate_wordpress_plugin',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'generate_wordpress_plugin',
-        'MODEL_ERROR',
-        `Failed to generate WordPress plugin: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
+    });
   }
 
   getPrompt(params: any): string {

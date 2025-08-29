@@ -9,8 +9,8 @@ import { IPromptPlugin } from '../shared/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
-import { basename } from 'path';
 import { withSecurity } from '../../security/integration-helpers.js';
+import { basename } from 'path';
 
 export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
   name = 'custom_prompt';
@@ -94,20 +94,21 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
         const estimatedTokens = Math.floor(fullPrompt.length / 4);
         
         if (estimatedTokens > contextLength * 0.8) {
-        return await this.executeWithChunking(params, fileContents, llmClient, model);
-      } else {
-        return await this.executeDirect(fullPrompt, llmClient, model, params);
+          return await this.executeWithChunking(secureParams, fileContents, llmClient, model);
+        } else {
+          return await this.executeDirect(fullPrompt, llmClient, model, secureParams);
+        }
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'custom_prompt',
+          'EXECUTION_ERROR',
+          `Failed to execute custom prompt: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
       }
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'custom_prompt',
-        'EXECUTION_ERROR',
-        `Failed to execute custom prompt: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
+    });
   }
 
   private buildFullPrompt(params: any, fileContents: Record<string, string>): string {

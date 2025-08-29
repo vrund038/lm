@@ -121,42 +121,43 @@ export class TypeScriptConverter extends BasePlugin implements IPromptPlugin {
         const prediction = model.respond([
           {
             role: 'system',
-          content: 'You are an expert TypeScript developer. Convert JavaScript code to TypeScript with comprehensive type annotations, proper interfaces, and modern TypeScript best practices. Focus on type safety and maintainability.'
-        },
-        {
-          role: 'user', 
-          content: prompt
+            content: 'You are an expert TypeScript developer. Convert JavaScript code to TypeScript with comprehensive type annotations, proper interfaces, and modern TypeScript best practices. Focus on type safety and maintainability.'
+          },
+          {
+            role: 'user', 
+            content: prompt
+          }
+        ], {
+          temperature: 0.2,
+          maxTokens: 4000
+        });
+        
+        // Stream the response
+        let response = '';
+        for await (const chunk of prediction) {
+          if (chunk.content) {
+            response += chunk.content;
+          }
         }
-      ], {
-        temperature: 0.2,
-        maxTokens: 4000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
+        
+        // Use ResponseFactory for consistent, spec-compliant output
+        ResponseFactory.setStartTime();
+        return ResponseFactory.parseAndCreateResponse(
+          'convert_to_typescript',
+          response,
+          model.identifier || 'unknown'
+        );
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'convert_to_typescript',
+          'MODEL_ERROR',
+          `Failed to convert to TypeScript: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
       }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'convert_to_typescript',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'convert_to_typescript',
-        'MODEL_ERROR',
-        `Failed to convert to TypeScript: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
+    });
   }
 
   getPrompt(params: any): string {

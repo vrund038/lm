@@ -6,8 +6,8 @@
 import { BasePlugin } from '../plugins/base-plugin.js';
 import { IPromptPlugin } from '../prompts/shared/types.js';
 import { ResponseFactory } from '../validation/response-factory.js';
-import { LMStudioClient } from '@lmstudio/sdk';
 import { withSecurity } from '../security/integration-helpers.js';
+import { LMStudioClient } from '@lmstudio/sdk';
 import { config } from '../config.js';
 
 export class HealthCheckPlugin extends BasePlugin implements IPromptPlugin {
@@ -65,28 +65,29 @@ export class HealthCheckPlugin extends BasePlugin implements IPromptPlugin {
             modelCount: models.length,
             hasActiveModel: models.length > 0,
             contextLength: contextLength, // Add context length to response
-          serverInfo: {
-            url: config.lmStudioUrl,
-            protocol: 'websocket'
-          },
-          activeModel: models.length > 0 ? {
-            path: models[0].path,
-            identifier: models[0].identifier,
-            architecture: (models[0] as any).architecture || 'unknown',
-            contextLength: contextLength // Add context length to active model
-          } : undefined
-        } : undefined, // Don't provide details in non-detailed mode
-        contextLength // Pass contextLength as separate parameter
-      );
-    } catch (error: any) {
-      return ResponseFactory.createHealthCheckResponse(
-        'unhealthy',
-        'failed',
-        config.lmStudioUrl || 'ws://localhost:1234',
-        error.message || 'Failed to connect to LM Studio',
-        'Please ensure LM Studio is running and a model is loaded'
-      );
-    }
+            serverInfo: {
+              url: config.lmStudioUrl,
+              protocol: 'websocket'
+            },
+            activeModel: models.length > 0 ? {
+              path: models[0].path,
+              identifier: models[0].identifier,
+              architecture: (models[0] as any).architecture || 'unknown',
+              contextLength: contextLength // Add context length to active model
+            } : undefined
+          } : undefined, // Don't provide details in non-detailed mode
+          contextLength // Pass contextLength as separate parameter
+        );
+      } catch (error: any) {
+        return ResponseFactory.createHealthCheckResponse(
+          'unhealthy',
+          'failed',
+          config.lmStudioUrl || 'ws://localhost:1234',
+          error.message || 'Failed to connect to LM Studio',
+          'Please ensure LM Studio is running and a model is loaded'
+        );
+      }
+    });
   }
 
   getPrompt(params: any): string {

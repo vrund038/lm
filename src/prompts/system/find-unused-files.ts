@@ -7,9 +7,9 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../shared/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { withSecurity } from '../../security/integration-helpers.js';
 
 // Type definitions for the comprehensive analysis
 interface UnusedFilesContext {
@@ -91,38 +91,39 @@ export class FindUnusedFiles extends BasePlugin implements IPromptPlugin {
         context 
       });
 
-    // Get LLM response
-    const models = await llmClient.llm.listLoaded();
-    if (models.length === 0) {
-      throw new Error('No model loaded in LM Studio');
-    }
-
-    const model = models[0];
-    const prediction = model.respond([
-      { role: 'system', content: this.getSystemPrompt() },
-      { role: 'user', content: prompt }
-    ]);
-
-    let response = '';
-    for await (const token of prediction) {
-      response += token;
-    }
-
-    // Parse and validate the response
-    const parsedResult = this.parseResponse(response, analysisResult);
-
-    // Use ResponseFactory for consistent output
-    ResponseFactory.setStartTime();
-    return ResponseFactory.createSystemResponse({
-      status: 'completed',
-      details: {
-        summary: parsedResult.summary,
-        usedFiles: parsedResult.usedFiles,
-        unusedCandidates: parsedResult.unusedCandidates,
-        devArtifacts: parsedResult.devArtifacts,
-        recommendations: parsedResult.recommendations,
-        rawAnalysis: analysisResult
+      // Get LLM response
+      const models = await llmClient.llm.listLoaded();
+      if (models.length === 0) {
+        throw new Error('No model loaded in LM Studio');
       }
+
+      const model = models[0];
+      const prediction = model.respond([
+        { role: 'system', content: this.getSystemPrompt() },
+        { role: 'user', content: prompt }
+      ]);
+
+      let response = '';
+      for await (const token of prediction) {
+        response += token;
+      }
+
+      // Parse and validate the response
+      const parsedResult = this.parseResponse(response, analysisResult);
+
+      // Use ResponseFactory for consistent output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.createSystemResponse({
+        status: 'completed',
+        details: {
+          summary: parsedResult.summary,
+          usedFiles: parsedResult.usedFiles,
+          unusedCandidates: parsedResult.unusedCandidates,
+          devArtifacts: parsedResult.devArtifacts,
+          recommendations: parsedResult.recommendations,
+          rawAnalysis: analysisResult
+        }
+      });
     });
   }
 

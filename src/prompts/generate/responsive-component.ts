@@ -127,29 +127,28 @@ export class ResponsiveComponentGenerator extends BasePlugin implements IPromptP
         let response = '';
         for await (const chunk of prediction) {
           if (chunk.content) {
-          response += chunk.content;
+            response += chunk.content;
+          }
         }
+        
+        // Use ResponseFactory for consistent, spec-compliant output
+        ResponseFactory.setStartTime();
+        return ResponseFactory.parseAndCreateResponse(
+          'generate_responsive_component',
+          response,
+          model.identifier || 'unknown'
+        );
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'generate_responsive_component',
+          'MODEL_ERROR',
+          `Failed to generate responsive component: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
       }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'generate_responsive_component',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'generate_responsive_component',
-        'MODEL_ERROR',
-        `Failed to generate responsive component: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
     });
-  }
   }
 
   getPrompt(params: any): string {

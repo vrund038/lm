@@ -121,52 +121,53 @@ export class UnitTestGenerator extends BasePlugin implements IPromptPlugin {
         // Get the loaded model from LM Studio
         const models = await llmClient.llm.listLoaded();
         if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
-      }
-      
-      // Use the first loaded model
-      const model = models[0];
-      
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert test engineer. Generate comprehensive, well-structured unit tests that follow best practices and provide excellent code coverage. Focus on readability, maintainability, and thorough edge case testing.'
-        },
-        {
-          role: 'user', 
-          content: prompt
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
         }
-      ], {
-        temperature: 0.2,
-        maxTokens: 4000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
+        
+        // Use the first loaded model
+        const model = models[0];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond([
+          {
+            role: 'system',
+            content: 'You are an expert test engineer. Generate comprehensive, well-structured unit tests that follow best practices and provide excellent code coverage. Focus on readability, maintainability, and thorough edge case testing.'
+          },
+          {
+            role: 'user', 
+            content: prompt
+          }
+        ], {
+          temperature: 0.2,
+          maxTokens: 4000
+        });
+        
+        // Stream the response
+        let response = '';
+        for await (const chunk of prediction) {
+          if (chunk.content) {
+            response += chunk.content;
+          }
         }
+        
+        // Use ResponseFactory for consistent, spec-compliant output
+        ResponseFactory.setStartTime();
+        return ResponseFactory.parseAndCreateResponse(
+          'generate_unit_tests',
+          response,
+          model.identifier || 'unknown'
+        );
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'generate_unit_tests',
+          'MODEL_ERROR',
+          `Failed to generate unit tests: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
       }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'generate_unit_tests',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'generate_unit_tests',
-        'MODEL_ERROR',
-        `Failed to generate unit tests: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
+    });
   }
 
   getPrompt(params: any): string {
