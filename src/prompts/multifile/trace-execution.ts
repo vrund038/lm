@@ -8,7 +8,7 @@ import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
 
 export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
@@ -57,11 +57,14 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
       throw new Error(`Could not find files containing entry point: ${params.entryPoint}`);
     }
     
-    // Read relevant files
+    // Import secure file reading helper
+    const { readFileContent } = await import('../shared/helpers.js');
+    
+    // Read relevant files using secure file reading
     const fileContents: Record<string, string> = {};
     for (const filePath of relevantFiles) {
       try {
-        const content = readFileSync(filePath, 'utf-8');
+        const content = await readFileContent(filePath);
         fileContents[filePath] = content;
       } catch (error) {
         console.warn(`Could not read file: ${filePath}`, error);
@@ -422,7 +425,7 @@ Provide a clear, traceable path from the entry point through the codebase, makin
       const fullDir = join(projectRoot, dir);
       if (!existsSync(fullDir)) continue;
       
-      const files = this.findFilesRecursive(fullDir, maxFiles - relevantFiles.length);
+      const files = await this.findFilesRecursive(fullDir, maxFiles - relevantFiles.length);
       relevantFiles.push(...files);
       
       if (relevantFiles.length >= maxFiles) break;
@@ -431,15 +434,17 @@ Provide a clear, traceable path from the entry point through the codebase, makin
     return relevantFiles;
   }
   
-  private findFilesRecursive(dir: string, maxFiles: number): string[] {
+  private async findFilesRecursive(dir: string, maxFiles: number): Promise<string[]> {
     const files: string[] = [];
     const codeExtensions = ['.js', '.ts', '.jsx', '.tsx', '.php', '.py', '.java', '.cs', '.cpp', '.c', '.h', '.hpp'];
     
-    function traverse(currentDir: string) {
+    async function traverse(currentDir: string) {
       if (files.length >= maxFiles) return;
       
       try {
-        const entries = readdirSync(currentDir);
+        // Use secure async directory reading
+        const fs = await import('fs/promises');
+        const entries = await fs.readdir(currentDir);
         
         for (const entry of entries) {
           if (files.length >= maxFiles) break;
@@ -450,7 +455,7 @@ Provide a clear, traceable path from the entry point through the codebase, makin
           if (stat.isDirectory()) {
             // Skip common non-source directories
             if (!['node_modules', '.git', 'vendor', 'dist', 'build', '.next'].includes(entry)) {
-              traverse(fullPath);
+              await traverse(fullPath);
             }
           } else if (stat.isFile()) {
             const ext = extname(entry).toLowerCase();
@@ -464,7 +469,7 @@ Provide a clear, traceable path from the entry point through the codebase, makin
       }
     }
     
-    traverse(dir);
+    await traverse(dir);
     return files;
   }
 

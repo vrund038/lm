@@ -8,7 +8,7 @@ import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, relative } from 'path';
 
 interface FileMatch {
@@ -56,8 +56,12 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
       throw new Error('patterns is required and must be a non-empty array');
     }
     
-    // Validate and resolve project path
-    const projectPath = resolve(params.projectPath);
+    // Import secure file reading helpers
+    const { validateAndNormalizePath, readFileContent } = await import('../shared/helpers.js');
+    
+    // Validate and resolve project path using secure path validation
+    const projectPath = await validateAndNormalizePath(params.projectPath);
+    
     if (!existsSync(projectPath)) {
       throw new Error(`Project path does not exist: ${projectPath}`);
     }
@@ -66,16 +70,11 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
       throw new Error(`Project path is not a directory: ${projectPath}`);
     }
     
-    // Security check
-    if (!this.isPathSafe(projectPath)) {
-      throw new Error(`Access denied to path: ${projectPath}`);
-    }
-    
     // Validate context lines
     const includeContext = Math.min(Math.max(params.includeContext || 3, 0), 10);
     
     // Find all code files in the project
-    const codeFiles = this.findCodeFiles(projectPath);
+    const codeFiles = await this.findCodeFiles(projectPath);
     
     if (codeFiles.length === 0) {
       throw new Error(`No code files found in project: ${projectPath}`);
@@ -115,7 +114,7 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
     
     for (const filePath of codeFiles) {
       try {
-        const content = readFileSync(filePath, 'utf-8');
+        const content = await readFileContent(filePath);
         const lines = content.split('\n');
         const fileMatches = this.searchPatterns(lines, params.patterns, includeContext);
         
@@ -417,16 +416,18 @@ Provide actionable insights based on the pattern search results.`;
     return matches;
   }
   
-  private findCodeFiles(projectPath: string): string[] {
+  private async findCodeFiles(projectPath: string): Promise<string[]> {
     const codeFiles: string[] = [];
     const maxFiles = 500; // Prevent overwhelming analysis
     const codeExtensions = ['.js', '.ts', '.jsx', '.tsx', '.php', '.py', '.java', '.cs', '.cpp', '.c', '.h', '.hpp', '.rb', '.go', '.swift', '.kt', '.rs'];
     
-    function traverse(dir: string) {
+    async function traverse(dir: string) {
       if (codeFiles.length >= maxFiles) return;
       
       try {
-        const entries = readdirSync(dir);
+        // Use fs.promises for secure async operation
+        const fs = await import('fs/promises');
+        const entries = await fs.readdir(dir);
         
         for (const entry of entries) {
           if (codeFiles.length >= maxFiles) break;
@@ -440,7 +441,7 @@ Provide actionable insights based on the pattern search results.`;
               // Skip common non-source directories
               const skipDirs = ['node_modules', '.git', 'vendor', 'dist', 'build', '.next', 'out', 'target', '.idea', '.vscode', '__pycache__', '.pytest_cache'];
               if (!skipDirs.includes(entry)) {
-                traverse(fullPath);
+                await traverse(fullPath);
               }
             } else if (stat.isFile()) {
               const ext = extname(entry).toLowerCase();
@@ -457,7 +458,7 @@ Provide actionable insights based on the pattern search results.`;
       }
     }
     
-    traverse(projectPath);
+    await traverse(projectPath);
     return codeFiles;
   }
   
@@ -469,13 +470,6 @@ Provide actionable insights based on the pattern search results.`;
     return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 
-  private isPathSafe(path: string): boolean {
-    // Basic security check
-    const suspicious = ['../', '..\\', '/etc/', '\\etc\\', '/root/', '\\root\\', '/sys/', '\\sys\\'];
-    const normalizedPath = path.toLowerCase();
-    
-    return !suspicious.some(pattern => normalizedPath.includes(pattern));
-  }
 }
 
 export default PatternFinder;

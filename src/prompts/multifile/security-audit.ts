@@ -9,7 +9,7 @@ import { IPromptPlugin } from '../shared/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, relative, basename } from 'path';
 
 interface SecurityFile {
