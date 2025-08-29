@@ -6,6 +6,8 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, extname, relative } from 'path';
 
@@ -79,9 +81,37 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
       throw new Error(`No code files found in project: ${projectPath}`);
     }
     
+    // Early chunking decision: Check if we need to process files in chunks
+    const estimatedFilesTokens = codeFiles.length * 500; // Rough estimate per file
+    const systemOverhead = 2000; // System instructions overhead
+    
+    // Get model for context limit detection
+    const models = await llmClient.llm.listLoaded();
+    if (models.length === 0) {
+      throw new Error('No model loaded in LM Studio. Please load a model first.');
+    }
+    
+    const model = models[0];
+    const contextLength = await model.getContextLength() || 23832;
+    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
+    
+    if (estimatedFilesTokens > availableTokens) {
+      // Process files in chunks
+      return await this.executeWithFileChunking(codeFiles, params, llmClient, model, availableTokens);
+    }
+    
+    // Process normally for small operations
+    return await this.executeSinglePass(codeFiles, params, llmClient, model);
+  }
+
+  /**
+   * Execute for small operations that fit in single context window
+   */
+  private async executeSinglePass(codeFiles: string[], params: any, llmClient: any, model: any): Promise<any> {
+    const { projectPath, includeContext } = params;
+    
     // Search for patterns in each file
     const results: FileMatch[] = [];
-    const errors: string[] = [];
     
     for (const filePath of codeFiles) {
       try {
@@ -96,12 +126,12 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
           });
         }
       } catch (error) {
-        errors.push(`Failed to read ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Skip files that can't be read
       }
     }
-    
-    // Generate analysis prompt
-    const prompt = this.getPrompt({
+
+    // Generate 3-stage prompt
+    const promptStages = this.getPromptStages({
       projectPath,
       patterns: params.patterns,
       results,
@@ -109,85 +139,23 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
       includeContext
     });
     
-    // Estimate token count before sending to LLM
-    const estimatedTokens = this.estimateTokenCount(prompt);
-    
-    // Check if prompt exceeds context window (23,000 tokens)
-    if (estimatedTokens > 23000) {
-      return await this.executeWithChunking(results, params, llmClient);
-    }
-    
     try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
-      }
+      // Get context limit for 3-stage manager
+      const contextLength = await model.getContextLength();
+      const promptManager = new ThreeStagePromptManager(contextLength || 23832);
       
-      // Use the first loaded model
-      const model = models[0];
+      // Create chunked conversation
+      const conversation = promptManager.createChunkedConversation(promptStages);
       
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert pattern analyst. Find, analyze, and explain usage patterns across multiple code files. Provide insights about pattern distribution, consistency, and potential improvements.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
-        temperature: 0.2,
-        maxTokens: 4000
-      });
+      // Build messages array for LM Studio
+      const messages = [
+        conversation.systemMessage,
+        ...conversation.dataMessages,
+        conversation.analysisMessage
+      ];
       
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
-      }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'find_pattern_usage',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'find_pattern_usage',
-        'MODEL_ERROR',
-        `Failed to find pattern usage: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
-      }
-      
-      // Use the first loaded model
-      const model = models[0];
-      
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert pattern analyst. Find, analyze, and explain usage patterns across multiple code files. Provide insights about pattern distribution, consistency, and potential improvements.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
+      // Call the model with 3-stage conversation
+      const prediction = model.respond(messages, {
         temperature: 0.2,
         maxTokens: 4000
       });
@@ -219,47 +187,107 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
     }
   }
 
+  /**
+   * Execute for large operations using file-level chunking
+   */
+  private async executeWithFileChunking(codeFiles: string[], params: any, llmClient: any, model: any, availableTokens: number): Promise<any> {
+    // Simple file chunking - divide files into manageable chunks
+    const chunkSize = Math.max(1, Math.floor(codeFiles.length / 4)); // Create ~4 chunks
+    const fileChunks: string[][] = [];
+    
+    for (let i = 0; i < codeFiles.length; i += chunkSize) {
+      fileChunks.push(codeFiles.slice(i, i + chunkSize));
+    }
+    
+    const chunkResults: any[] = [];
+    
+    for (let chunkIndex = 0; chunkIndex < fileChunks.length; chunkIndex++) {
+      try {
+        const chunkFiles = fileChunks[chunkIndex];
+        const result = await this.executeSinglePass(chunkFiles, params, llmClient, model);
+        
+        chunkResults.push({
+          chunkIndex,
+          result,
+          success: true
+        });
+      } catch (error) {
+        chunkResults.push({
+          chunkIndex,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          success: false
+        });
+      }
+    }
+    
+    // Combine results
+    const successfulChunks = chunkResults.filter(r => r.success);
+    
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'find_pattern_usage',
+      JSON.stringify({
+        summary: {
+          totalChunks: fileChunks.length,
+          successfulChunks: successfulChunks.length,
+          totalFiles: codeFiles.length
+        },
+        results: successfulChunks.map(r => r.result)
+      }, null, 2),
+      model.identifier || 'unknown'
+    );
+  }
+
+  /**
+   * Legacy getPrompt method for BasePlugin compatibility
+   */
   getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
+  }
+
+  /**
+   * 3-Stage prompt architecture method
+   */
+  getPromptStages(params: any): PromptStages {
     const { projectPath, patterns, results, filesSearched, includeContext } = params;
     
-    // Format results for the prompt
-    let resultsSection = '';
+    // STAGE 1: System instructions and task context
+    const systemAndContext = `You are an expert code analyst specializing in pattern recognition and code search analysis.
+
+Project Analysis Context:
+- Project path: ${projectPath}
+- Patterns searched: ${patterns.map(p => `"${p}"`).join(', ')}
+- Files searched: ${filesSearched}
+- Context lines: ${includeContext}
+- Files with matches: ${results.length}
+- Total matches found: ${results.reduce((sum: number, r: FileMatch) => sum + r.matches.length, 0)}`;
+
+    // STAGE 2: Data payload (search results)
+    let dataPayload = '';
     
     if (results.length === 0) {
-      resultsSection = 'No matches found for the specified patterns.';
+      dataPayload = 'No matches found for the specified patterns.';
     } else {
       results.forEach((fileResult: FileMatch) => {
-        resultsSection += `\n${'='.repeat(80)}\nFile: ${fileResult.file}\nMatches: ${fileResult.matches.length}\n${'='.repeat(80)}\n`;
+        dataPayload += `\n${'='.repeat(80)}\nFile: ${fileResult.file}\nMatches: ${fileResult.matches.length}\n${'='.repeat(80)}\n`;
         
         fileResult.matches.forEach((match, index) => {
-          resultsSection += `\n[Match ${index + 1}] Line ${match.line}, Column ${match.column}:\n`;
-          resultsSection += `Pattern matched: "${match.match}"\n`;
+          dataPayload += `\n[Match ${index + 1}] Line ${match.line}, Column ${match.column}:\n`;
+          dataPayload += `Pattern matched: "${match.match}"\n`;
           
           if (match.context.length > 0) {
-            resultsSection += 'Context:\n';
+            dataPayload += 'Context:\n';
             match.context.forEach(contextLine => {
-              resultsSection += `  ${contextLine}\n`;
+              dataPayload += `  ${contextLine}\n`;
             });
           }
         });
       });
     }
-    
-    return `You are an expert code analyst specializing in pattern recognition and code search analysis.
 
-Analyze the pattern search results from project: ${projectPath}
-
-Search Parameters:
-- Patterns searched: ${patterns.map(p => `"${p}"`).join(', ')}
-- Files searched: ${filesSearched}
-- Context lines: ${includeContext}
-- Files with matches: ${results.length}
-- Total matches found: ${results.reduce((sum: number, r: FileMatch) => sum + r.matches.length, 0)}
-
-Search Results:
-${resultsSection}
-
-ANALYSIS TASKS:
+    // STAGE 3: Output instructions and analysis tasks
+    const outputInstructions = `ANALYSIS TASKS:
 
 1. **Pattern Usage Summary**
    - Summarize how each pattern is being used across the codebase
@@ -328,6 +356,12 @@ For each pattern:
 Summary and next steps
 
 Provide actionable insights based on the pattern search results.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
   }
   
   private searchPatterns(lines: string[], patterns: string[], contextSize: number): Array<any> {
@@ -439,115 +473,6 @@ Provide actionable insights based on the pattern search results.`;
     const normalizedPath = path.toLowerCase();
     
     return !suspicious.some(pattern => normalizedPath.includes(pattern));
-  }
-  
-  /**
-   * Estimate token count for a text string
-   * Rough approximation: 1 token ≈ 4 characters
-   */
-  private estimateTokenCount(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
-  
-  /**
-   * Execute pattern finding with chunking for large result sets
-   */
-  private async executeWithChunking(results: FileMatch[], params: any, llmClient: any): Promise<any> {
-    // Split results into manageable chunks (approximately 5000 tokens each)
-    const chunkSize = Math.max(1, Math.floor(results.length / 4)); // Create ~4 chunks
-    const chunks: FileMatch[][] = [];
-    
-    for (let i = 0; i < results.length; i += chunkSize) {
-      chunks.push(results.slice(i, i + chunkSize));
-    }
-    
-    // Process each chunk
-    const chunkResults: any[] = [];
-    
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      
-      // Generate prompt for this chunk
-      const chunkPrompt = this.getPrompt({
-        projectPath: params.projectPath,
-        patterns: params.patterns,
-        results: chunk,
-        filesSearched: chunk.length,
-        includeContext: params.includeContext || 3
-      });
-      
-      try {
-        const models = await llmClient.llm.listLoaded();
-        const model = models[0];
-        
-        const prediction = model.respond([
-          {
-            role: 'system',
-            content: 'You are an expert pattern analyst. Find, analyze, and explain usage patterns across multiple code files. Focus on the subset of files provided. Provide insights about pattern distribution, consistency, and potential improvements.'
-          },
-          {
-            role: 'user',
-            content: chunkPrompt
-          }
-        ]);
-        
-        // Collect response
-        let chunkResponse = '';
-        for await (const update of prediction) {
-          if (update.content) {
-            chunkResponse += update.content;
-          }
-        }
-        
-        chunkResults.push({
-          chunk: i + 1,
-          files: chunk.length,
-          analysis: chunkResponse
-        });
-        
-      } catch (error) {
-        chunkResults.push({
-          chunk: i + 1,
-          files: chunk.length,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    }
-    
-    // Combine all chunk results
-    const summary = this.combineChunkResults(chunkResults, params);
-    return summary;
-  }
-  
-  /**
-   * Combine results from multiple chunks into a cohesive analysis
-   */
-  private combineChunkResults(chunkResults: any[], params: any): any {
-    const totalFiles = chunkResults.reduce((sum, chunk) => sum + (chunk.files || 0), 0);
-    const errors = chunkResults.filter(chunk => chunk.error);
-    const successfulChunks = chunkResults.filter(chunk => !chunk.error);
-    
-    return {
-      summary: {
-        totalFiles,
-        chunksProcessed: chunkResults.length,
-        successfulChunks: successfulChunks.length,
-        errors: errors.length,
-        patterns: params.patterns
-      },
-      chunkAnalyses: successfulChunks.map(chunk => ({
-        chunkNumber: chunk.chunk,
-        filesAnalyzed: chunk.files,
-        analysis: chunk.analysis
-      })),
-      errors: errors.map(chunk => ({
-        chunkNumber: chunk.chunk,
-        error: chunk.error
-      })),
-      combinedInsights: successfulChunks.length > 0 
-        ? "Pattern analysis completed across multiple file chunks. Review individual chunk analyses for detailed findings."
-        : "No successful analysis due to processing errors."
-    };
   }
 }
 
