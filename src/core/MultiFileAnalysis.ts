@@ -45,13 +45,22 @@ async function ensureCachePopulated(targetPath?: string): Promise<void> {
     // Determine the project root
     let projectRoot: string;
     if (targetPath) {
-      // If a specific path was provided, use its directory
-      const stat = await fs.stat(targetPath).catch(() => null);
-      if (stat && stat.isDirectory()) {
-        projectRoot = targetPath;
-      } else if (stat && stat.isFile()) {
-        projectRoot = path.dirname(targetPath);
-      } else {
+      // SECURITY: Validate the target path first
+      try {
+        const { validateAndNormalizePath } = await import('../prompts/shared/helpers.js');
+        const validatedPath = await validateAndNormalizePath(targetPath);
+        
+        // If a specific path was provided, use its directory
+        const stat = await fs.stat(validatedPath).catch(() => null);
+        if (stat && stat.isDirectory()) {
+          projectRoot = validatedPath;
+        } else if (stat && stat.isFile()) {
+          projectRoot = path.dirname(validatedPath);
+        } else {
+          projectRoot = process.cwd();
+        }
+      } catch (error) {
+        // If path validation fails, fall back to current directory
         projectRoot = process.cwd();
       }
     } else {
@@ -356,26 +365,33 @@ export async function findPatternUsage(
   for (const file of files) {
     if (typeof file === 'string' && (file.endsWith('.js') || file.endsWith('.ts') || file.endsWith('.php'))) {
       const filePath = path.join(projectPath, file);
-      const content = await fs.readFile(filePath, 'utf-8');
-      const lines = content.split('\n');
-      
-      for (const pattern of patterns) {
-        const regex = new RegExp(pattern, 'g');
-        for (let i = 0; i < lines.length; i++) {
-          if (regex.test(lines[i])) {
-            const contextStart = Math.max(0, i - includeContext);
-            const contextEnd = Math.min(lines.length - 1, i + includeContext);
-            const context = lines.slice(contextStart, contextEnd + 1).join('\n');
-            
-            results.push({
-              file: filePath,
-              line: i + 1,
-              pattern,
-              context,
-              matchedLine: lines[i]
-            });
+      try {
+        // SECURITY: Use secure file reading helper
+        const { readFileContent } = await import('../prompts/shared/helpers.js');
+        const content = await readFileContent(filePath);
+        const lines = content.split('\n');
+        
+        for (const pattern of patterns) {
+          const regex = new RegExp(pattern, 'g');
+          for (let i = 0; i < lines.length; i++) {
+            if (regex.test(lines[i])) {
+              const contextStart = Math.max(0, i - includeContext);
+              const contextEnd = Math.min(lines.length - 1, i + includeContext);
+              const context = lines.slice(contextStart, contextEnd + 1).join('\n');
+              
+              results.push({
+                file: filePath,
+                line: i + 1,
+                pattern,
+                context,
+                matchedLine: lines[i]
+              });
+            }
           }
         }
+      } catch (error) {
+        // Skip files that can't be read securely
+        console.warn(`Skipping file due to security restrictions: ${filePath}`);
       }
     }
   }

@@ -188,7 +188,9 @@ export class ContextWindowManager {
       let totalEstimatedTokens = 0;
       for (const file of files) {
         try {
-          const content = fs.readFileSync(file, 'utf-8');
+          // Use secure file reading helper
+          const { readFileContent } = await import('../prompts/shared/helpers.js');
+          const content = await readFileContent(file);
           totalEstimatedTokens += this.tokenEstimator.estimateTokens(content);
         } catch (error) {
           // Skip files that can't be read, use average estimation
@@ -233,36 +235,50 @@ export class ContextWindowManager {
     const fs = await import('fs');
     const path = await import('path');
     
+    // SECURITY: Validate project path before proceeding
+    const { validateAndNormalizePath } = await import('../prompts/shared/helpers.js');
+    const validatedProjectPath = await validateAndNormalizePath(projectPath);
+    
     const files: string[] = [];
     const extensions = ['.ts', '.js', '.tsx', '.jsx', '.py', '.php', '.java', '.cs', '.cpp', '.c', '.go', '.rs'];
     
-    const traverse = (dir: string) => {
+    const traverse = async (dir: string) => {
       try {
-        const entries = fs.readdirSync(dir);
+        // Validate each directory before reading
+        const validatedDir = await validateAndNormalizePath(dir);
+        const entries = fs.readdirSync(validatedDir);
         
         for (const entry of entries) {
-          const fullPath = path.join(dir, entry);
-          const stat = fs.statSync(fullPath);
+          const fullPath = path.join(validatedDir, entry);
           
-          if (stat.isDirectory()) {
-            // Skip common non-source directories
-            const skipDirs = ['node_modules', '.git', 'vendor', 'dist', 'build', '.next'];
-            if (!skipDirs.includes(entry)) {
-              traverse(fullPath);
+          // Validate the full path before stat
+          try {
+            const validatedFullPath = await validateAndNormalizePath(fullPath);
+            const stat = fs.statSync(validatedFullPath);
+            
+            if (stat.isDirectory()) {
+              // Skip common non-source directories
+              const skipDirs = ['node_modules', '.git', 'vendor', 'dist', 'build', '.next'];
+              if (!skipDirs.includes(entry)) {
+                await traverse(validatedFullPath);
+              }
+            } else if (stat.isFile()) {
+              const ext = path.extname(entry).toLowerCase();
+              if (extensions.includes(ext)) {
+                files.push(validatedFullPath);
+              }
             }
-          } else if (stat.isFile()) {
-            const ext = path.extname(entry).toLowerCase();
-            if (extensions.includes(ext)) {
-              files.push(fullPath);
-            }
+          } catch (pathError) {
+            // Skip paths that fail validation
+            continue;
           }
         }
       } catch (error) {
-        // Skip directories that can't be read
+        // Skip directories that can't be read or validated
       }
     };
     
-    traverse(projectPath);
+    await traverse(validatedProjectPath);
     return files;
   }
 

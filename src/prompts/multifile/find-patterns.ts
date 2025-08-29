@@ -10,6 +10,7 @@ import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
 import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, relative } from 'path';
+import { readFileContent, validateAndNormalizePath } from '../shared/helpers.js';
 
 interface FileMatch {
   file: string;
@@ -55,9 +56,6 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
     if (!params.patterns || !Array.isArray(params.patterns) || params.patterns.length === 0) {
       throw new Error('patterns is required and must be a non-empty array');
     }
-    
-    // Import secure file reading helpers
-    const { validateAndNormalizePath, readFileContent } = await import('../shared/helpers.js');
     
     // Validate and resolve project path using secure path validation
     const projectPath = await validateAndNormalizePath(params.projectPath);

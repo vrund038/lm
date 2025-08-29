@@ -59,10 +59,11 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
       throw new Error(`Calling file does not exist: ${callingFile}`);
     }
     
-    // Read calling file
+    // Read calling file securely
     let callingFileContent: string;
     try {
-      callingFileContent = readFileSync(callingFile, 'utf-8');
+      const { readFileContent } = await import('../shared/helpers.js');
+      callingFileContent = await readFileContent(callingFile);
     } catch (error) {
       throw new Error(`Failed to read calling file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -76,9 +77,10 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
     
     // Read class definition files
     const classFileContents: Record<string, string> = {};
+    const { readFileContent } = await import('../shared/helpers.js');
     for (const classFile of classFiles) {
       try {
-        classFileContents[classFile] = readFileSync(classFile, 'utf-8');
+        classFileContents[classFile] = await readFileContent(classFile);
       } catch (error) {
         console.warn(`Could not read class file: ${classFile}`, error);
       }
@@ -415,7 +417,7 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
     const maxFiles = 10; // Limit search
     
     // First try to find in the same directory
-    const localFiles = this.searchForClass(searchDir, className, maxFiles);
+    const localFiles = await this.searchForClass(searchDir, className, maxFiles);
     foundFiles.push(...localFiles);
     
     // If not found locally, try parent directories (up to project root)
@@ -429,7 +431,7 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
         if (parentDir === currentDir) break; // Reached root
         
         currentDir = parentDir;
-        const parentFiles = this.searchForClass(currentDir, className, maxFiles);
+        const parentFiles = await this.searchForClass(currentDir, className, maxFiles);
         foundFiles.push(...parentFiles);
         attempts++;
       }
@@ -443,7 +445,7 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
       for (const dir of commonDirs) {
         const fullDir = join(projectRoot, dir);
         if (existsSync(fullDir)) {
-          const dirFiles = this.searchForClass(fullDir, className, maxFiles - foundFiles.length);
+          const dirFiles = await this.searchForClass(fullDir, className, maxFiles - foundFiles.length);
           foundFiles.push(...dirFiles);
           if (foundFiles.length >= maxFiles) break;
         }
@@ -453,7 +455,7 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
     return foundFiles;
   }
   
-  private searchForClass(dir: string, className: string, maxFiles: number): string[] {
+  private async searchForClass(dir: string, className: string, maxFiles: number): Promise<string[]> {
     const foundFiles: string[] = [];
     const codeExtensions = ['.js', '.ts', '.jsx', '.tsx', '.php', '.java', '.cs', '.cpp', '.hpp', '.py', '.rb'];
     
@@ -465,7 +467,7 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
       className.replace(/([A-Z])/g, '_$1').toLowerCase().slice(1), // snake_case.js
     ];
     
-    function traverse(currentDir: string, depth: number = 0) {
+    async function traverse(currentDir: string, depth: number = 0): Promise<void> {
       if (foundFiles.length >= maxFiles || depth > 3) return;
       
       try {
@@ -482,7 +484,7 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
             if (stat.isDirectory()) {
               // Skip common non-source directories
               if (!['node_modules', '.git', 'vendor', 'dist', 'build'].includes(entry)) {
-                traverse(fullPath, depth + 1);
+                await traverse(fullPath, depth + 1);
               }
             } else if (stat.isFile()) {
               const ext = extname(entry).toLowerCase();
@@ -495,7 +497,8 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
                 } else {
                   // Quick content check for class definition
                   try {
-                    const content = readFileSync(fullPath, 'utf-8');
+                    const { readFileContent } = await import('../shared/helpers.js');
+                    const content = await readFileContent(fullPath);
                     if (content.includes(`class ${className}`) || 
                         content.includes(`interface ${className}`) ||
                         content.includes(`export class ${className}`) ||
@@ -517,7 +520,7 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
       }
     }
     
-    traverse(dir);
+    await traverse(dir);
     return foundFiles;
   }
   

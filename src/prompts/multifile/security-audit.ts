@@ -11,6 +11,7 @@ import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
 import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, relative, basename } from 'path';
+import { readFileContent, validateAndNormalizePath } from '../shared/helpers.js';
 
 interface SecurityFile {
   path: string;
@@ -94,8 +95,9 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
       throw new Error('projectType is required for security audit');
     }
     
-    // Validate and resolve project path
-    const projectPath = resolve(params.projectPath);
+    // Validate and resolve project path using secure path validation
+    const projectPath = await validateAndNormalizePath(params.projectPath);
+    
     if (!existsSync(projectPath)) {
       throw new Error(`Project path does not exist: ${projectPath}`);
     }
@@ -110,7 +112,7 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
     }
 
     // Find and categorize security-relevant files
-    const securityFiles = this.findSecurityRelevantFiles(projectPath, params.projectType);
+    const securityFiles = await this.findSecurityRelevantFiles(projectPath, params.projectType);
     
     if (securityFiles.length === 0) {
       throw new Error(`No security-relevant files found in project: ${projectPath}`);
@@ -277,18 +279,20 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
   /**
    * Find and categorize security-relevant files in the project
    */
-  private findSecurityRelevantFiles(projectPath: string, projectType: string): SecurityFile[] {
+  private async findSecurityRelevantFiles(projectPath: string, projectType: string): Promise<SecurityFile[]> {
     const securityFiles: SecurityFile[] = [];
     const maxFiles = 200; // Prevent overwhelming analysis
     
     // Define file patterns based on project type
     const securityPatterns = this.getSecurityFilePatterns(projectType);
     
-    const traverse = (dir: string) => {
+    const traverse = async (dir: string) => {
       if (securityFiles.length >= maxFiles) return;
       
       try {
-        const entries = readdirSync(dir);
+        // Use secure async directory reading
+        const fs = await import('fs/promises');
+        const entries = await fs.readdir(dir);
         
         for (const entry of entries) {
           if (securityFiles.length >= maxFiles) break;
@@ -302,14 +306,14 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
               // Skip common non-source directories but include config dirs
               const skipDirs = ['node_modules', '.git', 'vendor', 'dist', 'build', '.next', 'out', 'target', '.idea', '.vscode', '__pycache__', '.pytest_cache'];
               if (!skipDirs.includes(entry)) {
-                traverse(fullPath);
+                await traverse(fullPath);
               }
             } else if (stat.isFile()) {
               const fileType = this.categorizeSecurityFile(fullPath, entry, projectType, securityPatterns);
               
               if (fileType) {
                 try {
-                  const content = readFileSync(fullPath, 'utf-8');
+                  const content = await readFileContent(fullPath);
                   
                   // Skip very large files (>100KB) to avoid context overflow
                   if (stat.size > 100 * 1024) {
@@ -338,7 +342,7 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
       }
     };
     
-    traverse(projectPath);
+    await traverse(projectPath);
     return securityFiles;
   }
 

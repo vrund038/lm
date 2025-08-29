@@ -19,10 +19,21 @@ export function validateRequiredParams(params: any, required: string[]): void {
  */
 export async function validateAndNormalizePath(filePath: string): Promise<string> {
   const path = await import('path');
-  const { securityConfig } = await import('../../security-config.js');
+  const { securityConfig } = await import('../../security-config');
   
+  // Input validation
   if (!filePath || typeof filePath !== 'string') {
     throw new Error('Invalid file path provided');
+  }
+  
+  // Check for null bytes (directory traversal attack vector)
+  if (filePath.includes('\0')) {
+    throw new Error('Access denied: Null byte detected in file path');
+  }
+  
+  // Check for path traversal sequences BEFORE normalization (prevents bypass)
+  if (filePath.includes('..')) {
+    throw new Error('Access denied: Path traversal sequences detected');
   }
   
   // Must be absolute path
@@ -30,30 +41,47 @@ export async function validateAndNormalizePath(filePath: string): Promise<string
     throw new Error('File path must be absolute');
   }
   
-  // Normalize and resolve to canonical form
+  // Normalize and resolve to canonical form - this MUST come after traversal checks
   const normalizedPath = path.resolve(path.normalize(filePath));
   
-  // Get allowed directories and ensure they're also resolved and normalized for Windows
-  const allowedDirs = securityConfig.getAllowedDirectories(); // These are already lowercase
+  // Double-check: ensure normalization didn't introduce traversal sequences
+  if (normalizedPath.includes('..')) {
+    throw new Error('Access denied: Path normalization resulted in traversal sequences');
+  }
   
-  // Check if the resolved path is within allowed boundaries (case-insensitive for Windows)
+  // Get allowed directories (these are already normalized and lowercase for Windows)
+  const allowedDirs = securityConfig.getAllowedDirectories();
+  
+  // Validate against allowed directories (case-insensitive for Windows)
   const normalizedPathLower = normalizedPath.toLowerCase();
   const isPathSafe = allowedDirs.some(allowedDir => {
-    // Ensure both paths end with path separator for accurate comparison
-    const normalizedAllowedDir = allowedDir.endsWith(path.sep) ? allowedDir : allowedDir + path.sep;
-    const pathToCheck = normalizedPathLower + path.sep;
+    // Exact match check first
+    if (normalizedPathLower === allowedDir) {
+      return true;
+    }
     
-    // The path must start with the allowed directory and not escape via ".."
-    return pathToCheck.startsWith(normalizedAllowedDir) || normalizedPathLower === allowedDir;
+    // Subdirectory check - ensure path is actually within the allowed directory
+    // Both paths must end with separator for accurate boundary detection
+    const normalizedAllowedDir = allowedDir.endsWith(path.sep) ? allowedDir : allowedDir + path.sep;
+    const pathToCheck = normalizedPathLower.endsWith(path.sep) ? normalizedPathLower : normalizedPathLower + path.sep;
+    
+    return pathToCheck.startsWith(normalizedAllowedDir);
   });
   
   if (!isPathSafe) {
+    // Log security violation if enabled
+    if (securityConfig.security.logSecurityViolations) {
+      console.warn(`SECURITY VIOLATION: Attempted access to unauthorized path: ${filePath} (normalized: ${normalizedPath})`);
+      console.warn(`Allowed directories: ${allowedDirs.join(', ')}`);
+    }
     throw new Error(`Access denied: Path '${filePath}' is outside allowed directories`);
   }
   
-  // Additional security: Validate against any remaining path traversal attempts
-  if (normalizedPath.includes('..') || filePath.includes('..')) {
-    throw new Error(`Access denied: Path contains path traversal sequences`);
+  // Final validation: ensure the normalized path hasn't escaped the boundaries
+  // This catches edge cases where path.resolve might behave unexpectedly
+  const relativePath = path.relative(allowedDirs.find(dir => normalizedPathLower.startsWith(dir))!, normalizedPath);
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error('Access denied: Path validation failed - potential escape detected');
   }
   
   return normalizedPath;
@@ -68,7 +96,7 @@ export async function readFileContent(filePath: string): Promise<string> {
   const path = await import('path');
   
   // Import security config
-  const { securityConfig } = await import('../../security-config.js');
+  const { securityConfig } = await import('../../security-config');
   
   // First, validate and normalize the path (this includes all security checks)
   const normalizedPath = await validateAndNormalizePath(filePath);

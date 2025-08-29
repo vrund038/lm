@@ -104,7 +104,9 @@ export class FileContextManager {
    * Analyse a file and cache the results
    */
   async analyseFile(filePath: string, forceReparse: boolean = false): Promise<ParsedFile> {
-    const normalizedPath = path.normalize(filePath);
+    // SECURITY: Validate path before any operations
+    const { validateAndNormalizePath } = await import('../prompts/shared/helpers.js');
+    const normalizedPath = await validateAndNormalizePath(filePath);
     
     // Check cache validity
     if (!forceReparse && this.fileCache.has(normalizedPath)) {
@@ -140,9 +142,11 @@ export class FileContextManager {
    * Parse a file and extract structural information
    */
   private async parseFile(filePath: string): Promise<ParsedFile> {
-    const content = await fs.readFile(filePath, 'utf-8');
+    // SECURITY: Use secure file reading helper
+    const { readFileContent } = await import('../prompts/shared/helpers.js');
+    const content = await readFileContent(filePath);
     const lines = content.split('\n');
-    const stats = await fs.stat(filePath);
+    const stats = await fs.stat(filePath); // This is safe since readFileContent already validated the path
     const hash = crypto.createHash('md5').update(content).digest('hex');
     const language = this.detectLanguage(filePath);
     

@@ -66,8 +66,9 @@ export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
           continue;
         }
         
-        // Read file content
-        const content = readFileSync(resolvedPath, 'utf-8');
+        // Read file content securely
+        const { readFileContent } = await import('../shared/helpers.js');
+        const content = await readFileContent(resolvedPath);
         fileContents[filePath] = { content };
       } catch (error) {
         fileContents[filePath] = {

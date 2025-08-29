@@ -10,6 +10,7 @@ import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
 import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
+import { readFileContent } from '../shared/helpers.js';
 
 export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
   name = 'trace_execution_path';
@@ -56,9 +57,6 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
     if (relevantFiles.length === 0) {
       throw new Error(`Could not find files containing entry point: ${params.entryPoint}`);
     }
-    
-    // Import secure file reading helper
-    const { readFileContent } = await import('../shared/helpers.js');
     
     // Read relevant files using secure file reading
     const fileContents: Record<string, string> = {};

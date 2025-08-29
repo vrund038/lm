@@ -91,13 +91,13 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
     const maxDepth = Math.min(Math.max(params.maxDepth || 3, 1), 10);
     
     // Analyze project structure
-    const structure = this.analyzeProjectStructure(projectPath, maxDepth);
+    const structure = await this.analyzeProjectStructure(projectPath, maxDepth);
     
     // Read key configuration files
-    const configFiles = this.readConfigurationFiles(projectPath);
+    const configFiles = await this.readConfigurationFiles(projectPath);
     
     // Sample code files for pattern analysis
-    const codeSamples = this.sampleCodeFiles(projectPath, structure);
+    const codeSamples = await this.sampleCodeFiles(projectPath, structure);
     
     // Generate analysis prompt
     const prompt = this.getPrompt({
@@ -324,7 +324,7 @@ Summary and recommended next steps
 Provide actionable insights and specific recommendations for improving the project structure and architecture.`;
   }
   
-  private analyzeProjectStructure(projectPath: string, maxDepth: number): ProjectStructure {
+  private async analyzeProjectStructure(projectPath: string, maxDepth: number): Promise<ProjectStructure> {
     const structure: ProjectStructure = {
       directories: new Map(),
       files: new Map(),
@@ -340,7 +340,7 @@ Provide actionable insights and specific recommendations for improving the proje
       }
     };
     
-    this.traverseDirectory(projectPath, structure, 0, maxDepth, projectPath);
+    await this.traverseDirectory(projectPath, structure, 0, maxDepth, projectPath);
     
     // Sort largest files
     structure.statistics.largestFiles = Array.from(structure.files.values())
@@ -350,13 +350,13 @@ Provide actionable insights and specific recommendations for improving the proje
     return structure;
   }
   
-  private traverseDirectory(
+  private async traverseDirectory(
     dir: string,
     structure: ProjectStructure,
     currentDepth: number,
     maxDepth: number,
     projectRoot: string
-  ): void {
+  ): Promise<void> {
     if (currentDepth > maxDepth) return;
     
     const relativePath = relative(projectRoot, dir);
@@ -392,7 +392,7 @@ Provide actionable insights and specific recommendations for improving the proje
           
           if (stat.isDirectory()) {
             subdirCount++;
-            this.traverseDirectory(fullPath, structure, currentDepth + 1, maxDepth, projectRoot);
+            await this.traverseDirectory(fullPath, structure, currentDepth + 1, maxDepth, projectRoot);
           } else if (stat.isFile()) {
             fileCount++;
             const ext = extname(entry).toLowerCase() || 'no-ext';
@@ -402,7 +402,9 @@ Provide actionable insights and specific recommendations for improving the proje
             let lines = 0;
             if (this.isTextFile(ext)) {
               try {
-                const content = readFileSync(fullPath, 'utf-8');
+                // SECURITY: Use secure file reading helper
+                const { readFileContent } = await import('../shared/helpers.js');
+                const content = await readFileContent(fullPath);
                 lines = content.split('\n').length;
                 structure.statistics.totalLines += lines;
               } catch {
@@ -440,7 +442,7 @@ Provide actionable insights and specific recommendations for improving the proje
     }
   }
   
-  private readConfigurationFiles(projectPath: string): Map<string, string> {
+  private async readConfigurationFiles(projectPath: string): Promise<Map<string, string>> {
     const configs = new Map<string, string>();
     const configFiles = [
       'package.json',
@@ -465,7 +467,9 @@ Provide actionable insights and specific recommendations for improving the proje
       const configPath = join(projectPath, configFile);
       if (existsSync(configPath)) {
         try {
-          const content = readFileSync(configPath, 'utf-8');
+          // SECURITY: Use secure file reading helper
+          const { readFileContent } = await import('../shared/helpers.js');
+          const content = await readFileContent(configPath);
           // Truncate large files
           const maxLength = 1000;
           if (content.length > maxLength) {
@@ -482,7 +486,7 @@ Provide actionable insights and specific recommendations for improving the proje
     return configs;
   }
   
-  private sampleCodeFiles(projectPath: string, structure: ProjectStructure): Map<string, string> {
+  private async sampleCodeFiles(projectPath: string, structure: ProjectStructure): Promise<Map<string, string>> {
     const samples = new Map<string, string>();
     const maxSamples = 5;
     const codeExtensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go'];
@@ -496,7 +500,9 @@ Provide actionable insights and specific recommendations for improving the proje
     for (const file of codeFiles) {
       const fullPath = join(projectPath, file.path);
       try {
-        const content = readFileSync(fullPath, 'utf-8');
+        // SECURITY: Use secure file reading helper
+        const { readFileContent } = await import('../shared/helpers.js');
+        const content = await readFileContent(fullPath);
         // Take first 50 lines as sample
         const lines = content.split('\n').slice(0, 50);
         samples.set(file.path, lines.join('\n') + (lines.length === 50 ? '\n... (truncated)' : ''));
