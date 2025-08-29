@@ -42,6 +42,8 @@ class LocalLLMServer {
       }
     );
 
+    // Note: Security validation will be done during server start
+    
     this.lmStudioClient = new LMStudioClient({
       baseUrl: config.lmStudioUrl,
     });
@@ -58,6 +60,36 @@ class LocalLLMServer {
       await this.server.close();
       process.exit(0);
     });
+  }
+
+  /**
+   * Validate security configuration at startup
+   * Fails fast if environment variables are not properly configured
+   */
+  private async validateSecurityConfiguration(): Promise<void> {
+    try {
+      const { securityConfig } = await import('./security-config.js');
+      const allowedDirs = securityConfig.getAllowedDirectories();
+      
+      // Validate each directory exists and is accessible
+      const fs = await import('fs');
+      
+      for (const dir of allowedDirs) {
+        try {
+          const stat = fs.statSync(dir);
+          if (!stat.isDirectory()) {
+            console.warn(`[WARNING] Allowed path is not a directory: ${dir}`);
+          }
+        } catch (error: any) {
+          console.warn(`[WARNING] Cannot access allowed directory: ${dir} (${error.message})`);
+        }
+      }
+    } catch (error: any) {
+      console.error('SECURITY CONFIGURATION ERROR:', error.message);
+      console.error('Please set the LLM_MCP_ALLOWED_DIRS environment variable in your Claude Desktop configuration.');
+      console.error('Example: "LLM_MCP_ALLOWED_DIRS": "C:\\\\MCP,C:\\\\dev,C:\\\\Users\\\\YourName\\\\Documents"');
+      process.exit(1);
+    }
   }
 
   /**
@@ -225,8 +257,10 @@ class LocalLLMServer {
    * Start the server
    */
   async start(): Promise<void> {
-    // Silent startup - no console output to avoid JSON-RPC interference
+    // SECURITY: Validate configuration before starting server
+    await this.validateSecurityConfiguration();
     
+    // Silent startup after security validation - no console output to avoid JSON-RPC interference
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     

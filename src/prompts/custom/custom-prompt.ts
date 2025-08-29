@@ -9,8 +9,7 @@ import { IPromptPlugin } from '../shared/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
-import { readFileSync, existsSync } from 'fs';
-import { resolve, basename } from 'path';
+import { basename } from 'path';
 
 export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
   name = 'custom_prompt';
@@ -60,21 +59,19 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
         throw new Error('Prompt is required and must be a string');
       }
 
-      // Read files if provided
+      // Read files if provided - using secure file reading
       const fileContents: Record<string, string> = {};
       if (params.files && Array.isArray(params.files)) {
+        // Import secure file reading helper
+        const { readFileContent } = await import('../shared/helpers.js');
+        
         for (const filePath of params.files) {
           try {
-            const resolvedPath = resolve(filePath);
-            if (!this.isPathSafe(resolvedPath)) {
-              console.warn(`Skipping unsafe path: ${filePath}`);
-              continue;
-            }
-            if (existsSync(resolvedPath)) {
-              fileContents[filePath] = readFileSync(resolvedPath, 'utf-8');
-            }
+            // Use secure file reading which includes path validation
+            const content = await readFileContent(filePath);
+            fileContents[filePath] = content;
           } catch (error: any) {
-            console.warn(`Could not read file ${filePath}: ${error.message}`);
+            // Silently skip files that can't be read - security errors will be thrown by readFileContent
           }
         }
       }
@@ -257,12 +254,6 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
       dataPayload, 
       outputInstructions
     };
-  }
-
-  private isPathSafe(path: string): boolean {
-    const suspicious = ['../', '..\\', '/etc/', '\\etc\\', '/root/', '\\root\\'];
-    const normalizedPath = path.toLowerCase();
-    return !suspicious.some(pattern => normalizedPath.includes(pattern));
   }
 }
 

@@ -59,16 +59,16 @@ export class FindUnusedFiles extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Security validation - simple path safety check
+    // Security validation using enhanced path validation
     if (!params.projectPath || typeof params.projectPath !== 'string') {
       throw new Error('Invalid project path');
     }
 
-    // Basic path safety - must be absolute and normalized
-    const projectPath = path.resolve(path.normalize(params.projectPath));
-    if (!path.isAbsolute(projectPath)) {
-      throw new Error('Project path must be absolute');
-    }
+    // Import the secure path validation helper
+    const { validateAndNormalizePath } = await import('../shared/helpers.js');
+    
+    // Use secure path validation and normalization
+    const projectPath = await validateAndNormalizePath(params.projectPath);
 
     // Prepare context with defaults
     const context: UnusedFilesContext = {

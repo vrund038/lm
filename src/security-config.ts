@@ -8,33 +8,23 @@ import { resolve, normalize } from 'path';
  */
 export const securityConfig = {
   /**
-   * Default allowed directories for file operations
-   * These directories are used when LLM_MCP_ALLOWED_DIRS environment variable is not set
-   * 
-   * @type {string[]}
-   */
-  defaultAllowedDirectories: [
-    process.cwd(),      // Current working directory
-    'C:\\MCP',          // MCP tools directory
-    'C:\\Dev',          // Development directory
-    // Add more default directories as needed
-  ],
-
-  /**
-   * Get the list of allowed directories
-   * Prioritizes environment variable over defaults
+   * Get the list of allowed directories from environment variable
+   * NO DEFAULTS - Must be explicitly configured for security
    * 
    * @returns {string[]} Array of normalized, absolute paths
+   * @throws {Error} If LLM_MCP_ALLOWED_DIRS is not set
    */
   getAllowedDirectories(): string[] {
-    if (process.env.LLM_MCP_ALLOWED_DIRS) {
-      return process.env.LLM_MCP_ALLOWED_DIRS
-        .split(',')
-        .map(dir => resolve(normalize(dir.trim())));
+    if (!process.env.LLM_MCP_ALLOWED_DIRS) {
+      throw new Error(
+        'SECURITY: LLM_MCP_ALLOWED_DIRS environment variable must be set. ' +
+        'This defines which directories the Local LLM MCP can access.'
+      );
     }
     
-    return this.defaultAllowedDirectories
-      .map(dir => resolve(normalize(dir)));
+    return process.env.LLM_MCP_ALLOWED_DIRS
+      .split(',')
+      .map(dir => resolve(normalize(dir.trim())).toLowerCase()); // Normalize case for Windows
   },
 
   /**
@@ -79,5 +69,4 @@ export const securityConfig = {
   }
 };
 
-// For backwards compatibility
-export const DEFAULT_ALLOWED_DIRS = securityConfig.defaultAllowedDirectories;
+// No backwards compatibility exports - security must be explicitly configured

@@ -182,7 +182,7 @@ export class ContextWindowManager {
       const fs = await import('fs');
       const path = await import('path');
       
-      const files = this.getAllCodeFiles(params.projectPath);
+      const files = await this.getAllCodeFiles(params.projectPath);
       
       // Estimate tokens per file to determine appropriate chunk size
       let totalEstimatedTokens = 0;
@@ -229,9 +229,9 @@ export class ContextWindowManager {
   /**
    * Get all code files from a directory
    */
-  private getAllCodeFiles(projectPath: string): string[] {
-    const fs = require('fs');
-    const path = require('path');
+  private async getAllCodeFiles(projectPath: string): Promise<string[]> {
+    const fs = await import('fs');
+    const path = await import('path');
     
     const files: string[] = [];
     const extensions = ['.ts', '.js', '.tsx', '.jsx', '.py', '.php', '.java', '.cs', '.cpp', '.c', '.go', '.rs'];
