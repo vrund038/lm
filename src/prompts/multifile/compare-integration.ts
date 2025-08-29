@@ -230,13 +230,7 @@ export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
     );
   }
 
-  /**
-   * Legacy getPrompt method for BasePlugin compatibility
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params);
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
-  }
+
 
   /**
    * 3-Stage prompt architecture method
@@ -374,6 +368,14 @@ Provide specific, actionable fixes with exact code snippets that can be directly
     };
     
     return defaults[analysisType] || defaults['integration'];
+  }
+
+  /**
+   * Get prompt for BasePlugin interface compatibility
+   */
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
   
   private isPathSafe(path: string): boolean {

@@ -238,13 +238,7 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
     );
   }
 
-  /**
-   * Legacy getPrompt method for BasePlugin compatibility
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params);
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
-  }
+
 
   /**
    * 3-Stage prompt architecture method
@@ -467,6 +461,14 @@ Provide actionable insights based on the pattern search results.`;
     return codeFiles;
   }
   
+  /**
+   * Get prompt for BasePlugin interface compatibility
+   */
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
+  }
+
   private isPathSafe(path: string): boolean {
     // Basic security check
     const suspicious = ['../', '..\\', '/etc/', '\\etc\\', '/root/', '\\root\\', '/sys/', '\\sys\\'];

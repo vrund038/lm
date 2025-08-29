@@ -480,6 +480,21 @@ export interface GetCacheStatisticsResponse extends BaseResponse {
 // FUNCTION TYPE MAPPING
 // ====================
 
+export interface CustomPromptResponse {
+  success: boolean;
+  timestamp: string;
+  modelUsed: string;
+  executionTimeMs: number;
+  data: {
+    content: string;
+    metadata: {
+      functionName: string;
+      parsedAt: string;
+      responseLength: number;
+    };
+  };
+}
+
 export type FunctionResponseMap = {
   // Analysis functions
   'analyze_single_file': AnalyzeSingleFileResponse;
@@ -505,6 +520,9 @@ export type FunctionResponseMap = {
   'health_check': HealthCheckResponse;
   'clear_analysis_cache': ClearAnalysisCacheResponse;
   'get_cache_statistics': GetCacheStatisticsResponse;
+  
+  // Custom functions
+  'custom_prompt': CustomPromptResponse;
 };
 
 export type FunctionName = keyof FunctionResponseMap;

@@ -19,6 +19,7 @@ export class PluginLoader {
     this.categories.set('analyze', []);
     this.categories.set('generate', []);
     this.categories.set('multifile', []);
+    this.categories.set('custom', []);
     this.categories.set('system', []);
     
     // Initialize context window manager with conservative default
@@ -39,7 +40,7 @@ export class PluginLoader {
    * Load all plugins from the prompts directory
    */
   async loadPlugins(promptsDir: string): Promise<void> {
-    const categories = ['analyze', 'generate', 'multifile'];
+    const categories = ['analyze', 'generate', 'multifile', 'custom'];
     
     for (const category of categories) {
       const categoryPath = path.join(promptsDir, category);
@@ -65,7 +66,7 @@ export class PluginLoader {
   /**
    * Load a single plugin file
    */
-  private async loadPlugin(filePath: string, category: 'analyze' | 'generate' | 'multifile' | 'system'): Promise<void> {
+  private async loadPlugin(filePath: string, category: 'analyze' | 'generate' | 'multifile' | 'custom' | 'system'): Promise<void> {
     try {
       // Skip .d.ts files (TypeScript declaration files)
       if (filePath.endsWith('.d.ts')) {

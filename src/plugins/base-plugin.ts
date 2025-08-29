@@ -7,7 +7,7 @@ import { IPromptPlugin, ParameterDefinition } from '../prompts/shared/types.js';
 
 export abstract class BasePlugin implements Partial<IPromptPlugin> {
   abstract name: string;
-  abstract category: 'analyze' | 'generate' | 'multifile' | 'system';
+  abstract category: 'analyze' | 'generate' | 'multifile' | 'custom' | 'system';
   abstract description: string;
   abstract parameters: { [key: string]: any };
   

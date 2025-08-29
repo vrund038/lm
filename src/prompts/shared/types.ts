@@ -4,7 +4,7 @@
 
 export interface IPromptPlugin {
   name: string;
-  category: 'analyze' | 'generate' | 'multifile' | 'system';
+  category: 'analyze' | 'generate' | 'multifile' | 'custom' | 'system';
   description: string;
   parameters: ParameterSchema;
   execute(params: any, llmClient: any): Promise<any>;

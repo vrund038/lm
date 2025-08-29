@@ -213,13 +213,7 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
     );
   }
 
-  /**
-   * Legacy getPrompt method for BasePlugin compatibility
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params);
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
-  }
+
 
   /**
    * 3-Stage prompt architecture method
@@ -472,6 +466,14 @@ Provide a clear, traceable path from the entry point through the codebase, makin
     
     traverse(dir);
     return files;
+  }
+
+  /**
+   * Get prompt for BasePlugin interface compatibility
+   */
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 

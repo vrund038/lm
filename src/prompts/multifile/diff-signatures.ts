@@ -226,13 +226,7 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
     );
   }
 
-  /**
-   * Legacy getPrompt method for BasePlugin compatibility
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params);
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
-  }
+
 
   /**
    * 3-Stage prompt architecture method
@@ -552,6 +546,14 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
     return startDir; // Default to start directory
   }
   
+  /**
+   * Get prompt for BasePlugin interface compatibility
+   */
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
+  }
+
   private isPathSafe(path: string): boolean {
     const suspicious = ['../', '..\\', '/etc/', '\\etc\\', '/root/', '\\root\\'];
     const normalizedPath = path.toLowerCase();
