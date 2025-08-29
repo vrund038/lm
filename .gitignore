@@ -39,6 +39,7 @@ test-v3-quick.mjs
 
 # Development/handover documentation
 DEVELOPER_HANDOVER.md
+PLUGIN_DEVELOPMENT_GUIDE.md
 RELEASE_NOTES_v*.md
 IMPLEMENTATION_*.md
 UPGRADE_SUMMARY.md
@@ -84,6 +85,9 @@ add-shebang.js
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Archived documentation
+archive/
 
 # Development files that shouldn't be in dist
 dist/enhanced-index.js

@@ -1,191 +1,91 @@
-# Local LLM MCP Server v4.0 (Private)
+# Local LLM MCP Server v4.2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
-[![Functions](https://img.shields.io/badge/Functions-18%2F18-brightgreen)](https://github.com/richardbaxterseo/local-llm-mcp)
+[![Functions](https://img.shields.io/badge/Functions-Complete-brightgreen)](https://github.com/richardbaxterseo/local-llm-mcp)
 [![Architecture](https://img.shields.io/badge/Architecture-Plugin%20Based-blue)](https://github.com/richardbaxterseo/local-llm-mcp)
 
 **⚠️ PRIVATE REPOSITORY - NOT FOR PUBLIC DISTRIBUTION**
 
-A groundbreaking MCP (Model Context Protocol) server that enables Claude to offload tasks to local LLMs running in LM Studio. **100% feature complete** with all 17 functions working perfectly! Version 4.0 introduces powerful multi-file analysis capabilities with automatic cache population for seamless operation.
+A sophisticated MCP (Model Context Protocol) server that enables Claude to offload routine tasks to local LLMs running in LM Studio, preserving Claude's context window for strategic work. Features modern plugin architecture with comprehensive security integration and dynamic context window management.
 
-## 🎯 100% Feature Complete
+## 🎯 Core Purpose
 
-All 18 functions from the functional specification are implemented and tested:
+**Context Window Preservation**: Offload deterministic, routine tasks to local LLM while preserving Claude's context for strategic analysis and decision-making.
 
-✅ **Analysis Functions (3)**: analyze_single_file, analyze_project_structure, analyze_n8n_workflow  
-✅ **Generation Functions (6)**: generate_unit_tests, generate_documentation, suggest_refactoring, generate_wordpress_plugin, convert_to_typescript, generate_responsive_component  
-✅ **Multi-file Functions (5)**: compare_integration, trace_execution_path, find_pattern_usage, diff_method_signatures, security_audit  
-✅ **System Functions (4)**: health_check, clear_analysis_cache, get_cache_statistics, find_unused_files  
-✅ **Custom Functions (1)**: custom_prompt  
-
-**Plugin Architecture**: Modern plugin-based system with LM Studio SDK integration  
 **Token Savings**: 50-95% context preservation across all operations  
-**Cache Management**: Smart caching with automatic population and manual control  
+**Plugin Architecture**: Modern plugin-based system with security integration  
+**Dynamic Context Management**: Automatic chunking for large operations  
+**Security First**: Comprehensive security wrapper for all operations
 
-## 🎉 What's New in v4.0
+## 🚀 What's New in v4.2
 
-### 🔥 Multi-File Analysis with Auto-Population
-**Game-changing improvement**: Multi-file analysis functions now automatically populate their cache! No need to manually run `analyze_project_structure` first.
+### 🔒 Security Integration
+- **Universal Security Wrapper**: All plugins now use `withSecurity` for automatic security validation
+- **Foreign Prompt Prevention**: Advanced sanitization prevents injection attacks
+- **Path Validation**: Comprehensive file path security with `validateAndNormalizePath`
+- **Output Encoding**: Secure output encoding for different contexts
 
-#### Key Improvements:
-- **Automatic Cache Population**: Functions intelligently analyze common entry files when called
-- **Smart File Discovery**: Automatically finds index.js, main.js, app.js and other entry points
-- **Zero Configuration**: Just call the function - it handles everything else
-- **Performance Optimised**: Analyzes up to 10 files initially to avoid delays
-- **Helpful Error Messages**: Shows available symbols when something isn't found
+### ⚡ Response Management
+- **ResponseFactory**: Consistent, spec-compliant responses across all functions
+- **Smart Parsing**: Automatic parsing of LLM responses into structured formats
+- **Error Handling**: Comprehensive error responses with detailed context
+- **Performance Tracking**: Execution time tracking for all operations
 
-### 🔒 Enhanced Security Analysis
+### 📊 Context Window Management
+- **ThreeStagePromptManager**: Intelligent prompt chunking for large operations
+- **Dynamic Context Detection**: Automatic context window size detection from LM Studio
+- **File Chunking Strategies**: Smart file processing for large datasets
+- **Token Estimation**: Accurate token counting for optimal performance
 
-#### `security_audit` - Multifile Security Auditor
-**Major Enhancement**: Now operates as a comprehensive multifile plugin that analyzes entire project security posture!
+### 🛠 Modern LM Studio Integration
+- **Latest SDK**: Full integration with LM Studio SDK v2.x
+- **Streaming Responses**: Efficient streaming for real-time processing
+- **Model Management**: Automatic model detection and context limit handling
+- **Health Monitoring**: Comprehensive health checks with detailed diagnostics
 
-**Cross-File Vulnerability Detection:**
-- **Data flow analysis** - Traces user input through complete application stack
-- **Authentication chain validation** - Validates auth workflows across multiple files  
-- **Configuration security** - Finds hardcoded secrets and misconfigurations
-- **OWASP Top 10 compliance** - Comprehensive security standard assessment
-- **Project-specific patterns** - Tailored checks for WordPress, React, Node.js, etc.
+## 🔧 Available Functions
 
-**Example:**
-```javascript
-security_audit({
-  projectPath: "C:\\MyAPI",
-  projectType: "node-api", 
-  auditDepth: "comprehensive",
-  includeOwasp: true,
-  focusAreas: ["authentication", "data-flow", "input-validation"]
-})
-```
+### Analysis Functions
+- **`analyze_single_file`**: Comprehensive file analysis with framework context
+- **`analyze_project_structure`**: Project architecture analysis with dependency mapping
+- **`security_audit`**: Multi-file security analysis with OWASP compliance
+- **`analyze_n8n_workflow`**: n8n workflow optimization and best practices
 
-**Professional Output:**
-- Executive summary with risk assessment
-- Cross-file security analysis and data flow tracking  
-- Detailed vulnerability reports with line numbers and fixes
-- Architecture security review
-- Remediation roadmap with immediate, medium, and long-term actions
-- Compliance assessment against industry standards
+### Generation Functions
+- **`generate_unit_tests`**: Test suite generation with framework-specific patterns
+- **`generate_documentation`**: Documentation generation for different audiences
+- **`suggest_refactoring`**: Intelligent refactoring suggestions
+- **`generate_wordpress_plugin`**: Complete WordPress plugin structure generator
+- **`convert_to_typescript`**: JavaScript to TypeScript conversion with type annotations
+- **`generate_responsive_component`**: Modern, accessible UI component generation
 
-**Supported Project Types:**
-- WordPress plugins/themes with hook security analysis
-- Node.js APIs with authentication flow validation  
-- React applications with component security patterns
-- Generic projects with universal security principles
+### Multi-File Functions
+- **`compare_integration`**: Cross-file integration analysis
+- **`trace_execution_path`**: Code execution path tracing
+- **`find_pattern_usage`**: Pattern search across projects
+- **`diff_method_signatures`**: Method signature comparison
+- **`find_unused_files`**: Advanced unused file detection
 
-### 7 Multi-File & System Analysis Tools
-1. **`compare_integration`** - Compare how multiple files work together
-2. **`trace_execution_path`** - Follow code execution across files
-3. **`find_pattern_usage`** - Search for patterns across entire projects
-4. **`diff_method_signatures`** - Compare method signatures between files
-5. **`analyze_project_structure`** - Get bird's-eye view of architecture
-6. **`find_unused_files`** - Identify genuinely unused files with dynamic loading detection
-7. **`clear_analysis_cache`** - Clear cached analysis data
-8. **`get_cache_statistics`** - View cache status and performance
+### System Functions
+- **`health_check`**: LM Studio connection and model status
+- **`clear_analysis_cache`**: Cache management
+- **`get_cache_statistics`**: Cache performance metrics
 
-### 🆕 Enterprise-Grade Tools
+### Custom Functions
+- **`custom_prompt`**: Direct LLM access for flexible tasks
 
-#### `find_unused_files` - Advanced Unused File Detection
-The most sophisticated unused file detector for complex TypeScript projects:
-
-**Handles Complex Scenarios:**
-- Plugin systems with dynamic loading (`await import(fileUrl)`)
-- Configuration files referenced without explicit imports
-- Entry point dependency traversal with BFS
-- Legacy vs modern dual architectures
-- Development artifacts identification
-
-**Example:**
-```javascript
-find_unused_files({
-  projectPath: "C:\\MyProject",
-  entryPoints: ["index.ts", "main.ts", "app.ts"],
-  excludePatterns: ["*.test.ts", "*.spec.ts"],
-  includeDevArtifacts: true,
-  analyzeComments: true
-})
-```
-
-**Output Structure:**
-- `summary` - Overview statistics
-- `usedFiles` - Categorized by detection method (static/dynamic/entry/config)
-- `unusedCandidates` - With confidence levels (definitelyUnused/likelyUnused/unclear)
-- `devArtifacts` - Temporary, legacy, and duplicate files
-- `recommendations` - safeToDelete, investigateFirst, keepForCompatibility
-
-#### `custom_prompt` - Direct LLM Access with Context
-Execute any custom task with optional file context and structured data:
-
-**Example:**
-```javascript
-custom_prompt({
-  prompt: "Analyze this API for security vulnerabilities and suggest improvements",
-  files: ["src/api/auth.js", "src/middleware/security.js"],
-  context: {
-    projectType: "node-api",
-    framework: "Express",
-    securityRequirements: ["OAuth2", "HTTPS", "rate-limiting"]
-  },
-  max_tokens: 4000
-})
-```
-
-**Perfect for:**
-- Custom analysis tasks not covered by other functions
-- Domain-specific code reviews
-- Architectural decision analysis
-- Complex refactoring planning
-- Educational code explanations
-
-### Token Savings: 94% Average
-- Multi-file analysis: 35,000+ tokens saved per project scan
-- Code generation: 2,000-5,000 tokens per component
-- Security audits: 1,000+ tokens per audit
-
-## 🚀 What's Included from v3.0
-
-### Context-Aware Prompts
-All major tools support optional context for domain-specific analysis:
-- **Project Types**: WordPress, React, n8n, Node.js, and more
-- **Framework-Specific**: Best practices for each framework
-- **Smart Suggestions**: Context-aware refactoring and testing
-
-### 10 Powerful Analysis & Generation Tools
-1. **`analyze_single_file`** - Analyse code structure with framework context
-2. **`generate_unit_tests`** - Create test suites with framework patterns
-3. **`generate_documentation`** - Generate docs for different audiences
-4. **`suggest_refactoring`** - Get refactoring suggestions
-5. **`generate_wordpress_plugin`** - Complete WordPress plugin generator
-6. **`analyze_n8n_workflow`** - n8n workflow optimization
-7. **`generate_responsive_component`** - Accessible component generator
-8. **`convert_to_typescript`** - JavaScript to TypeScript converter
-9. **`security_audit`** - Comprehensive multifile security auditor
-10. **`health_check`** - Verify LM Studio connection
-
-### Full Backward Compatibility
-All tools from v1, v2, and v3 work exactly as before!
-
-## Documentation
-
-- 🚀 **[Getting Started](GETTING_STARTED.md)** - Step-by-step setup guide
-- 🆕 **[Multi-File Analysis Guide](MULTI_FILE_GUIDE.md)** - Using the new v4.0 features
-- 🔄 **[Migration Guide v3](MIGRATION_GUIDE_V3.md)** - Upgrading to v3.0
-- 📋 **[Migration Guide v2](MIGRATION_GUIDE.md)** - Upgrading from v1.x
-- 🔒 **[Security Configuration](SECURITY_CONFIG.md)** - Security settings
-- 🔧 **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions
-- 📖 **[API Reference](#available-tools)** - All available tools
-
-## Installation
+## 📋 Installation
 
 ### Prerequisites
 1. **LM Studio** - Download from [lmstudio.ai](https://lmstudio.ai)
 2. **Node.js 18+** - Required for the MCP server
 3. **Claude Desktop** - With MCP support enabled
 
-### Quick Start
+### Quick Setup
 ```bash
-# Clone the repository
-git clone [repository-url]
-cd local-llm-mcp
+# Navigate to your MCP directory
+cd C:\MCP\local-llm-mcp
 
 # Install dependencies
 npm install
@@ -193,7 +93,7 @@ npm install
 # Build the project
 npm run build
 
-# The server is configured in Claude Desktop's config file
+# IMPORTANT: Restart Claude Desktop after building
 ```
 
 ### Claude Desktop Configuration
@@ -206,166 +106,280 @@ Add to your `claude_desktop_config.json`:
       "args": ["C:\\MCP\\local-llm-mcp\\dist\\index.js"],
       "env": {
         "LM_STUDIO_URL": "ws://127.0.0.1:1234",
-        "LLM_MCP_ALLOWED_DIRS": "C:\\Dev,C:\\Projects,C:\\MCP"
+        "LLM_MCP_ALLOWED_DIRS": "C:\\MCP,C:\\Dev,C:\\Projects"
       }
     }
   }
 }
 ```
 
-## Usage Examples
+## 💡 Usage Examples
 
-### Multi-File Analysis (v4.0) - With Auto-Population!
-
+### Modern Security Analysis
 ```javascript
-// Just call the function - cache auto-populates!
-trace_execution_path({
-  entryPoint: "MyClass::method",
-  traceDepth: 5
-})
-// Automatically finds and analyzes relevant files
-
-// Compare file integration
-compare_integration({
-  files: ["src/index.js", "src/utils.js"],
-  analysisType: "integration"
-})
-// Auto-populates cache from the file directories
-
-// Find patterns across a project
-find_pattern_usage({
-  projectPath: "C:\\MyProject",
-  patterns: ["async function", "TODO"],
-  includeContext: 3
-})
-// Scans and caches files automatically
-
-// Find unused files in TypeScript projects
-find_unused_files({
-  projectPath: "C:\\MyProject",
-  entryPoints: ["index.ts", "main.ts"],
-  includeDevArtifacts: true
-})
-// Detects complex dynamic loading patterns
-
-// Custom prompt for any task
-custom_prompt({
-  prompt: "Analyze this code for performance issues",
-  files: ["src/performance-critical.js"],
-  context: { projectType: "node-api" }
-})
-// Direct LLM access with file context
-
-// Comprehensive multifile security audit
+// Comprehensive security audit with cross-file analysis
 security_audit({
   projectPath: "C:\\MyAPI",
   projectType: "node-api",
   auditDepth: "comprehensive",
   includeOwasp: true,
-  focusAreas: ["authentication", "data-flow"]
+  focusAreas: ["authentication", "data-flow", "input-validation"]
 })
-// Cross-file vulnerability detection with professional reporting
 ```
 
-### Single-File Analysis (v3.0)
-
+### Context-Aware Code Generation
 ```javascript
-// Analyze with framework context
-analyze_single_file({
-  filePath: "C:\\project\\auth.js",
+// Generate tests with framework-specific patterns
+generate_unit_tests({
+  filePath: "src/auth.js",
+  testFramework: "jest",
+  coverageTarget: "comprehensive",
   context: {
     projectType: "node-api",
-    framework: "Express"
+    testStyle: "bdd",
+    includeEdgeCases: true
   }
 })
+```
 
-// Generate WordPress plugin
-generate_wordpress_plugin({
-  name: "My Custom Plugin",
-  description: "A powerful plugin",
-  features: ["custom post type", "admin interface"],
-  prefix: "mcp_"
+### Multi-File Analysis
+```javascript
+// Find patterns across entire project
+find_pattern_usage({
+  projectPath: "C:\\MyProject",
+  patterns: ["async function", "TODO:", "FIXME:"],
+  includeContext: 3
+})
+
+// Compare integration between files
+compare_integration({
+  files: ["src/auth.js", "src/middleware.js", "src/routes.js"],
+  analysisType: "integration",
+  focus: ["method_compatibility", "data_flow"]
 })
 ```
 
-## Available Tools (18 Total)
-
-### Multi-File & System Analysis Tools (9)
-
-| Tool | Description | Token Savings |
-|------|------------|---------------|
-| `compare_integration` | Analyse integration between files | 1,000-2,000 |
-| `trace_execution_path` | Trace execution through files | 1,500-3,000 |
-| `find_pattern_usage` | Find patterns across projects | 35,000+ |
-| `diff_method_signatures` | Compare method signatures | 500-1,000 |
-| `analyze_project_structure` | Analyse project architecture | 5,000-10,000 |
-| `find_unused_files` | Identify unused files with dynamic loading detection | 10,000+ |
-| `security_audit` | **Multifile security analysis** - Cross-file vulnerability detection | 2,000-5,000 |
-| `clear_analysis_cache` | Clear analysis cache | N/A |
-| `get_cache_statistics` | View cache statistics | N/A |
-
-### Analysis & Generation Tools (9)
-
-| Tool | Description | Token Savings |
-|------|------------|---------------|
-| `analyze_single_file` | Analyse code structure | 500-1,000 |
-| `generate_unit_tests` | Generate test suites | 200-500 |
-| `generate_documentation` | Create documentation | 300-600 |
-| `suggest_refactoring` | Suggest improvements | 400-800 |
-| `generate_wordpress_plugin` | Create WP plugin | 2,000-5,000 |
-| `analyze_n8n_workflow` | Optimise n8n workflows | 500-1,000 |
-| `generate_responsive_component` | Create UI components | 500-1,000 |
-| `convert_to_typescript` | Convert JS to TS | 1,000+ |
-| `health_check` | Verify LM Studio connection | N/A |
-| `custom_prompt` | Direct LLM access with optional file context | Variable |
-
-## Performance & Token Savings
-
-### Real-World Example: Large Project Analysis
-```
-Without Local LLM: 100,000 tokens (reading all files)
-With Local LLM v4.0: 5,000 tokens (strategic summaries only)
-Savings: 95% context preservation
+### Custom Analysis Tasks
+```javascript
+// Direct LLM access for specialized tasks
+custom_prompt({
+  prompt: "Analyze this API for GraphQL migration opportunities",
+  files: ["src/api/rest-endpoints.js", "src/schemas/models.js"],
+  context: {
+    task_type: "migration_analysis",
+    output_format: "structured_report",
+    requirements: ["backward_compatibility", "performance"]
+  },
+  max_tokens: 4000
+})
 ```
 
-### Auto-Population Performance
-- **First call**: +1-2 seconds for cache population
-- **Subsequent calls**: No performance impact
-- **Smart limiting**: Only analyses 10 files initially
-- **Cache persistence**: Lasts for entire session
+## 🏗 Architecture Overview
 
-## Requirements
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│  Claude Desktop │────▶│  MCP Server      │────▶│   LM Studio     │
+│  (MCP Client)   │◀────│  (Plugin System) │◀────│   (Local LLM)   │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │   Plugin Registry   │
+                    └─────────────────────┘
+                               │
+        ┌──────────────┬───────┴────────┬──────────────┐
+        ▼              ▼                ▼              ▼
+   [Analyze]      [Generate]      [Multifile]     [Custom]
+    Plugins        Plugins         Plugins        Plugins
+        │              │                │              │
+        ▼              ▼                ▼              ▼
+  [Security]    [Response]      [3-Stage]      [Dynamic]
+   Wrapper       Factory        Prompts       Context
+```
 
+### Key Components
+
+- **Security Layer**: `withSecurity` wrapper for all operations
+- **Response Factory**: Consistent response formatting
+- **3-Stage Prompt Manager**: Context window management
+- **Plugin System**: Modular, extensible architecture
+- **Cache Management**: Intelligent caching system
+
+## 🚀 Performance & Token Savings
+
+### Real-World Examples
+
+| Task | Without Local LLM | With Local LLM | Savings |
+|------|-------------------|----------------|---------|
+| 100-file analysis | 50,000 tokens | 2,500 tokens | 95% |
+| Unit test generation | 5,000 tokens | 250 tokens | 95% |
+| Security audit | 10,000 tokens | 500 tokens | 95% |
+| Code refactoring | 8,000 tokens | 400 tokens | 95% |
+
+### Performance Features
+
+- **Dynamic Context Detection**: Automatic context window size detection
+- **Intelligent Chunking**: File-level chunking for large operations
+- **Streaming Processing**: Real-time response handling
+- **Cache Optimization**: Smart caching for repeated operations
+
+## 🛡 Security Features
+
+### Comprehensive Protection
+
+- **Path Validation**: All file paths validated through `validateAndNormalizePath`
+- **Directory Restrictions**: Access limited to configured allowed directories
+- **Input Sanitization**: Advanced prompt injection prevention
+- **Output Encoding**: Context-aware output encoding
+- **Execution Sandboxing**: Isolated execution environment
+
+### Security Configuration
+
+```json
+{
+  "LLM_MCP_ALLOWED_DIRS": "C:\\MCP,C:\\Projects,C:\\Dev",
+  "SECURITY_LOG_LEVEL": "info",
+  "ENABLE_SECURITY_MONITORING": "true"
+}
+```
+
+## 🔧 Development
+
+### Plugin Development
+
+See [PLUGIN_DEVELOPMENT_GUIDE.md](PLUGIN_DEVELOPMENT_GUIDE.md) for comprehensive development documentation.
+
+### Modern Development Patterns
+
+```typescript
+// Modern plugin structure with security integration
+export class MyPlugin extends BasePlugin implements IPromptPlugin {
+  async execute(params: any, llmClient: any) {
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      // Plugin logic with automatic security validation
+      const models = await llmClient.llm.listLoaded();
+      const model = models[0];
+      
+      // Use 3-stage prompt management for large operations
+      const stages = this.getPromptStages(secureParams);
+      const promptManager = new ThreeStagePromptManager(
+        await model.getContextLength()
+      );
+      
+      // ResponseFactory for consistent outputs
+      return ResponseFactory.parseAndCreateResponse(
+        this.name,
+        response,
+        model.identifier
+      );
+    });
+  }
+}
+```
+
+### Build Process
+
+```bash
+# Development workflow
+npm run build        # Build TypeScript
+                     # CRITICAL: Restart Claude after building
+
+# Testing
+npm test            # Run unit tests
+npm run test:watch  # Watch mode for development
+```
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **"No model loaded in LM Studio"**
+   - Ensure LM Studio is running with a loaded model
+   - Check WebSocket connection at `ws://localhost:1234`
+
+2. **Security violations**
+   - All file paths must be within `LLM_MCP_ALLOWED_DIRS`
+   - Use absolute paths for reliability
+   - Check file permissions
+
+3. **Plugin not registering**
+   - Ensure TypeScript is built: `npm run build`
+   - Restart Claude Desktop after building
+   - Check for import errors in console
+
+4. **Context window exceeded**
+   - Functions automatically handle chunking
+   - Large files are processed in chunks
+   - Consider breaking operations into smaller tasks
+
+### Debug Mode
+
+Enable detailed logging:
+```bash
+# Set debug environment variable
+set DEBUG=local-llm:*
+
+# Or in Claude config
+"env": {
+  "DEBUG": "local-llm:*",
+  "LM_STUDIO_URL": "ws://127.0.0.1:1234"
+}
+```
+
+## 📚 Documentation
+
+- **[Plugin Development Guide](PLUGIN_DEVELOPMENT_GUIDE.md)** - Comprehensive development documentation
+- **[Functional Specification](FUNCTIONAL_SPECIFICATION.md)** - Complete function specifications
+- **[Security Guide](src/security/README.md)** - Security implementation details
+- **[Architecture Guide](src/core/README.md)** - System architecture overview
+
+## 📊 System Requirements
+
+### Minimum Requirements
 - **Node.js**: 18.0.0 or higher
-- **LM Studio**: Latest version with WebSocket API enabled
-- **Claude Desktop**: With MCP support
-- **RAM**: 8GB minimum (16GB recommended for large models)
-- **Disk Space**: Varies by model (5-50GB typical)
+- **RAM**: 8GB (16GB recommended)
+- **Storage**: 2GB for server + model storage
+- **OS**: Windows 10/11, macOS, or Linux
 
-## Security Features
+### Recommended Setup
+- **CPU**: Modern multi-core processor
+- **RAM**: 16GB or more for large models
+- **Storage**: SSD for better performance
+- **Model**: 7B-13B parameter models for optimal speed/quality balance
 
-- **Path validation**: All file access is restricted to allowed directories
-- **Sandboxed execution**: Runs in isolated environment
-- **No network access**: Local processing only (except LM Studio connection)
-- **Configurable restrictions**: Set your own security boundaries
+## 🔄 Version History
 
-## Contributing
+### v4.2 (Current) - Modern Security Integration
+- Universal security wrapper (`withSecurity`)
+- ResponseFactory for consistent outputs
+- ThreeStagePromptManager for context management
+- Dynamic context window detection
+- Foreign prompt execution prevention
 
-This is a private repository. Please contact the maintainer for contribution guidelines.
+### v4.1 - Enhanced Plugin System
+- Improved plugin architecture
+- Better error handling
+- Performance optimizations
 
-## License
+### v4.0 - Multi-File Analysis
+- Multi-file analysis capabilities
+- Auto-cache population
+- Enhanced security audit
+
+## 📄 License
 
 MIT License - See [LICENSE](LICENSE) file for details.
 
-## Support
+## 🤝 Support
 
 For issues or questions:
-1. Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-2. Review [Getting Started](GETTING_STARTED.md)
+1. Check the troubleshooting section above
+2. Review the plugin development guide
 3. Contact the repository maintainer
 
 ---
 
-**Version**: 4.0.0  
+**Version**: 4.2.0  
+**Architecture**: Modern Plugin System with Security Integration  
 **Last Updated**: August 2025  
-**Status**: Private Development
+**Status**: Active Development

@@ -1,17 +1,24 @@
-# Local LLM MCP Plugin Architecture - Developer Integration Guide
+# Local LLM MCP Plugin Development Guide v4.2
+
+*Last Updated: August 2025*  
+*Version: 4.2.0*  
+*Architecture: Modern Plugin System with Security Integration*
 
 ## Overview
 
-The Local LLM MCP server uses a plugin-based architecture to offload routine tasks to a local LLM (via LM Studio), preserving Claude's context window for strategic work. This guide explains how to develop, test, and integrate new plugins.
+The Local LLM MCP server uses a sophisticated plugin-based architecture to offload routine tasks to a local LLM (via LM Studio), preserving Claude's context window for strategic work. This guide explains how to develop, test, and integrate new plugins using the latest patterns and security features.
 
 ## Technology Stack
 
 - **Runtime**: Node.js (v18+)
 - **Language**: TypeScript (strict mode)
-- **Module System**: ESM (ECMAScript Modules)
+- **Module System**: ESM (ECMAScript Modules) with `.js` extensions
 - **MCP SDK**: `@modelcontextprotocol/sdk` for tool registration
-- **LLM Client**: `@lmstudio/sdk` for local LLM communication
+- **LM Studio**: `@lmstudio/sdk` for local LLM communication
 - **WebSocket**: Connection to LM Studio at `ws://localhost:1234`
+- **Security**: Integrated security wrapper system
+- **Response Management**: ResponseFactory for consistent outputs
+- **Context Management**: ThreeStagePromptManager for large operations
 
 ## Architecture Overview
 
@@ -28,8 +35,12 @@ The Local LLM MCP server uses a plugin-based architecture to offload routine tas
                                │
         ┌──────────────┬───────┴────────┬──────────────┐
         ▼              ▼                ▼              ▼
-   [Analyze]      [Generate]      [Multifile]     [System]
+   [Analyze]      [Generate]      [Multifile]     [Custom]
     Plugins        Plugins         Plugins        Plugins
+        │              │                │              │
+        ▼              ▼                ▼              ▼
+  [Security]    [Response]      [3-Stage]      [Dynamic]
+   Wrapper       Factory        Prompts       Context
 ```
 
 ## Directory Structure
@@ -43,7 +54,7 @@ src/
 │
 ├── prompts/                # Plugin implementations
 │   ├── analyze/           # Analysis plugins
-│   │   ├── single-file.ts
+│   │   ├── single-file.ts # Modern pattern example
 │   │   ├── security-audit.ts
 │   │   └── ...
 │   ├── generate/          # Generation plugins
@@ -51,44 +62,57 @@ src/
 │   │   ├── documentation.ts
 │   │   └── ...
 │   ├── multifile/         # Multi-file analysis plugins
+│   │   ├── find-patterns.ts # Latest pattern example
+│   │   └── ...
+│   ├── custom/            # Custom/system plugins
+│   │   ├── custom-prompt.ts # Universal plugin
 │   │   └── ...
 │   └── shared/            # Shared utilities
 │       ├── helpers.ts     # Common functions
-│       ├── templates.ts   # Prompt templates
-│       ├── types.ts       # Shared types
-│       └── cache-manager.ts
+│       └── types.ts       # Shared types
 │
 ├── core/                   # Core functionality
-│   ├── MultiFileAnalysis.ts
-│   ├── ResponseFormatter.ts
-│   └── FileContextManager.ts
+│   ├── ThreeStagePromptManager.ts  # Context window management
+│   └── MultiFileAnalysis.ts
 │
-├── system/                 # System utilities
-│   └── health-check.ts
+├── security/               # Security layer
+│   ├── integration-helpers.ts     # withSecurity wrapper
+│   └── security-service.ts
 │
-└── index.ts               # Main server entry point
+├── validation/             # Response management
+│   ├── response-factory.ts       # ResponseFactory class
+│   ├── schemas.ts               # TypeScript response types
+│   └── output-validator.ts
+│
+└── types/
+    ├── prompt-stages.ts          # 3-stage prompt types
+    └── ...
 ```
 
-## Creating a New Plugin
+## Creating a New Plugin: Modern Pattern
 
 ### Step 1: Choose the Category
 
 Determine which category your plugin belongs to:
 - **analyze**: Code/file analysis tasks
-- **generate**: Code/content generation tasks
+- **generate**: Code/content generation tasks  
 - **multifile**: Cross-file analysis tasks
-- **system**: Utility/maintenance tasks
+- **custom**: System utilities and custom tasks
 
 ### Step 2: Create the Plugin File
 
-Create a new file in the appropriate category folder:
+Create a new file in the appropriate category folder following the latest patterns:
 
 ```typescript
 // src/prompts/analyze/my-analyzer.ts
 
-import { BasePlugin } from '../../plugins/base-plugin';
-import { IPromptPlugin } from '../../plugins/types';
-import { validateRequiredParams, readFileContent } from '../shared/helpers';
+import { BasePlugin } from '../../plugins/base-plugin.js';
+import { IPromptPlugin } from '../../plugins/types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
+import { withSecurity } from '../../security/integration-helpers.js';
+import { readFileContent, validateAndNormalizePath } from '../shared/helpers.js';
 
 export class MyAnalyzer extends BasePlugin implements IPromptPlugin {
   // Required: Unique name for MCP registration
@@ -98,7 +122,7 @@ export class MyAnalyzer extends BasePlugin implements IPromptPlugin {
   category = 'analyze' as const;
   
   // Required: Human-readable description
-  description = 'Analyzes something specific in the code';
+  description = 'Analyzes something specific in the code with modern security and context management';
   
   // Required: Parameter definitions
   parameters = {
@@ -112,186 +136,336 @@ export class MyAnalyzer extends BasePlugin implements IPromptPlugin {
       description: 'Path to the file to analyze',
       required: false
     },
-    analysisType: {
+    analysisDepth: {
       type: 'string' as const,
-      description: 'Type of analysis to perform',
+      description: 'Level of analysis',
       enum: ['basic', 'detailed', 'comprehensive'],
       default: 'detailed',
       required: false
     }
   };
 
-  // Required: Execute the plugin
+  // MODERN PATTERN: Security wrapper integration
   async execute(params: any, llmClient: any) {
-    // 1. Validate parameters
-    this.validateParams(params);
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      try {
+        // 1. Validate parameters
+        this.validateSecureParams(secureParams);
+        
+        // 2. Process inputs using secure file reading
+        let codeToAnalyze = secureParams.code;
+        if (secureParams.filePath) {
+          codeToAnalyze = await readFileContent(secureParams.filePath);
+        }
+        
+        // 3. Get model information for context management
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
+        
+        // 4. Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          ...secureParams,
+          code: codeToAnalyze
+        });
+        
+        // 5. Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
+        
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'analyze_my_feature',
+          'EXECUTION_ERROR',
+          `Failed to analyze: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
+      }
+    });
+  }
+
+  // MODERN PATTERN: 3-Stage prompt architecture
+  getPromptStages(params: any): PromptStages {
+    const { code, analysisDepth } = params;
     
-    // 2. Custom validation
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert code analyzer specializing in ${analysisDepth} analysis.
+
+Analysis Context:
+- Analysis Depth: ${analysisDepth}
+- Code Language: Auto-detected
+- Focus: Structure, patterns, quality, security
+
+Your task is to provide actionable insights and recommendations.`;
+
+    // STAGE 2: Data payload (the code to analyze)
+    const dataPayload = `Code to analyze:
+
+\`\`\`
+${code}
+\`\`\``;
+
+    // STAGE 3: Output instructions
+    const outputInstructions = `Provide your analysis in the following structured format:
+
+## Summary
+Brief overview of the code structure and purpose
+
+## Structure Analysis
+- Classes: [list of classes found]
+- Functions: [list of functions/methods]
+- Dependencies: [external dependencies identified]
+
+## Quality Assessment
+### Strengths
+- [positive observations]
+
+### Issues Found
+- [problems identified with severity levels]
+
+## Recommendations
+1. [Priority recommendations]
+2. [Performance suggestions]
+3. [Security considerations]
+
+## Patterns Detected
+- [design patterns or anti-patterns found]
+
+Be specific and actionable in your recommendations.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
+  }
+
+  // MODERN PATTERN: Direct execution for small operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    // MODERN PATTERN: ResponseFactory integration
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'analyze_my_feature',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN PATTERN: Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'analyze_my_feature',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN PATTERN: Secure parameter validation
+  private validateSecureParams(params: any): void {
     if (!params.code && !params.filePath) {
       throw new Error('Either code or filePath must be provided');
     }
-    
-    // 3. Process inputs
-    let codeToAnalyze = params.code;
-    if (params.filePath) {
-      // Security checks are handled in readFileContent
-      codeToAnalyze = await readFileContent(params.filePath);
-    }
-    
-    // 4. Generate prompt
-    const prompt = this.getPrompt({ ...params, code: codeToAnalyze });
-    
-    // 5. Call LLM and return response
-    const response = await llmClient.complete(prompt);
-    return this.formatResponse(response);
   }
 
-  // Required: Generate the prompt for the LLM
+  // Required: Legacy compatibility method
   getPrompt(params: any): string {
-    const { code, analysisType } = params;
-    
-    return `
-      You are an expert code analyzer. Analyze the following code with a focus on ${analysisType} analysis.
-      
-      Code to analyze:
-      \`\`\`
-      ${code}
-      \`\`\`
-      
-      Provide your analysis in the following format:
-      1. Summary: Brief overview
-      2. Key Findings: Important observations
-      3. Issues: Any problems found
-      4. Suggestions: Recommendations for improvement
-      
-      Be specific and actionable in your recommendations.
-    `;
-  }
-
-  // Optional: Format the LLM response
-  private formatResponse(response: string): any {
-    // Parse or structure the response as needed
-    return {
-      analysis: response,
-      timestamp: new Date().toISOString()
-    };
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 
 export default MyAnalyzer;
 ```
 
-### Step 3: Register the Plugin
+## Critical Modern Patterns
 
-The plugin is automatically registered when the server starts, thanks to the plugin loader. No manual registration needed!
+### 1. Security Wrapper Integration
 
-## Plugin Development Best Practices
-
-### 1. Parameter Validation
-
-Always validate parameters using the base class methods:
+**EVERY plugin MUST use the security wrapper:**
 
 ```typescript
+import { withSecurity } from '../../security/integration-helpers.js';
+
 async execute(params: any, llmClient: any) {
-  // Automatic validation based on parameter definitions
-  this.validateParams(params);
-  
-  // Custom validation for complex rules
-  if (params.startLine > params.endLine) {
-    throw new Error('Start line must be before end line');
+  return await withSecurity(this, params, llmClient, async (secureParams) => {
+    // Your plugin logic here with secureParams
+    // Security checks are automatically applied
+  });
+}
+```
+
+### 2. ResponseFactory Usage
+
+**Use ResponseFactory for consistent, spec-compliant responses:**
+
+```typescript
+import { ResponseFactory } from '../../validation/response-factory.js';
+
+// Set execution start time
+ResponseFactory.setStartTime();
+
+// Let ResponseFactory parse and structure the LLM response
+return ResponseFactory.parseAndCreateResponse(
+  'your_function_name',
+  llmResponse,
+  model.identifier || 'unknown'
+);
+
+// For errors
+return ResponseFactory.createErrorResponse(
+  'your_function_name',
+  'ERROR_CODE',
+  'Error message',
+  { additionalDetails: 'context' },
+  'unknown'
+);
+```
+
+### 3. ThreeStagePromptManager for Context Management
+
+**For large operations that might exceed context limits:**
+
+```typescript
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
+
+// Get model context length
+const contextLength = await model.getContextLength() || 23832;
+const promptManager = new ThreeStagePromptManager(contextLength);
+
+// Check if chunking is needed
+const needsChunking = promptManager.needsChunking(stages);
+
+if (needsChunking) {
+  // Use chunked conversation
+  const conversation = promptManager.createChunkedConversation(stages);
+  const messages = [
+    conversation.systemMessage,
+    ...conversation.dataMessages, 
+    conversation.analysisMessage
+  ];
+} else {
+  // Use direct messages
+  const messages = [
+    { role: 'system', content: stages.systemAndContext },
+    { role: 'user', content: stages.dataPayload },
+    { role: 'user', content: stages.outputInstructions }
+  ];
+}
+```
+
+### 4. Modern LM Studio SDK Usage
+
+**Use the latest SDK patterns:**
+
+```typescript
+// Get loaded models
+const models = await llmClient.llm.listLoaded();
+if (models.length === 0) {
+  throw new Error('No model loaded in LM Studio. Please load a model first.');
+}
+
+const model = models[0];
+
+// Get context length for management
+const contextLength = await model.getContextLength();
+
+// Use streaming responses
+const prediction = model.respond(messages, {
+  temperature: 0.2,
+  maxTokens: 4000
+});
+
+let response = '';
+for await (const chunk of prediction) {
+  if (chunk.content) {
+    response += chunk.content;
   }
 }
 ```
 
-### 2. File Handling
+### 5. Secure File Operations
 
-Use the security-checked helpers for file operations:
+**Always use the secure helpers:**
 
 ```typescript
-import { readFileContent, isPathSafe } from '../shared/helpers';
+import { readFileContent, validateAndNormalizePath } from '../shared/helpers.js';
 
-// Safe file reading with automatic security checks
+// Secure file reading (includes path validation)
 const content = await readFileContent(params.filePath);
 
 // Manual path validation if needed
-if (!isPathSafe(params.outputPath)) {
-  throw new Error('Invalid output path');
-}
-```
-
-### 3. Prompt Engineering
-
-Structure prompts for consistency and quality:
-
-```typescript
-getPrompt(params: any): string {
-  // Use templates for common patterns
-  const baseInstructions = COMMON_INSTRUCTIONS.codeQuality;
-  
-  // Be specific about output format
-  const outputFormat = `
-    Provide your response as a JSON object with:
-    - summary: string
-    - findings: array of objects
-    - suggestions: array of strings
-  `;
-  
-  // Include context when relevant
-  const context = params.context ? `
-    Project context: ${params.context.projectType}
-    Framework: ${params.context.framework}
-  ` : '';
-  
-  return `${baseInstructions}\n${context}\n${outputFormat}\n\nCode:\n${params.code}`;
-}
-```
-
-### 4. Error Handling
-
-Provide clear, actionable error messages:
-
-```typescript
-async execute(params: any, llmClient: any) {
-  try {
-    // ... plugin logic
-  } catch (error) {
-    // Add context to errors
-    if (error.code === 'ENOENT') {
-      throw new Error(`File not found: ${params.filePath}`);
-    }
-    
-    // Re-throw with more information
-    throw new Error(`Failed to analyze: ${error.message}`);
-  }
-}
-```
-
-### 5. Response Formatting
-
-Use the ResponseFormatter for consistent output:
-
-```typescript
-import { ResponseFormatter } from '../../core/ResponseFormatter';
-
-async execute(params: any, llmClient: any) {
-  const formatter = new ResponseFormatter();
-  const response = await llmClient.complete(prompt);
-  
-  // Parse and structure the response
-  return formatter.format(response, 'analysis');
-}
+const safePath = await validateAndNormalizePath(params.filePath);
 ```
 
 ## Testing Your Plugin
 
-### 1. Unit Testing
-
-Create a test file for your plugin:
+### Unit Testing Template
 
 ```typescript
 // src/prompts/analyze/__tests__/my-analyzer.test.ts
 
-import { MyAnalyzer } from '../my-analyzer';
+import { MyAnalyzer } from '../my-analyzer.js';
+import { jest } from '@jest/globals';
 
 describe('MyAnalyzer', () => {
   let analyzer: MyAnalyzer;
@@ -300,361 +474,276 @@ describe('MyAnalyzer', () => {
   beforeEach(() => {
     analyzer = new MyAnalyzer();
     mockLLMClient = {
-      complete: jest.fn()
+      llm: {
+        listLoaded: jest.fn()
+      }
     };
+    
+    // Mock a loaded model
+    const mockModel = {
+      getContextLength: jest.fn().mockResolvedValue(23832),
+      respond: jest.fn().mockReturnValue((async function* () {
+        yield { content: 'Mock analysis response' };
+      })()),
+      identifier: 'test-model'
+    };
+    
+    mockLLMClient.llm.listLoaded.mockResolvedValue([mockModel]);
   });
   
-  test('validates required parameters', () => {
-    expect(() => {
-      analyzer.validateParams({});
-    }).toThrow('Either code or filePath must be provided');
+  test('validates required parameters', async () => {
+    await expect(
+      analyzer.execute({}, mockLLMClient)
+    ).rejects.toThrow('Either code or filePath must be provided');
   });
   
-  test('generates correct prompt', () => {
-    const prompt = analyzer.getPrompt({
+  test('generates correct 3-stage prompt', () => {
+    const stages = analyzer.getPromptStages({
       code: 'const x = 1;',
-      analysisType: 'basic'
+      analysisDepth: 'basic'
     });
     
-    expect(prompt).toContain('const x = 1;');
-    expect(prompt).toContain('basic analysis');
+    expect(stages.systemAndContext).toContain('basic analysis');
+    expect(stages.dataPayload).toContain('const x = 1;');
+    expect(stages.outputInstructions).toContain('Summary');
   });
   
-  test('executes successfully', async () => {
-    mockLLMClient.complete.mockResolvedValue('Analysis results...');
-    
+  test('executes successfully with security wrapper', async () => {
     const result = await analyzer.execute(
-      { code: 'test code', analysisType: 'basic' },
+      { code: 'test code', analysisDepth: 'basic' },
       mockLLMClient
     );
     
-    expect(result).toHaveProperty('analysis');
-    expect(mockLLMClient.complete).toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(mockLLMClient.llm.listLoaded).toHaveBeenCalled();
   });
 });
 ```
 
-### 2. Integration Testing
+## Build and Deployment
 
-Test with the actual MCP server:
+### Build Process
 
-```typescript
-// test/integration/plugin-integration.test.ts
-
-import { PluginLoader } from '../../src/plugins';
-import { LMStudioClient } from '@lmstudio/sdk';
-
-describe('Plugin Integration', () => {
-  let loader: PluginLoader;
-  let client: LMStudioClient;
-  
-  beforeAll(async () => {
-    loader = new PluginLoader();
-    await loader.loadPlugins('./src/prompts');
-    
-    client = new LMStudioClient({
-      baseUrl: 'ws://localhost:1234'
-    });
-  });
-  
-  test('plugin loads and executes', async () => {
-    const result = await loader.executePlugin(
-      'analyze_my_feature',
-      { code: 'test code' },
-      client
-    );
-    
-    expect(result).toBeDefined();
-  });
-});
-```
-
-### 3. Manual Testing
-
-Use the MCP test client:
+**Important: Always stop and restart Claude when building:**
 
 ```bash
-# Run the server in development mode
-npm run dev
+# Build the project
+npm run build
 
-# In another terminal, test your plugin
-npx @modelcontextprotocol/test-client
+# CRITICAL: Restart Claude Desktop after building
+# The MCP server needs to reload with new changes
 ```
 
-## Common Patterns
+### Development Workflow
 
-### Pattern 1: File or Direct Input
+1. **Create Plugin**: Follow modern patterns
+2. **Test**: Write comprehensive tests
+3. **Build**: `npm run build`
+4. **Restart Claude**: Essential step!
+5. **Verify**: Test via Claude Desktop
 
-Many plugins accept either a file path or direct content:
+### Avoid Common Pitfalls
 
 ```typescript
-parameters = {
-  code: { type: 'string', required: false },
-  filePath: { type: 'string', required: false }
-};
+// ❌ DON'T: Use old llmClient.complete pattern
+const response = await llmClient.complete(prompt);
 
-async execute(params: any, llmClient: any) {
-  if (!params.code && !params.filePath) {
-    throw new Error('Either code or filePath required');
-  }
-  
-  const content = params.code || await readFileContent(params.filePath);
-  // ... process content
+// ✅ DO: Use modern LM Studio SDK
+const models = await llmClient.llm.listLoaded();
+const model = models[0];
+const prediction = model.respond(messages, options);
+
+// ❌ DON'T: Use console.log with emojis (breaks JSON-RPC)
+console.log('🚀 Starting analysis...');
+
+// ✅ DO: Use plain text logging
+console.log('Starting analysis...');
+
+// ❌ DON'T: Skip security wrapper
+async execute(params, llmClient) {
+  // Direct implementation
+}
+
+// ✅ DO: Always use security wrapper  
+async execute(params, llmClient) {
+  return await withSecurity(this, params, llmClient, async (secureParams) => {
+    // Secure implementation
+  });
 }
 ```
 
-### Pattern 2: Context-Aware Analysis
+## Advanced Patterns
 
-Plugins can adapt based on project context:
+### Dynamic Context Window Management
 
 ```typescript
-getPrompt(params: any): string {
-  const { context } = params;
-  
-  let frameworkInstructions = '';
-  if (context?.projectType === 'wordpress-plugin') {
-    frameworkInstructions = COMMON_INSTRUCTIONS.frameworkSpecific.wordpress;
-  } else if (context?.projectType === 'react-app') {
-    frameworkInstructions = COMMON_INSTRUCTIONS.frameworkSpecific.react;
-  }
-  
-  return `${frameworkInstructions}\n\nAnalyze: ${params.code}`;
+// Automatically adjust processing based on content size
+const estimatedTokens = Math.floor(content.length / 4);
+const contextLength = await model.getContextLength();
+
+if (estimatedTokens > contextLength * 0.8) {
+  // Use file chunking strategy
+  return await this.executeWithFileChunking(files, params, llmClient, model);
+} else {
+  // Process normally
+  return await this.executeSinglePass(content, params, llmClient, model);
 }
 ```
 
-### Pattern 3: Multi-Stage Processing
+### Custom Prompt Function Usage
 
-For complex operations, break into stages:
+**For highly flexible operations:**
 
 ```typescript
+// Use the custom_prompt function for tasks that don't fit standard patterns
+const customResult = await llmClient.executePlugin('custom_prompt', {
+  prompt: 'Analyze this code for specific patterns...',
+  files: [filePath],
+  context: {
+    task_type: 'pattern_analysis',
+    output_format: 'structured_json'
+  }
+});
+```
+
+### Multi-Stage Processing
+
+```typescript
+// Break complex operations into stages
 async execute(params: any, llmClient: any) {
-  // Stage 1: Initial analysis
-  const analysisPrompt = this.getAnalysisPrompt(params);
-  const analysis = await llmClient.complete(analysisPrompt);
-  
-  // Stage 2: Generate improvements based on analysis
-  const improvementPrompt = this.getImprovementPrompt(analysis);
-  const improvements = await llmClient.complete(improvementPrompt);
-  
-  // Stage 3: Format final output
-  return this.combineResults(analysis, improvements);
+  return await withSecurity(this, params, llmClient, async (secureParams) => {
+    // Stage 1: Initial analysis
+    const analysis = await this.performInitialAnalysis(secureParams, llmClient);
+    
+    // Stage 2: Deep dive based on initial findings
+    const deepAnalysis = await this.performDeepAnalysis(analysis, llmClient);
+    
+    // Stage 3: Generate recommendations
+    const recommendations = await this.generateRecommendations(deepAnalysis, llmClient);
+    
+    return this.combineResults(analysis, deepAnalysis, recommendations);
+  });
 }
 ```
 
 ## Performance Optimization
 
-### 1. Caching
+### Context Window Management
 
-Use the cache manager for expensive operations:
+- Always check model context length: `await model.getContextLength()`
+- Use ThreeStagePromptManager for automatic chunking decisions
+- Monitor token usage and implement chunking strategies
+- Process files in parallel where possible
 
-```typescript
-import { CacheManager } from '../shared/cache-manager';
-
-async execute(params: any, llmClient: any) {
-  const cacheKey = `analysis_${params.filePath}`;
-  
-  // Check cache first
-  const cached = CacheManager.get(cacheKey);
-  if (cached) return cached;
-  
-  // Perform analysis
-  const result = await this.performAnalysis(params, llmClient);
-  
-  // Cache the result
-  CacheManager.set(cacheKey, result);
-  return result;
-}
-```
-
-### 2. Prompt Size Management
-
-Keep prompts concise to maximize LLM performance:
+### Response Caching
 
 ```typescript
-getPrompt(params: any): string {
-  let code = params.code;
-  
-  // Truncate very long code
-  if (code.length > 10000) {
-    code = code.substring(0, 10000) + '\n... [truncated]';
-  }
-  
-  // Focus on specific sections if provided
-  if (params.startLine && params.endLine) {
-    const lines = code.split('\n');
-    code = lines.slice(params.startLine - 1, params.endLine).join('\n');
-  }
-  
-  return `Analyze this code:\n${code}`;
-}
-```
+// Use caching for expensive operations
+const cacheKey = `analysis_${fileHash}`;
+const cached = await this.getFromCache(cacheKey);
+if (cached) return cached;
 
-### 3. Parallel Processing
-
-For multi-file operations, process in parallel:
-
-```typescript
-async execute(params: any, llmClient: any) {
-  const { files } = params;
-  
-  // Process files in parallel
-  const promises = files.map(file => 
-    this.analyzeFile(file, llmClient)
-  );
-  
-  const results = await Promise.all(promises);
-  return this.mergeResults(results);
-}
-```
-
-## Debugging
-
-### 1. Enable Debug Logging
-
-Set environment variable for detailed logs:
-
-```bash
-DEBUG=local-llm:* npm run dev
-```
-
-### 2. Add Debug Points
-
-Use debug statements in your plugin:
-
-```typescript
-import debug from 'debug';
-const log = debug('local-llm:my-analyzer');
-
-async execute(params: any, llmClient: any) {
-  log('Executing with params:', params);
-  
-  const prompt = this.getPrompt(params);
-  log('Generated prompt length:', prompt.length);
-  
-  const response = await llmClient.complete(prompt);
-  log('Response received:', response.substring(0, 100));
-  
-  return response;
-}
-```
-
-### 3. Test Prompts Directly
-
-Test prompts with LM Studio directly:
-
-```typescript
-// test-prompt.ts
-import { MyAnalyzer } from './src/prompts/analyze/my-analyzer';
-
-const analyzer = new MyAnalyzer();
-const prompt = analyzer.getPrompt({
-  code: 'const x = 1;',
-  analysisType: 'basic'
-});
-
-console.log('Generated Prompt:');
-console.log(prompt);
-console.log('\nPrompt length:', prompt.length);
-```
-
-## Deployment
-
-### 1. Build for Production
-
-```bash
-# Compile TypeScript
-npm run build
-
-# Run tests
-npm test
-
-# Start production server
-npm start
-```
-
-### 2. Configuration
-
-Ensure configuration is correct:
-
-```javascript
-// config.ts
-export const config = {
-  lmStudioUrl: process.env.LM_STUDIO_URL || 'ws://localhost:1234',
-  maxPromptLength: 15000,
-  cacheEnabled: true,
-  securityConfig: {
-    allowedDirectories: [
-      process.env.ALLOWED_DIR || process.cwd()
-    ]
-  }
-};
-```
-
-### 3. MCP Registration
-
-The plugin is automatically available to Claude Desktop once registered:
-
-```json
-// claude_desktop_config.json
-{
-  "mcpServers": {
-    "local-llm": {
-      "command": "node",
-      "args": ["C:\\MCP\\local-llm-mcp\\dist\\index.js"]
-    }
-  }
-}
+const result = await this.performAnalysis(params, llmClient);
+await this.setCache(cacheKey, result);
+return result;
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Plugin not loading**
-   - Check file name matches pattern: `*.ts` or `*.js`
-   - Verify export default is the plugin class
-   - Check for syntax errors in the file
+1. **"No model loaded in LM Studio"**
+   - Ensure LM Studio is running with a loaded model
+   - Check WebSocket connection at `ws://localhost:1234`
 
-2. **LM Studio connection fails**
-   - Ensure LM Studio is running
-   - Check WebSocket URL is correct
-   - Verify a model is loaded in LM Studio
+2. **Security violations**
+   - All file paths are validated through `validateAndNormalizePath`
+   - Use `withSecurity` wrapper for all plugins
+   - Check allowed directories configuration
 
-3. **Parameter validation errors**
-   - Review parameter definitions match usage
-   - Check required parameters are provided
-   - Verify enum values are correct
+3. **Context window exceeded**
+   - Implement ThreeStagePromptManager
+   - Use file chunking strategies
+   - Consider breaking large operations into smaller tasks
 
-4. **Prompt too large**
-   - Implement truncation for large inputs
-   - Consider chunking strategies
-   - Use summarization for context
+4. **Plugin not registering**
+   - Ensure file uses `.js` extension imports
+   - Check default export is the plugin class
+   - Verify plugin name is unique
+   - Rebuild and restart Claude
 
-## Contributing
+### Debug Patterns
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-plugin`
-3. Implement your plugin following this guide
-4. Add tests for your plugin
-5. Update documentation
-6. Submit a pull request
+```typescript
+// Enable detailed logging
+import debug from 'debug';
+const log = debug('local-llm:my-analyzer');
+
+async execute(params: any, llmClient: any) {
+  log('Executing with params:', JSON.stringify(params, null, 2));
+  
+  try {
+    const result = await this.performAnalysis(params, llmClient);
+    log('Analysis completed successfully');
+    return result;
+  } catch (error) {
+    log('Error occurred:', error.message);
+    throw error;
+  }
+}
+```
+
+## Version History & Migration
+
+### v4.2 (Current) - Modern Security Integration
+- **withSecurity** wrapper for all plugins
+- **ResponseFactory** for consistent outputs
+- **ThreeStagePromptManager** for context management
+- **Dynamic context window** detection
+- **Foreign prompt execution** prevention
+
+### Migrating Old Plugins
+
+```typescript
+// OLD PATTERN (v4.1)
+async execute(params: any, llmClient: any) {
+  const prompt = this.getPrompt(params);
+  const response = await llmClient.complete(prompt);
+  return { content: response };
+}
+
+// NEW PATTERN (v4.2)
+async execute(params: any, llmClient: any) {
+  return await withSecurity(this, params, llmClient, async (secureParams) => {
+    const models = await llmClient.llm.listLoaded();
+    const model = models[0];
+    
+    const stages = this.getPromptStages(secureParams);
+    const prediction = model.respond(messages, options);
+    
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) response += chunk.content;
+    }
+    
+    return ResponseFactory.parseAndCreateResponse(
+      this.name,
+      response,
+      model.identifier
+    );
+  });
+}
+```
 
 ## Resources
 
-- [MCP SDK Documentation](https://github.com/modelcontextprotocol/sdk)
-- [LM Studio Documentation](https://lmstudio.ai/docs)
-- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
-- [Plugin Examples](./src/prompts/)
-
-## Support
-
-For questions or issues:
-1. Check existing plugins for examples
-2. Review test files for patterns
-3. Open an issue on GitHub
-4. Contact the maintainers
+- **MCP SDK Documentation**: [Model Context Protocol](https://modelcontextprotocol.org)
+- **LM Studio SDK**: [LM Studio Documentation](https://lmstudio.ai/docs)
+- **TypeScript Handbook**: [TypeScript Documentation](https://www.typescriptlang.org/docs/)
+- **Plugin Examples**: `src/prompts/` directory
+- **Security Patterns**: `src/security/integration-helpers.ts`
+- **Response Patterns**: `src/validation/response-factory.ts`
 
 ---
 
-*Last Updated: December 2024*  
-*Version: 1.0.0*
+*This guide reflects the current v4.2 architecture with modern security integration, dynamic context window management, and the latest LM Studio SDK patterns. Always use these patterns for new plugins to ensure compatibility and security.*
