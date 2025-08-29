@@ -19,7 +19,7 @@ export function validateRequiredParams(params: any, required: string[]): void {
  */
 export async function validateAndNormalizePath(filePath: string): Promise<string> {
   const path = await import('path');
-  const { securityConfig } = await import('../../security-config');
+  const { securityConfig } = await import('../../security-config.js');
   
   // Input validation
   if (!filePath || typeof filePath !== 'string') {
@@ -96,7 +96,7 @@ export async function readFileContent(filePath: string): Promise<string> {
   const path = await import('path');
   
   // Import security config
-  const { securityConfig } = await import('../../security-config');
+  const { securityConfig } = await import('../../security-config.js');
   
   // First, validate and normalize the path (this includes all security checks)
   const normalizedPath = await validateAndNormalizePath(filePath);

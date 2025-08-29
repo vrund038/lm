@@ -10,6 +10,7 @@ import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
+import { validateAndNormalizePath } from '../shared/helpers.js';
 
 export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
   name = 'diff_method_signatures';
@@ -48,12 +49,8 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
       throw new Error('methodName is required and must be a string');
     }
     
-    // Resolve and validate calling file
-    const callingFile = resolve(params.callingFile);
-    
-    if (!this.isPathSafe(callingFile)) {
-      throw new Error(`Access denied to path: ${callingFile}`);
-    }
+    // Validate and resolve calling file using secure path validation
+    const callingFile = await validateAndNormalizePath(params.callingFile);
     
     if (!existsSync(callingFile)) {
       throw new Error(`Calling file does not exist: ${callingFile}`);

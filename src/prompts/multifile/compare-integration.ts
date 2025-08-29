@@ -10,6 +10,7 @@ import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, basename } from 'path';
+import { validateAndNormalizePath } from '../shared/helpers.js';
 
 export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
   name = 'compare_integration';
@@ -50,13 +51,8 @@ export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
     
     for (const filePath of params.files) {
       try {
-        // Validate and resolve path
-        const resolvedPath = resolve(filePath);
-        
-        // Security check - ensure path is safe
-        if (!this.isPathSafe(resolvedPath)) {
-          throw new Error(`Access denied to path: ${filePath}`);
-        }
+        // Validate and resolve path using secure path validation
+        const resolvedPath = await validateAndNormalizePath(filePath);
         
         if (!existsSync(resolvedPath)) {
           fileContents[filePath] = {

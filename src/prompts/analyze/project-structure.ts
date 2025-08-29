@@ -8,6 +8,7 @@ import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { readdirSync, statSync, readFileSync, existsSync } from 'fs';
 import { resolve, join, extname, relative, basename } from 'path';
+import { validateAndNormalizePath } from '../shared/helpers.js';
 
 interface ProjectStructure {
   directories: Map<string, DirectoryInfo>;
@@ -72,11 +73,8 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
       throw new Error('projectPath is required and must be a string');
     }
     
-    const projectPath = resolve(params.projectPath);
-    
-    if (!this.isPathSafe(projectPath)) {
-      throw new Error(`Access denied to path: ${projectPath}`);
-    }
+    // Validate and resolve project path using secure path validation
+    const projectPath = await validateAndNormalizePath(params.projectPath);
     
     if (!existsSync(projectPath)) {
       throw new Error(`Project path does not exist: ${projectPath}`);
