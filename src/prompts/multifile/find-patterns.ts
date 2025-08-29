@@ -430,9 +430,10 @@ Provide actionable insights based on the pattern search results.`;
         for (const entry of entries) {
           if (codeFiles.length >= maxFiles) break;
           
-          const fullPath = join(dir, entry);
-          
           try {
+            // SECURITY FIX: Validate constructed path before operations  
+            const { validateAndNormalizePath } = await import('../shared/helpers.js');
+            const fullPath = await validateAndNormalizePath(join(dir, entry));
             const stat = statSync(fullPath);
             
             if (stat.isDirectory()) {

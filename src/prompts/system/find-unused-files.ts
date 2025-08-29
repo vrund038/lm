@@ -178,27 +178,40 @@ export class FindUnusedFiles extends BasePlugin implements IPromptPlugin {
     const sourceFiles: string[] = [];
     const sourceExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
     const skipDirs = ['node_modules', '.git', 'dist', 'build', '.next', 'coverage'];
+    
+    // Import secure path validation helper
+    const { validateAndNormalizePath } = await import('../shared/helpers.js');
 
     const scanDir = async (dirPath: string): Promise<void> => {
       try {
-        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+        // Validate directory path before reading
+        const validatedDirPath = await validateAndNormalizePath(dirPath);
+        const entries = await fs.readdir(validatedDirPath, { withFileTypes: true });
         
         for (const entry of entries) {
-          const fullPath = path.join(dirPath, entry.name);
+          const fullPath = path.join(validatedDirPath, entry.name);
           
-          if (entry.isDirectory() && !skipDirs.includes(entry.name)) {
-            await scanDir(fullPath);
-          } else if (entry.isFile()) {
-            if (sourceExtensions.some(ext => entry.name.endsWith(ext))) {
-              const relativePath = path.relative(projectPath, fullPath);
-              if (!this.matchesExcludePattern(relativePath, excludePatterns)) {
-                sourceFiles.push(fullPath);
+          try {
+            // Validate each constructed path before operations
+            const validatedFullPath = await validateAndNormalizePath(fullPath);
+            
+            if (entry.isDirectory() && !skipDirs.includes(entry.name)) {
+              await scanDir(validatedFullPath);
+            } else if (entry.isFile()) {
+              if (sourceExtensions.some(ext => entry.name.endsWith(ext))) {
+                const relativePath = path.relative(projectPath, validatedFullPath);
+                if (!this.matchesExcludePattern(relativePath, excludePatterns)) {
+                  sourceFiles.push(validatedFullPath);
+                }
               }
             }
+          } catch (pathError) {
+            // Skip files/directories that fail path validation (security protection)
+            continue;
           }
         }
       } catch (error) {
-        // Skip directories we can't read
+        // Skip directories we can't read or validate
       }
     };
 
@@ -324,19 +337,28 @@ export class FindUnusedFiles extends BasePlugin implements IPromptPlugin {
   }
 
   private async analyzeFromEntryPoints(entryPoints: string[], projectPath: string, usageMap: Map<string, any>): Promise<void> {
+    // Import secure path validation helper
+    const { validateAndNormalizePath } = await import('../shared/helpers.js');
+    
     const visited = new Set<string>();
     const queue: string[] = [];
 
     // Find existing entry points
     for (const entryPoint of entryPoints) {
-      const entryPath = path.join(projectPath, entryPoint);
-      
-      if (usageMap.has(entryPath)) {
-        const usage = usageMap.get(entryPath)!;
-        usage.usageType = 'entry';
-        usage.confidence = 'high';
-        queue.push(entryPath);
-        visited.add(entryPath);
+      try {
+        // Use secure path validation for entry point construction
+        const entryPath = await validateAndNormalizePath(path.join(projectPath, entryPoint));
+        
+        if (usageMap.has(entryPath)) {
+          const usage = usageMap.get(entryPath)!;
+          usage.usageType = 'entry';
+          usage.confidence = 'high';
+          queue.push(entryPath);
+          visited.add(entryPath);
+        }
+      } catch (pathError) {
+        // Skip invalid entry points (security protection)
+        continue;
       }
     }
 

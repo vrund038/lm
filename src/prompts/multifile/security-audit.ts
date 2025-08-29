@@ -297,9 +297,10 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
         for (const entry of entries) {
           if (securityFiles.length >= maxFiles) break;
           
-          const fullPath = join(dir, entry);
-          
           try {
+            // SECURITY FIX: Validate constructed path before operations
+            const { validateAndNormalizePath } = await import('../shared/helpers.js');
+            const fullPath = await validateAndNormalizePath(join(dir, entry));
             const stat = statSync(fullPath);
             
             if (stat.isDirectory()) {
