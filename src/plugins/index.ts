@@ -82,7 +82,11 @@ export class PluginLoader {
   private async loadSystemPlugins(sharedDir: string): Promise<void> {
     // Load cache management plugins
     try {
-      const cacheModule = await import(path.join(sharedDir, 'cache-manager'));
+      const cacheManagerPath = path.join(sharedDir, 'cache-manager.js');
+      // Convert Windows path to proper file:// URL
+      const fileUrl = `file:///${cacheManagerPath.replace(/\\/g, '/')}`;
+      const cacheModule = await import(fileUrl);
+      
       if (cacheModule.ClearCachePlugin) {
         this.registerPlugin(new cacheModule.ClearCachePlugin());
       }

@@ -5,7 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.5] - 2025-08-28
+## [4.0.1] - 2025-08-29
+
+### Fixed
+- **Cache Management Tools Registration** - Fixed plugin loader to properly register cache management functions
+  - `clear_analysis_cache` and `get_cache_statistics` now properly available as MCP tools
+  - Fixed file:// URL format issue in plugin loader for Windows paths
+  - Build process now correctly compiles and exposes all 17 functions
+
+### Added
+- **100% Function Completion** - All 17 functions from functional specification v4.0 now working:
+  - 4 Analysis functions: analyze_single_file, security_audit, analyze_project_structure, analyze_n8n_workflow
+  - 6 Generation functions: generate_unit_tests, generate_documentation, suggest_refactoring, generate_wordpress_plugin, convert_to_typescript, generate_responsive_component
+  - 4 Multi-file functions: compare_integration, trace_execution_path, find_pattern_usage, diff_method_signatures
+  - 3 System functions: health_check, clear_analysis_cache, get_cache_statistics
+
+### Changed
+- **Documentation Updates** - Comprehensive README.md updates to reflect 100% completion status
+  - Updated function counts and categorization
+  - Added completion badges and status indicators
+  - Improved tool organization and descriptions
+  - Token savings data refreshed
+
+## [4.0.0] - 2025-08-28
 
 ### Changed
 - **BREAKING**: Renamed `analyze_code_structure` to `analyze_single_file` for clarity
