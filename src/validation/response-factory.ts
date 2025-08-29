@@ -157,7 +157,8 @@ export class ResponseFactory {
     lmStudioUrl: string,
     error?: string,
     suggestion?: string,
-    details?: HealthCheckResponse['data']['details']
+    details?: HealthCheckResponse['data']['details'],
+    contextLength?: number
   ): HealthCheckResponse {
     return {
       success: status === "healthy",
@@ -171,6 +172,7 @@ export class ResponseFactory {
         timestamp: new Date().toISOString(),
         error,
         suggestion,
+        contextLength,
         details
       }
     };

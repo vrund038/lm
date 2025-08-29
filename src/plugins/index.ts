@@ -21,12 +21,13 @@ export class PluginLoader {
     this.categories.set('multifile', []);
     this.categories.set('system', []);
     
-    // Initialize context window manager
+    // Initialize context window manager with conservative default
+    // The actual context limit will be detected dynamically from LM Studio
     try {
       this.contextManager = new ContextWindowManager({
-        contextLimit: 23000, // Based on testing observations
-        safetyMargin: 0.8,   // Use 80% of context window
-        notificationThreshold: 15000, // Notify for tasks > 15K tokens
+        contextLimit: 4096,   // Conservative default, will be updated dynamically
+        safetyMargin: 0.8,    // Use 80% of context window
+        notificationThreshold: 3000, // Notify for tasks > 3K tokens (based on 4K default)
         enableUserNotifications: true
       });
     } catch (error) {

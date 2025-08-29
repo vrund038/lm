@@ -13,14 +13,17 @@ export interface HealthCheckResult {
   connection: 'established' | 'failed';
   lmStudioUrl: string;
   timestamp: string;
+  contextLength?: number;         // Context length of the loaded model
   details?: {
     loadedModels: Array<{
       path: string;
       identifier: string;
       architecture: string;
+      contextLength?: number;     // Context length for each model
     }>;
     modelCount: number;
     hasActiveModel: boolean;
+    contextLength?: number;       // Context length of active model
     serverInfo: {
       url: string;
       protocol: string;
@@ -29,6 +32,7 @@ export interface HealthCheckResult {
       path: string;
       identifier: string;
       architecture: string;
+      contextLength?: number;     // Context length of active model
     };
   };
 }

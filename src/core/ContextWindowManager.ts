@@ -18,17 +18,62 @@ import { TokenEstimator } from './TokenEstimator.js';
 import { ChunkingStrategyFactory } from './ChunkingStrategies.js';
 
 export class ContextWindowManager {
-  private contextLimit: number = 23000; // Default from observed testing
+  private contextLimit: number = 4096; // Conservative default, will be updated dynamically
   private safetyMargin: number = 0.8; // Use 80% of available context
   private tokenEstimator: TokenEstimator;
+  private isContextLimitDetected: boolean = false;
   
   constructor(config: ContextWindowConfig) {
-    this.contextLimit = config.contextLimit;
+    // Use provided config limit if available, otherwise use conservative default
+    this.contextLimit = config.contextLimit || 4096;
     this.safetyMargin = config.safetyMargin;
     this.tokenEstimator = new TokenEstimator({
       contextLimit: this.contextLimit,
       estimationFactor: 1.2
     });
+  }
+
+  /**
+   * Dynamically detect and update context limit from LM Studio
+   */
+  async detectContextLimit(): Promise<number> {
+    try {
+      const { LMStudioClient } = await import('@lmstudio/sdk');
+      const { config } = await import('../config.js');
+      
+      const client = new LMStudioClient({
+        baseUrl: config.lmStudioUrl || 'ws://localhost:1234',
+      });
+
+      const models = await client.llm.listLoaded();
+      
+      if (models.length > 0) {
+        const activeModel = models[0];
+        try {
+          const contextLength = await activeModel.getContextLength();
+          if (contextLength && contextLength > 0) {
+            this.contextLimit = contextLength;
+            this.isContextLimitDetected = true;
+            
+            // Update token estimator with new context limit
+            this.tokenEstimator = new TokenEstimator({
+              contextLimit: this.contextLimit,
+              estimationFactor: 1.2
+            });
+            
+            return this.contextLimit;
+          }
+        } catch (error) {
+          console.warn('Could not retrieve context length from model, using default:', error);
+        }
+      }
+      
+      // If detection fails, keep existing limit
+      return this.contextLimit;
+    } catch (error) {
+      console.warn('Failed to detect context limit from LM Studio:', error);
+      return this.contextLimit;
+    }
   }
 
   /**
@@ -54,6 +99,11 @@ export class ContextWindowManager {
     const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     try {
+      // Detect actual context limit from LM Studio if not already done
+      if (!this.isContextLimitDetected) {
+        await this.detectContextLimit();
+      }
+      
       // Estimate tokens for the operation
       const estimatedTokens = this.estimateTokens(params, plugin.name);
       
@@ -121,6 +171,10 @@ export class ContextWindowManager {
   private async createChunks(params: any, pluginName: string): Promise<Chunk[]> {
     const strategy = ChunkingStrategyFactory.getStrategy(pluginName);
     
+    // Calculate target chunk size based on detected context limit
+    const effectiveLimit = this.contextLimit * this.safetyMargin;
+    const targetChunkSize = Math.floor(effectiveLimit * 0.7); // Leave room for prompt overhead
+    
     // For most plugins, we'll use a simple approach
     // This can be enhanced with more sophisticated strategies later
     if (pluginName === 'find_pattern_usage' && params.projectPath) {
@@ -129,17 +183,34 @@ export class ContextWindowManager {
       const path = await import('path');
       
       const files = this.getAllCodeFiles(params.projectPath);
-      const chunkSize = Math.max(1, Math.floor(files.length / 4)); // 4 chunks
+      
+      // Estimate tokens per file to determine appropriate chunk size
+      let totalEstimatedTokens = 0;
+      for (const file of files) {
+        try {
+          const content = fs.readFileSync(file, 'utf-8');
+          totalEstimatedTokens += this.tokenEstimator.estimateTokens(content);
+        } catch (error) {
+          // Skip files that can't be read, use average estimation
+          totalEstimatedTokens += 500; // Average file size estimation
+        }
+      }
+      
+      // Calculate number of chunks needed based on target chunk size
+      const chunksNeeded = Math.max(1, Math.ceil(totalEstimatedTokens / targetChunkSize));
+      const filesPerChunk = Math.max(1, Math.ceil(files.length / chunksNeeded));
+      
       const chunks: Chunk[] = [];
       
-      for (let i = 0; i < files.length; i += chunkSize) {
+      for (let i = 0; i < files.length; i += filesPerChunk) {
         chunks.push({
-          id: `chunk-${i / chunkSize}`,
-          data: files.slice(i, i + chunkSize),
+          id: `chunk-${Math.floor(i / filesPerChunk)}`,
+          data: files.slice(i, i + filesPerChunk),
           metadata: {
             startIndex: i,
-            endIndex: Math.min(i + chunkSize, files.length),
-            totalFiles: files.length
+            endIndex: Math.min(i + filesPerChunk, files.length),
+            totalFiles: files.length,
+            estimatedTokens: targetChunkSize // Rough estimate
           }
         });
       }
@@ -151,7 +222,7 @@ export class ContextWindowManager {
     return [{
       id: 'chunk-0',
       data: params,
-      metadata: { isDefault: true }
+      metadata: { isDefault: true, estimatedTokens: targetChunkSize }
     }];
   }
 
@@ -253,6 +324,24 @@ export class ContextWindowManager {
    * Get current context limit
    */
   async getContextLimit(): Promise<number> {
+    // Ensure we have the latest context limit
+    if (!this.isContextLimitDetected) {
+      await this.detectContextLimit();
+    }
     return this.contextLimit;
+  }
+
+  /**
+   * Get context limit detection status
+   */
+  isContextLimitDynamic(): boolean {
+    return this.isContextLimitDetected;
+  }
+
+  /**
+   * Get effective context limit (with safety margin applied)
+   */
+  getEffectiveContextLimit(): number {
+    return Math.floor(this.contextLimit * this.safetyMargin);
   }
 }
