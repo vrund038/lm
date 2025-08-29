@@ -13,9 +13,9 @@ A groundbreaking MCP (Model Context Protocol) server that enables Claude to offl
 
 All 18 functions from the functional specification are implemented and tested:
 
-✅ **Analysis Functions (4)**: analyze_single_file, security_audit, analyze_project_structure, analyze_n8n_workflow  
+✅ **Analysis Functions (3)**: analyze_single_file, analyze_project_structure, analyze_n8n_workflow  
 ✅ **Generation Functions (6)**: generate_unit_tests, generate_documentation, suggest_refactoring, generate_wordpress_plugin, convert_to_typescript, generate_responsive_component  
-✅ **Multi-file Functions (4)**: compare_integration, trace_execution_path, find_pattern_usage, diff_method_signatures  
+✅ **Multi-file Functions (5)**: compare_integration, trace_execution_path, find_pattern_usage, diff_method_signatures, security_audit  
 ✅ **System Functions (4)**: health_check, clear_analysis_cache, get_cache_statistics, find_unused_files  
 ✅ **Custom Functions (1)**: custom_prompt  
 
@@ -34,6 +34,43 @@ All 18 functions from the functional specification are implemented and tested:
 - **Zero Configuration**: Just call the function - it handles everything else
 - **Performance Optimised**: Analyzes up to 10 files initially to avoid delays
 - **Helpful Error Messages**: Shows available symbols when something isn't found
+
+### 🔒 Enhanced Security Analysis
+
+#### `security_audit` - Multifile Security Auditor
+**Major Enhancement**: Now operates as a comprehensive multifile plugin that analyzes entire project security posture!
+
+**Cross-File Vulnerability Detection:**
+- **Data flow analysis** - Traces user input through complete application stack
+- **Authentication chain validation** - Validates auth workflows across multiple files  
+- **Configuration security** - Finds hardcoded secrets and misconfigurations
+- **OWASP Top 10 compliance** - Comprehensive security standard assessment
+- **Project-specific patterns** - Tailored checks for WordPress, React, Node.js, etc.
+
+**Example:**
+```javascript
+security_audit({
+  projectPath: "C:\\MyAPI",
+  projectType: "node-api", 
+  auditDepth: "comprehensive",
+  includeOwasp: true,
+  focusAreas: ["authentication", "data-flow", "input-validation"]
+})
+```
+
+**Professional Output:**
+- Executive summary with risk assessment
+- Cross-file security analysis and data flow tracking  
+- Detailed vulnerability reports with line numbers and fixes
+- Architecture security review
+- Remediation roadmap with immediate, medium, and long-term actions
+- Compliance assessment against industry standards
+
+**Supported Project Types:**
+- WordPress plugins/themes with hook security analysis
+- Node.js APIs with authentication flow validation  
+- React applications with component security patterns
+- Generic projects with universal security principles
 
 ### 7 Multi-File & System Analysis Tools
 1. **`compare_integration`** - Compare how multiple files work together
@@ -121,7 +158,7 @@ All major tools support optional context for domain-specific analysis:
 6. **`analyze_n8n_workflow`** - n8n workflow optimization
 7. **`generate_responsive_component`** - Accessible component generator
 8. **`convert_to_typescript`** - JavaScript to TypeScript converter
-9. **`security_audit`** - Project-specific security auditor
+9. **`security_audit`** - Comprehensive multifile security auditor
 10. **`health_check`** - Verify LM Studio connection
 
 ### Full Backward Compatibility
@@ -218,6 +255,16 @@ custom_prompt({
   context: { projectType: "node-api" }
 })
 // Direct LLM access with file context
+
+// Comprehensive multifile security audit
+security_audit({
+  projectPath: "C:\\MyAPI",
+  projectType: "node-api",
+  auditDepth: "comprehensive",
+  includeOwasp: true,
+  focusAreas: ["authentication", "data-flow"]
+})
+// Cross-file vulnerability detection with professional reporting
 ```
 
 ### Single-File Analysis (v3.0)
@@ -243,7 +290,7 @@ generate_wordpress_plugin({
 
 ## Available Tools (18 Total)
 
-### Multi-File & System Analysis Tools (8)
+### Multi-File & System Analysis Tools (9)
 
 | Tool | Description | Token Savings |
 |------|------------|---------------|
@@ -253,10 +300,11 @@ generate_wordpress_plugin({
 | `diff_method_signatures` | Compare method signatures | 500-1,000 |
 | `analyze_project_structure` | Analyse project architecture | 5,000-10,000 |
 | `find_unused_files` | Identify unused files with dynamic loading detection | 10,000+ |
+| `security_audit` | **Multifile security analysis** - Cross-file vulnerability detection | 2,000-5,000 |
 | `clear_analysis_cache` | Clear analysis cache | N/A |
 | `get_cache_statistics` | View cache statistics | N/A |
 
-### Analysis & Generation Tools (10)
+### Analysis & Generation Tools (9)
 
 | Tool | Description | Token Savings |
 |------|------------|---------------|
@@ -268,7 +316,6 @@ generate_wordpress_plugin({
 | `analyze_n8n_workflow` | Optimise n8n workflows | 500-1,000 |
 | `generate_responsive_component` | Create UI components | 500-1,000 |
 | `convert_to_typescript` | Convert JS to TS | 1,000+ |
-| `security_audit` | Security analysis | 1,000+ |
 | `health_check` | Verify LM Studio connection | N/A |
 | `custom_prompt` | Direct LLM access with optional file context | Variable |
 
