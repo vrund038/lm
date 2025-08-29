@@ -329,7 +329,7 @@ set DEBUG=local-llm:*
 ## 📚 Documentation
 
 - **[Plugin Development Guide](PLUGIN_DEVELOPMENT_GUIDE.md)** - Comprehensive development documentation
-- **[Functional Specification](FUNCTIONAL_SPECIFICATION.md)** - Complete function specifications
+- **[Functional Specification](FUNCTIONAL_SPECIFICATION.md)** - Complete function specifications with parameters and responses
 - **[Security Guide](src/security/README.md)** - Security implementation details
 - **[Architecture Guide](src/core/README.md)** - System architecture overview
 
