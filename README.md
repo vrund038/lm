@@ -330,8 +330,6 @@ set DEBUG=local-llm:*
 
 - **[Plugin Development Guide](PLUGIN_DEVELOPMENT_GUIDE.md)** - Comprehensive development documentation
 - **[Functional Specification](FUNCTIONAL_SPECIFICATION.md)** - Complete function specifications with parameters and responses
-- **[Security Guide](src/security/README.md)** - Security implementation details
-- **[Architecture Guide](src/core/README.md)** - System architecture overview
 
 ## 📊 System Requirements
 
@@ -342,10 +340,12 @@ set DEBUG=local-llm:*
 - **OS**: Windows 10/11, macOS, or Linux
 
 ### Recommended Setup
-- **CPU**: Modern multi-core processor
-- **RAM**: 16GB or more for large models
-- **Storage**: SSD for better performance
+- **CPU**: Modern multi-core processor (Intel i7/AMD Ryzen 7 or better)
+- **RAM**: 32GB or more for optimal performance with large models
+- **GPU**: 12GB+ VRAM recommended (RTX 4070 Ti/RTX 4080 or better)
+- **Storage**: NVMe SSD for model storage and fast loading
 - **Model**: 7B-13B parameter models for optimal speed/quality balance
+- **Network**: Stable connection for model downloads (models range 4-26GB)
 
 ## 🔄 Version History
 
