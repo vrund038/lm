@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, extname, relative } from 'path';
 
@@ -141,21 +142,22 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      return {
-        analysis: response,
-        metadata: {
-          projectPath,
-          patterns: params.patterns,
-          filesSearched: codeFiles.length,
-          matchesFound: results.reduce((sum, r) => sum + r.matches.length, 0),
-          filesWithMatches: results.length,
-          errors: errors.length > 0 ? errors : undefined,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'find_pattern_usage',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to find pattern usage: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'find_pattern_usage',
+        'MODEL_ERROR',
+        `Failed to find pattern usage: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
     try {
       // Get the loaded model from LM Studio
@@ -190,21 +192,22 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      return {
-        analysis: response,
-        metadata: {
-          projectPath,
-          patterns: params.patterns,
-          filesSearched: codeFiles.length,
-          matchesFound: results.reduce((sum, r) => sum + r.matches.length, 0),
-          filesWithMatches: results.length,
-          errors: errors.length > 0 ? errors : undefined,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'find_pattern_usage',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to find pattern usage: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'find_pattern_usage',
+        'MODEL_ERROR',
+        `Failed to find pattern usage: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

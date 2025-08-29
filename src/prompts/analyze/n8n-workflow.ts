@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 // Type definitions for n8n workflow analysis
 interface N8nAnalysisContext {
@@ -94,22 +95,22 @@ export class N8nWorkflowAnalyzer extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      // Format response
-      return {
-        analysis: response,
-        metadata: {
-          workflowNodes: params.workflow.nodes?.length || 0,
-          optimizationFocus: context.optimizationFocus,
-          checksPerformed: {
-            credentials: context.includeCredentialCheck,
-            alternativeNodes: context.suggestAlternativeNodes
-          },
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'analyze_n8n_workflow',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to analyze n8n workflow: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'analyze_n8n_workflow',
+        'MODEL_ERROR',
+        `Failed to analyze n8n workflow: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
 
@@ -107,19 +108,22 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      return {
-        trace: response,
-        metadata: {
-          entryPoint: params.entryPoint,
-          traceDepth,
-          filesAnalyzed: Object.keys(fileContents).length,
-          showParameters,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'trace_execution_path',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to trace execution path: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'trace_execution_path',
+        'MODEL_ERROR',
+        `Failed to trace execution path: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

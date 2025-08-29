@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, basename } from 'path';
 
@@ -126,21 +127,22 @@ export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      return {
-        analysis: response,
-        metadata: {
-          filesAnalyzed: validFiles.length,
-          analysisType: params.analysisType || 'integration',
-          focusAreas: params.focus || [],
-          errors: Object.entries(fileContents)
-            .filter(([_, data]) => data.error)
-            .map(([path, data]) => ({ path, error: data.error })),
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'compare_integration',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to compare integration: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'compare_integration',
+        'MODEL_ERROR',
+        `Failed to compare integration: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

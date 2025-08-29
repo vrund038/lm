@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../shared/types.js';
 import { readFileContent } from '../shared/helpers.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 // Type definitions for documentation context
 interface DocContext {
@@ -148,20 +149,22 @@ export class DocumentationGenerator extends BasePlugin implements IPromptPlugin 
         }
       }
       
-      // Format response
-      return {
-        documentation: response,
-        metadata: {
-          language: params.language || 'javascript',
-          docStyle: context.docStyle,
-          audience: context.audience,
-          projectType: context.projectType,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'generate_documentation',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to generate documentation: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'generate_documentation',
+        'MODEL_ERROR',
+        `Failed to generate documentation: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

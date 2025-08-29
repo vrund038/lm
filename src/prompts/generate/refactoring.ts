@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 // Type definitions for refactoring context
 interface RefactorContext {
@@ -146,20 +147,22 @@ export class RefactoringAnalyzer extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      // Format response
-      return {
-        suggestions: response,
-        metadata: {
-          language: params.language || 'javascript',
-          focusAreas: context.focusAreas,
-          preserveApi: context.preserveApi,
-          modernizationLevel: context.modernizationLevel,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'suggest_refactoring',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to suggest refactoring: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'suggest_refactoring',
+        'MODEL_ERROR',
+        `Failed to suggest refactoring: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

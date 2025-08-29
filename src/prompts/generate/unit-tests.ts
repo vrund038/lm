@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 // Type definitions for test context
 interface TestContext {
@@ -147,20 +148,22 @@ export class UnitTestGenerator extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      // Format response
-      return {
-        tests: response,
-        metadata: {
-          language: params.language || 'javascript',
-          testFramework: context.testFramework,
-          coverageTarget: context.coverageTarget,
-          projectType: context.projectType,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'generate_unit_tests',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to generate unit tests: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'generate_unit_tests',
+        'MODEL_ERROR',
+        `Failed to generate unit tests: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

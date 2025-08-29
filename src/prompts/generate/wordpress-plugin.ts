@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 // Type definitions for WordPress plugin requirements
 interface WPPluginRequirements {
@@ -156,25 +157,22 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
         }
       }
       
-      // Format response
-      return {
-        plugin: response,
-        metadata: {
-          pluginName: params.name,
-          prefix: params.prefix,
-          components: {
-            admin: requirements.includeAdmin,
-            database: requirements.includeDatabase,
-            ajax: requirements.includeAjax,
-            rest: requirements.includeRest,
-            gutenberg: requirements.includeGutenberg
-          },
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'generate_wordpress_plugin',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to generate WordPress plugin: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'generate_wordpress_plugin',
+        'MODEL_ERROR',
+        `Failed to generate WordPress plugin: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

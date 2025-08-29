@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
 
@@ -123,20 +124,22 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      return {
-        comparison: response,
-        metadata: {
-          callingFile: basename(callingFile),
-          calledClass: params.calledClass,
-          methodName: params.methodName,
-          classFilesFound: classFiles.length,
-          classFilesAnalyzed: Object.keys(classFileContents).length,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'diff_method_signatures',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to diff method signatures: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'diff_method_signatures',
+        'MODEL_ERROR',
+        `Failed to diff method signatures: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
     try {
       // Get the loaded model from LM Studio
@@ -171,20 +174,22 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      return {
-        comparison: response,
-        metadata: {
-          callingFile: basename(callingFile),
-          calledClass: params.calledClass,
-          methodName: params.methodName,
-          classFilesFound: classFiles.length,
-          classFilesAnalyzed: Object.keys(classFileContents).length,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'diff_method_signatures',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to diff method signatures: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'diff_method_signatures',
+        'MODEL_ERROR',
+        `Failed to diff method signatures: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

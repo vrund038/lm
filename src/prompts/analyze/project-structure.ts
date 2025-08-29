@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 import { readdirSync, statSync, readFileSync, existsSync } from 'fs';
 import { resolve, join, extname, relative, basename } from 'path';
 
@@ -141,20 +142,22 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
         }
       }
       
-      return {
-        analysis: response,
-        metadata: {
-          projectPath: basename(projectPath),
-          totalFiles: structure.statistics.totalFiles,
-          totalDirectories: structure.statistics.totalDirectories,
-          maxDepth: structure.statistics.maxDepth,
-          focusAreas,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'analyze_project_structure',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to analyze project structure: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'analyze_project_structure',
+        'MODEL_ERROR',
+        `Failed to analyze project structure: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

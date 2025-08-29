@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../plugins/base-plugin.js';
 import { IPromptPlugin } from '../prompts/shared/types.js';
+import { ResponseFactory } from '../validation/response-factory.js';
 import { LMStudioClient } from '@lmstudio/sdk';
 import { config } from '../config.js';
 
@@ -31,42 +32,41 @@ export class HealthCheckPlugin extends BasePlugin implements IPromptPlugin {
       // Try to connect and get basic info
       const models = await client.llm.listLoaded();
       
-      const response: any = {
-        status: 'healthy',
-        connection: 'established',
-        lmStudioUrl: config.lmStudioUrl || 'ws://localhost:1234',
-        timestamp: new Date().toISOString()
-      };
-
-      if (params.detailed) {
-        response.details = {
-          loadedModels: models,
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.createHealthCheckResponse(
+        'healthy',
+        'established',
+        config.lmStudioUrl || 'ws://localhost:1234',
+        undefined,
+        undefined,
+        params.detailed ? {
+          loadedModels: models.map(model => ({
+            path: model.path,
+            identifier: model.identifier,
+            architecture: (model as any).architecture || 'unknown'
+          })),
           modelCount: models.length,
           hasActiveModel: models.length > 0,
           serverInfo: {
             url: config.lmStudioUrl,
             protocol: 'websocket'
-          }
-        };
-        
-        if (models.length > 0) {
-          response.details.activeModel = {
+          },
+          activeModel: models.length > 0 ? {
             path: models[0].path,
-            identifier: models[0].identifier
-          };
-        }
-      }
-
-      return response;
+            identifier: models[0].identifier,
+            architecture: (models[0] as any).architecture || 'unknown'
+          } : undefined
+        } : undefined
+      );
     } catch (error: any) {
-      return {
-        status: 'unhealthy',
-        connection: 'failed',
-        error: error.message || 'Failed to connect to LM Studio',
-        suggestion: 'Please ensure LM Studio is running and a model is loaded',
-        lmStudioUrl: config.lmStudioUrl || 'ws://localhost:1234',
-        timestamp: new Date().toISOString()
-      };
+      return ResponseFactory.createHealthCheckResponse(
+        'unhealthy',
+        'failed',
+        config.lmStudioUrl || 'ws://localhost:1234',
+        error.message || 'Failed to connect to LM Studio',
+        'Please ensure LM Studio is running and a model is loaded'
+      );
     }
   }
 

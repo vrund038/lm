@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 // Type definitions for TypeScript context
 interface TSContext {
@@ -137,19 +138,22 @@ export class TypeScriptConverter extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      // Format response
-      return {
-        typescript: response,
-        metadata: {
-          strict: context.strict,
-          target: context.target,
-          module: context.module,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'convert_to_typescript',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to convert to TypeScript: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'convert_to_typescript',
+        'MODEL_ERROR',
+        `Failed to convert to TypeScript: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

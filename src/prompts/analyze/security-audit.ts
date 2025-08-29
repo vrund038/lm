@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 // Type definitions for security context
 interface SecurityContext {
@@ -127,20 +128,22 @@ export class SecurityAuditor extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      // Format response
-      return {
-        audit: response,
-        metadata: {
-          projectType: params.projectType,
-          auditDepth: context.auditDepth,
-          includesOwasp: context.includeOwasp,
-          includesDependencies: context.includeDependencies,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'security_audit',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to perform security audit: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'security_audit',
+        'MODEL_ERROR',
+        `Failed to perform security audit: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

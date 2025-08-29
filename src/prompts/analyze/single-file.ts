@@ -6,6 +6,7 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../shared/types.js';
 import { readFileContent } from '../shared/helpers.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 // Type definitions for analysis context
 interface AnalysisContext {
@@ -138,19 +139,22 @@ export class CodeStructureAnalyzer extends BasePlugin implements IPromptPlugin {
         }
       }
       
-      // Format response
-      return {
-        analysis: response,
-        metadata: {
-          language: params.language || 'javascript',
-          analysisDepth: params.analysisDepth || 'detailed',
-          projectType: context.projectType,
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'analyze_single_file',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to analyze code: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'analyze_single_file',
+        'MODEL_ERROR',
+        `Failed to analyze code: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 
@@ -170,14 +174,43 @@ Context:
 - Coding Standards: ${standards}
 - Environment: ${context?.environment || 'not specified'}
 
-Analyze and provide:
-1. **Architecture Overview**: High-level design patterns and structure
-2. **Dependencies**: External libraries, their versions, and purposes
-3. **Entry Points**: Main execution flows, initialization, and bootstrapping
-4. **Data Flow**: How data moves through the system, transformations, and storage
-5. **Integration Points**: APIs, hooks, events, or extension points
-6. **Code Organization**: Module structure, separation of concerns
-7. **Potential Issues**: Anti-patterns, technical debt, or improvement areas
+IMPORTANT: Provide your response as a JSON object with this structure:
+{
+  "summary": "Brief overview of the code architecture and purpose",
+  "structure": {
+    "classes": ["ClassName1", "ClassName2"],
+    "functions": ["function1", "function2"],
+    "imports": ["module1", "module2"],
+    "exports": ["export1", "export2"],
+    "dependencies": ["dependency1", "dependency2"]
+  },
+  "metrics": {
+    "linesOfCode": 150,
+    "cyclomaticComplexity": 8,
+    "cognitiveComplexity": 12,
+    "maintainabilityIndex": 75
+  },
+  "findings": [
+    {
+      "type": "issue",
+      "severity": "medium",
+      "message": "Issue description",
+      "line": 42,
+      "recommendation": "How to fix this"
+    }
+  ],
+  "patterns": ["pattern1", "pattern2"],
+  "suggestions": ["suggestion1", "suggestion2"]
+}
+
+Analyze this code:
+\`\`\`${context?.language || 'javascript'}
+${content}
+\`\`\`
+
+${this.getProjectSpecificInstructions(projectType)}
+
+Focus on providing actionable insights with specific line numbers where possible.
 
 ${this.getProjectSpecificInstructions(projectType)}
 

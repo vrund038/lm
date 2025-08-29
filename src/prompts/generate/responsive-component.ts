@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 // Type definitions for component specifications
 interface ComponentSpecs {
@@ -128,25 +129,22 @@ export class ResponsiveComponentGenerator extends BasePlugin implements IPromptP
         }
       }
       
-      // Format response
-      return {
-        component: response,
-        metadata: {
-          componentName: params.name,
-          componentType: params.type,
-          framework: specs.framework,
-          features: {
-            responsive: specs.responsive,
-            accessible: specs.accessible,
-            animations: specs.animations,
-            darkMode: specs.darkMode
-          },
-          modelUsed: model.identifier || 'unknown'
-        }
-      };
+      // Use ResponseFactory for consistent, spec-compliant output
+      ResponseFactory.setStartTime();
+      return ResponseFactory.parseAndCreateResponse(
+        'generate_responsive_component',
+        response,
+        model.identifier || 'unknown'
+      );
       
     } catch (error: any) {
-      throw new Error(`Failed to generate responsive component: ${error.message}`);
+      return ResponseFactory.createErrorResponse(
+        'generate_responsive_component',
+        'MODEL_ERROR',
+        `Failed to generate responsive component: ${error.message}`,
+        { originalError: error.message },
+        'unknown'
+      );
     }
   }
 

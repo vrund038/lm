@@ -5,6 +5,7 @@
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from './types.js';
+import { ResponseFactory } from '../../validation/response-factory.js';
 
 export class CacheManager {
   private static cache: Map<string, any> = new Map();
@@ -24,8 +25,12 @@ export class CacheManager {
       files: Array.from(this.cache.keys())
     };
   }
+
+  static getCacheSize(): number {
+    return this.cache.size;
+  }
   
-  private static estimateMemoryUsage(): string {
+  static estimateMemoryUsage(): string {
     const size = JSON.stringify(Array.from(this.cache.entries())).length;
     return `${(size / 1024).toFixed(2)} KB`;
   }
@@ -45,13 +50,22 @@ export class ClearCachePlugin extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
+    const entriesBefore = CacheManager.getCacheSize();
     CacheManager.clear(params.filePath);
-    return {
-      success: true,
-      message: params.filePath 
-        ? `Cache cleared for ${params.filePath}`
-        : 'All cache entries cleared'
-    };
+    
+    // Use ResponseFactory for consistent, spec-compliant output
+    ResponseFactory.setStartTime();
+    return ResponseFactory.createSystemResponse({
+      status: 'success',
+      details: {
+        success: true,
+        message: params.filePath 
+          ? `Cache cleared for ${params.filePath}`
+          : 'All cache entries cleared',
+        filesCleared: params.filePath ? 1 : entriesBefore,
+        memoryFreed: CacheManager.estimateMemoryUsage()
+      }
+    });
   }
 
   getPrompt(params: any): string {
@@ -68,7 +82,25 @@ export class CacheStatisticsPlugin extends BasePlugin implements IPromptPlugin {
   parameters = {};
 
   async execute(params: any, llmClient: any) {
-    return CacheManager.getStatistics();
+    const stats = CacheManager.getStatistics();
+    
+    // Use ResponseFactory for consistent, spec-compliant output
+    ResponseFactory.setStartTime();
+    return ResponseFactory.createSystemResponse({
+      status: 'active',
+      details: {
+        totalEntries: stats.totalEntries,
+        memoryUsage: stats.memoryUsage,
+        files: stats.files,
+        oldestEntry: stats.files.length > 0 ? new Date().toISOString() : 'none',
+        newestEntry: stats.files.length > 0 ? new Date().toISOString() : 'none',
+        hitRate: 0, // Would need actual hit tracking
+        statistics: {
+          byType: { 'analysis': stats.totalEntries },
+          bySize: { 'small': stats.totalEntries }
+        }
+      }
+    });
   }
 
   getPrompt(params: any): string {
