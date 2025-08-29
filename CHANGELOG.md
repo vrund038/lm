@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2025-08-29
+
+### 🎉 MAJOR RELEASE - 3-Stage Architecture Complete
+
+### Added
+- **Complete 3-Stage Architecture Deployment** - All multifile plugins now use the proven 3-stage prompt architecture
+  - `ThreeStagePromptManager` integration across all 4 multifile plugins
+  - `getPromptStages()` method with structured prompt stages (System+Context, Data Payload, Output Instructions)
+  - `executeSinglePass()` and `executeWithChunking()` methods for intelligent operation sizing
+  - Dynamic context detection from LM Studio (23,832 tokens from Qwen 3 Coder 30B)
+
+### Changed  
+- **Architecture Consistency** - Eliminated dual chunking conflicts throughout codebase
+  - Context Window Manager is now the sole chunking authority
+  - Single, consistent 3-stage chunking system across all multifile operations
+  - Smart prompt staging for optimal LLM utilization
+  - Consistent error handling and response formatting
+
+### Fixed
+- **100% Success Rate** - All multifile functions tested and verified working:
+  - ✅ `compare_integration`: Perfect integration analysis with detailed findings
+  - ✅ `trace_execution_path`: Successful 4-chunk processing with execution traces  
+  - ✅ `diff_method_signatures`: Accurate signature compatibility analysis
+  - ✅ `find_pattern_usage`: Pattern detection across entire codebase
+
+### Performance
+- **Context Preservation** - Eliminated hardcoded limits in favor of dynamic detection
+- **Scalable Operations** - Support for any operation size through intelligent chunking
+- **Memory Efficiency** - Optimized prompt staging reduces token waste
+- **Reliability** - Robust error handling and fallback mechanisms
+
 ## [4.0.1] - 2025-08-29
 
 ### Fixed
