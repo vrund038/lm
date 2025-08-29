@@ -6,6 +6,8 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, basename } from 'path';
 
@@ -85,36 +87,60 @@ export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
       throw new Error(`Could not read enough files for comparison. Errors:\n${errors}`);
     }
     
-    // Generate prompt with all file contents
-    const prompt = this.getPrompt({
+    // Get model for context limit detection
+    const models = await llmClient.llm.listLoaded();
+    if (models.length === 0) {
+      throw new Error('No model loaded in LM Studio. Please load a model first.');
+    }
+    
+    const model = models[0];
+    const contextLength = await model.getContextLength() || 23832;
+    const systemOverhead = 2000; // System instructions overhead
+    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
+    
+    // Early chunking decision: Estimate content size
+    const contentData = Object.fromEntries(
+      Object.entries(fileContents).map(([path, data]) => [path, data.content])
+    );
+    const totalContentLength = Object.values(contentData).join('').length;
+    const estimatedTokens = Math.floor(totalContentLength / 4) + systemOverhead; // Rough token estimate
+    
+    if (estimatedTokens > availableTokens) {
+      // Process with chunking for large content
+      return await this.executeWithChunking(params, contentData, llmClient, model, availableTokens);
+    }
+    
+    // Process normally for small operations
+    return await this.executeSinglePass(params, contentData, llmClient, model);
+  }
+  
+  /**
+   * Execute for small operations that fit in single context window
+   */
+  private async executeSinglePass(params: any, fileContents: Record<string, string>, llmClient: any, model: any): Promise<any> {
+    // Generate 3-stage prompt
+    const promptStages = this.getPromptStages({
       ...params,
-      fileContents: Object.fromEntries(
-        Object.entries(fileContents).map(([path, data]) => [path, data.content])
-      )
+      fileContents
     });
     
-    // Execute and return
     try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
-      }
+      // Get context limit for 3-stage manager
+      const contextLength = await model.getContextLength();
+      const promptManager = new ThreeStagePromptManager(contextLength || 23832);
       
-      // Use the first loaded model
-      const model = models[0];
+      // Create chunked conversation
+      const conversation = promptManager.createChunkedConversation(promptStages);
       
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert software integration analyst. Identify compatibility issues, missing imports, method signature mismatches, and integration problems across multiple code files. Provide specific, actionable fixes.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
+      // Build messages array for LM Studio
+      const messages = [
+        conversation.systemMessage,
+        ...conversation.dataMessages,
+        conversation.analysisMessage
+      ];
+      
+      // Call the model with 3-stage conversation
+      const prediction = model.respond(messages, {
         temperature: 0.1,
         maxTokens: 4000
       });
@@ -145,32 +171,105 @@ export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
       );
     }
   }
+  
+  /**
+   * Execute for large operations using file-level chunking
+   */
+  private async executeWithChunking(params: any, fileContents: Record<string, string>, llmClient: any, model: any, availableTokens: number): Promise<any> {
+    // For integration comparison, we need to process all files together
+    // So we'll break down the content instead of splitting files
+    const fileList = Object.keys(fileContents);
+    const chunkSize = Math.max(2, Math.floor(fileList.length / 2)); // Create ~2 chunks, minimum 2 files each
+    const fileChunks: string[][] = [];
+    
+    for (let i = 0; i < fileList.length; i += chunkSize) {
+      fileChunks.push(fileList.slice(i, i + chunkSize));
+    }
+    
+    const chunkResults: any[] = [];
+    
+    for (let chunkIndex = 0; chunkIndex < fileChunks.length; chunkIndex++) {
+      try {
+        const chunkFiles = fileChunks[chunkIndex];
+        const chunkFileContents: Record<string, string> = {};
+        chunkFiles.forEach(file => {
+          chunkFileContents[file] = fileContents[file];
+        });
+        
+        const result = await this.executeSinglePass(params, chunkFileContents, llmClient, model);
+        
+        chunkResults.push({
+          chunkIndex,
+          result,
+          success: true
+        });
+      } catch (error) {
+        chunkResults.push({
+          chunkIndex,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          success: false
+        });
+      }
+    }
+    
+    // Combine results
+    const successfulChunks = chunkResults.filter(r => r.success);
+    
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'compare_integration',
+      JSON.stringify({
+        summary: {
+          totalChunks: fileChunks.length,
+          successfulChunks: successfulChunks.length,
+          totalFiles: fileList.length
+        },
+        results: successfulChunks.map(r => r.result)
+      }, null, 2),
+      model.identifier || 'unknown'
+    );
+  }
 
+  /**
+   * Legacy getPrompt method for BasePlugin compatibility
+   */
   getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
+  }
+
+  /**
+   * 3-Stage prompt architecture method
+   */
+  getPromptStages(params: any): PromptStages {
     const { fileContents, analysisType = 'integration', focus = [] } = params;
     
-    // Build file sections with proper formatting
-    let filesSection = '';
+    // STAGE 1: System instructions and task context
+    const systemAndContext = `You are an expert software integration analyst specializing in ${analysisType} analysis across multiple files.
+
+Project Analysis Context:
+- Files to analyze: ${Object.keys(fileContents).length}
+- Analysis type: ${analysisType}
+- Focus areas: ${focus.length > 0 ? focus.join(', ') : 'All aspects'}
+- Task: Identify compatibility issues, missing imports, method signature mismatches, and integration problems`;
+
+    // STAGE 2: Data payload (file contents)
+    let dataPayload = '';
     Object.entries(fileContents).forEach(([path, content]) => {
       const fileName = basename(path);
-      filesSection += `\n${'='.repeat(80)}\nFile: ${fileName}\nPath: ${path}\n${'='.repeat(80)}\n${content}\n`;
+      dataPayload += `\n${'='.repeat(80)}\nFile: ${fileName}\nPath: ${path}\n${'='.repeat(80)}\n${content}\n`;
     });
-    
-    // Build focus areas section
+
+    // STAGE 3: Output instructions and analysis tasks
     const focusSection = focus.length > 0 
       ? this.buildFocusSection(focus)
       : this.getDefaultFocusSection(analysisType);
     
-    return `You are an expert code analyst specializing in ${analysisType} analysis across multiple files.
-
-Analyze the following ${Object.keys(fileContents).length} files for ${analysisType} issues:
-
-${filesSection}
-
-ANALYSIS REQUIREMENTS:
+    const outputInstructions = `ANALYSIS REQUIREMENTS:
 ${focusSection}
 
 ANALYSIS TASKS:
+
 1. **Method Compatibility**
    - Verify all called methods exist with correct signatures
    - Check parameter types and counts match
@@ -201,38 +300,54 @@ ANALYSIS TASKS:
    - Identify tight coupling issues
 
 OUTPUT FORMAT:
-Structure your response as follows:
 
 ## Summary
-Brief overview of the integration status
+Brief overview of the integration status and key findings
 
 ## Critical Issues (Must Fix)
-- Issue: [Description]
-  Location: [File:Line]
-  Fix: [Specific code change]
+- **Issue**: [Description]
+  **Location**: [File:Line]
+  **Impact**: [What breaks]
+  **Fix**: [Specific code change]
 
 ## High Priority Issues
-- Issue: [Description]
-  Location: [File:Line]
-  Fix: [Specific code change]
+- **Issue**: [Description]
+  **Location**: [File:Line]
+  **Problem**: [Why it's problematic]
+  **Fix**: [Specific code change]
 
 ## Medium Priority Issues
-- Issue: [Description]
-  Location: [File:Line]
-  Suggestion: [Recommended change]
+- **Issue**: [Description]
+  **Location**: [File:Line]
+  **Suggestion**: [Recommended change]
 
 ## Low Priority Issues
-- Issue: [Description]
-  Location: [File:Line]
-  Note: [Optional improvement]
+- **Issue**: [Description]
+  **Location**: [File:Line]
+  **Note**: [Optional improvement]
+
+## Integration Health Score
+Overall integration quality: [Score/10] with justification
 
 ## Recommended Refactoring
-If applicable, suggest architectural improvements
+If applicable, suggest architectural improvements:
+1. **Immediate Actions** - Critical fixes needed now
+2. **Short-term Improvements** - Performance and maintainability
+3. **Long-term Architecture** - Scalability and design patterns
 
 ## Verification Steps
-List steps to verify the fixes work correctly
+Steps to verify the fixes work correctly:
+1. [Specific testing approach]
+2. [What to validate]
+3. [Success criteria]
 
 Provide specific, actionable fixes with exact code snippets that can be directly applied.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
   }
   
   private buildFocusSection(focus: string[]): string {

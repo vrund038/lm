@@ -6,6 +6,8 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
 
@@ -82,8 +84,36 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
       }
     }
     
-    // Generate analysis prompt
-    const prompt = this.getPrompt({
+    // Get model for context limit detection
+    const models = await llmClient.llm.listLoaded();
+    if (models.length === 0) {
+      throw new Error('No model loaded in LM Studio. Please load a model first.');
+    }
+    
+    const model = models[0];
+    const contextLength = await model.getContextLength() || 23832;
+    const systemOverhead = 2000; // System instructions overhead
+    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
+    
+    // Early chunking decision: Estimate content size
+    const totalContentLength = callingFileContent.length + Object.values(classFileContents).join('').length;
+    const estimatedTokens = Math.floor(totalContentLength / 4) + systemOverhead; // Rough token estimate
+    
+    if (estimatedTokens > availableTokens) {
+      // Process with chunking for large content
+      return await this.executeWithChunking(params, callingFile, callingFileContent, classFileContents, llmClient, model, availableTokens);
+    }
+    
+    // Process normally for small operations
+    return await this.executeSinglePass(params, callingFile, callingFileContent, classFileContents, llmClient, model);
+  }
+  
+  /**
+   * Execute for small operations that fit in single context window
+   */
+  private async executeSinglePass(params: any, callingFile: string, callingFileContent: string, classFileContents: Record<string, string>, llmClient: any, model: any): Promise<any> {
+    // Generate 3-stage prompt
+    const promptStages = this.getPromptStages({
       callingFile,
       callingFileContent,
       calledClass: params.calledClass,
@@ -92,76 +122,22 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
     });
     
     try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
-      }
+      // Get context limit for 3-stage manager
+      const contextLength = await model.getContextLength();
+      const promptManager = new ThreeStagePromptManager(contextLength || 23832);
       
-      // Use the first loaded model
-      const model = models[0];
+      // Create chunked conversation
+      const conversation = promptManager.createChunkedConversation(promptStages);
       
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert method signature analyst. Compare method signatures between callers and callees, identify parameter mismatches, type incompatibilities, and provide specific fixes.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
-        temperature: 0.1,
-        maxTokens: 3000
-      });
+      // Build messages array for LM Studio
+      const messages = [
+        conversation.systemMessage,
+        ...conversation.dataMessages,
+        conversation.analysisMessage
+      ];
       
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
-      }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'diff_method_signatures',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'diff_method_signatures',
-        'MODEL_ERROR',
-        `Failed to diff method signatures: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
-      }
-      
-      // Use the first loaded model
-      const model = models[0];
-      
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert method signature analyst. Compare method signatures between callers and callees, identify parameter mismatches, type incompatibilities, and provide specific fixes.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
+      // Call the model with 3-stage conversation
+      const prediction = model.respond(messages, {
         temperature: 0.1,
         maxTokens: 3000
       });
@@ -192,34 +168,103 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
       );
     }
   }
+  
+  /**
+   * Execute for large operations using content chunking
+   */
+  private async executeWithChunking(params: any, callingFile: string, callingFileContent: string, classFileContents: Record<string, string>, llmClient: any, model: any, availableTokens: number): Promise<any> {
+    // For signature diffing, we need both caller and callee files
+    // We'll process in chunks but maintain the relationship
+    const allContent = [
+      { type: 'calling', path: callingFile, content: callingFileContent },
+      ...Object.entries(classFileContents).map(([path, content]) => ({ type: 'class', path, content }))
+    ];
+    
+    const chunkResults: any[] = [];
+    
+    // Process calling file with each class file separately
+    for (let i = 1; i < allContent.length; i++) {
+      try {
+        const chunkClassContents: Record<string, string> = {};
+        chunkClassContents[allContent[i].path] = allContent[i].content;
+        
+        const result = await this.executeSinglePass(params, callingFile, callingFileContent, chunkClassContents, llmClient, model);
+        
+        chunkResults.push({
+          chunkIndex: i - 1,
+          classFile: allContent[i].path,
+          result,
+          success: true
+        });
+      } catch (error) {
+        chunkResults.push({
+          chunkIndex: i - 1,
+          classFile: allContent[i].path,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          success: false
+        });
+      }
+    }
+    
+    // Combine results
+    const successfulChunks = chunkResults.filter(r => r.success);
+    
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'diff_method_signatures',
+      JSON.stringify({
+        summary: {
+          totalChunks: chunkResults.length,
+          successfulChunks: successfulChunks.length,
+          callingFile,
+          methodName: params.methodName,
+          calledClass: params.calledClass
+        },
+        results: successfulChunks.map(r => r.result)
+      }, null, 2),
+      model.identifier || 'unknown'
+    );
+  }
 
+  /**
+   * Legacy getPrompt method for BasePlugin compatibility
+   */
   getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
+  }
+
+  /**
+   * 3-Stage prompt architecture method
+   */
+  getPromptStages(params: any): PromptStages {
     const { callingFile, callingFileContent, calledClass, methodName, classFileContents } = params;
     
-    // Format class files section
-    let classFilesSection = '';
+    // STAGE 1: System instructions and task context
+    const systemAndContext = `You are an expert method signature analyst specializing in parameter matching and compatibility analysis.
+
+Signature Comparison Context:
+- Target method: ${calledClass}.${methodName} or ${calledClass}::${methodName}
+- Calling file: ${basename(callingFile)}
+- Class definition files: ${Object.keys(classFileContents).length}
+- Task: Compare method signatures between caller and callee to identify parameter mismatches`;
+
+    // STAGE 2: Data payload (calling file + class files)
+    let dataPayload = '';
+    
+    // Add calling file first
+    dataPayload += `\n${'='.repeat(80)}\nCALLING FILE\n${'='.repeat(80)}\nFile: ${basename(callingFile)}\nPath: ${callingFile}\n${'='.repeat(80)}\n${callingFileContent}\n`;
+    
+    // Add class definition files
     Object.entries(classFileContents).forEach(([path, content]) => {
       const fileName = basename(path);
-      classFilesSection += `\n${'='.repeat(80)}\nClass Definition File: ${fileName}\nPath: ${path}\n${'='.repeat(80)}\n${content}\n`;
+      dataPayload += `\n${'='.repeat(80)}\nCLASS DEFINITION FILE\n${'='.repeat(80)}\nFile: ${fileName}\nPath: ${path}\n${'='.repeat(80)}\n${content}\n`;
     });
-    
-    return `You are an expert code analyst specializing in method signature analysis and parameter matching.
 
-Analyze the method signature compatibility between a method call and its definition.
+    // STAGE 3: Output instructions and analysis tasks
+    const outputInstructions = `SIGNATURE ANALYSIS REQUIREMENTS:
 
-Target Method: ${calledClass}.${methodName} or ${calledClass}::${methodName}
-
-CALLING FILE:
-${'='.repeat(80)}
-File: ${basename(callingFile)}
-Path: ${callingFile}
-${'='.repeat(80)}
-${callingFileContent}
-
-CLASS DEFINITION FILES:
-${classFilesSection}
-
-ANALYSIS REQUIREMENTS:
+ANALYSIS TASKS:
 
 1. **Locate Method Call**
    - Find where ${methodName} is called on ${calledClass} in the calling file
@@ -256,65 +301,119 @@ ANALYSIS REQUIREMENTS:
 OUTPUT FORMAT:
 
 ## Summary
-Brief overview of the signature comparison results
+Brief overview of the signature comparison results and compatibility status
 
 ## Method Call Analysis
 ### Call Sites Found
-For each call site:
+For each call site discovered:
 - **Location**: [File:Line]
-- **Call Syntax**: \`exact code\`
+- **Call Syntax**: \`exact code from file\`
 - **Parameters Passed**: 
-  1. [param1]: [value/expression]
-  2. [param2]: [value/expression]
+  1. [param1]: [value/expression] - [type if determinable]
+  2. [param2]: [value/expression] - [type if determinable]
   ...
+- **Call Context**: [static/instance, object context]
 
 ## Method Definition Analysis
 ### Method Signature
 - **Location**: [File:Line]
-- **Full Signature**: \`exact signature\`
+- **Full Signature**: \`exact signature from code\`
 - **Parameters Expected**:
-  1. [name]: [type] ${'{default value if any}'}
-  2. [name]: [type] ${'{required/optional}'}
+  1. [name]: [type] {default value if any} - [required/optional]
+  2. [name]: [type] {required/optional}
   ...
 - **Return Type**: [type]
-- **Modifiers**: [static/public/private/protected]
+- **Modifiers**: [static/public/private/protected/abstract/etc.]
+- **Class Context**: [inheritance info if relevant]
 
 ## Compatibility Results
 
 ### ✅ Compatible Aspects
-- [List what matches correctly]
+List everything that matches correctly:
+- [Parameter count matches]
+- [Types are compatible]
+- [Call context is correct]
 
-### ❌ Incompatible Aspects
-- [List mismatches with severity]
+### ❌ Critical Incompatibilities
+Issues that will cause runtime errors:
+- **Issue**: [Specific problem description]
+  **Severity**: Critical
+  **Current**: \`current calling code\`
+  **Expected**: \`expected signature\`
+  **Fix**: \`corrected calling code\`
 
-### ⚠️ Warnings
-- [List potential issues]
+### ⚠️ Potential Issues
+Issues that might cause problems:
+- **Issue**: [Description]
+  **Severity**: [High/Medium]
+  **Risk**: [What could go wrong]
+  **Recommendation**: [How to address]
 
 ## Detailed Mismatch Analysis
-For each mismatch:
-- **Issue**: [Description]
-- **Severity**: [Critical/High/Medium/Low]
-- **Current**: \`current code\`
-- **Expected**: \`expected code\`
-- **Fix**: \`corrected code\`
+For each specific mismatch found:
+
+### Parameter Mismatch [N]
+- **Parameter**: [name/position]
+- **Issue Type**: [missing/extra/type-mismatch/order-wrong]
+- **Current**: \`what's being passed\`
+- **Expected**: \`what signature requires\`
+- **Fix**: \`exact code correction\`
+- **Impact**: [What happens if not fixed]
+
+## Type Compatibility Assessment
+- **Language**: [JavaScript/TypeScript/PHP/etc.]
+- **Type System**: [Dynamic/Static/Gradual]
+- **Type Checking**: [Runtime/Compile-time/None]
+- **Compatibility Score**: [X/10] with explanation
 
 ## Recommendations
-1. **Immediate Fixes** (Critical)
-   - [Required changes to fix breaks]
 
-2. **Improvements** (Non-breaking)
-   - [Suggested enhancements]
+### 1. Immediate Fixes (Critical)
+Must be fixed to prevent runtime errors:
+- [Specific actionable fix with code]
+- [Another fix if needed]
 
-3. **Best Practices**
-   - [Code quality suggestions]
+### 2. Improvements (Non-breaking)
+Suggestions for better code quality:
+- [Type annotations if applicable]
+- [Parameter validation improvements]
+- [Error handling suggestions]
+
+### 3. Best Practices
+Long-term code quality suggestions:
+- [Interface definitions]
+- [Documentation improvements]
+- [Testing recommendations]
+
+## Code Examples
+
+### Before (Current Code)
+\`\`\`[language]
+[current calling code]
+\`\`\`
+
+### After (Fixed Code)
+\`\`\`[language]
+[corrected calling code with proper parameters]
+\`\`\`
 
 ## Verification Steps
-Steps to verify the fixes work:
-1. [Step 1]
-2. [Step 2]
-...
+Steps to verify the fixes work correctly:
+1. **Syntax Check**: [How to verify syntax is correct]
+2. **Type Check**: [How to verify types match]
+3. **Runtime Test**: [Suggested test cases]
+4. **Integration Test**: [How to test in context]
 
-Provide specific, actionable fixes for any signature mismatches found.`;
+## Additional Notes
+Any other observations about code quality, architecture, or potential improvements.
+
+Provide specific, actionable fixes for any signature mismatches found, with exact code that can be copied and applied directly.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
   }
   
   private async findClassDefinition(className: string, searchDir: string): Promise<string[]> {

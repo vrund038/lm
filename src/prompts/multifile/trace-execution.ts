@@ -6,6 +6,8 @@
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
 
@@ -66,8 +68,36 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
       }
     }
     
-    // Generate prompt for tracing
-    const prompt = this.getPrompt({
+    // Get model for context limit detection
+    const models = await llmClient.llm.listLoaded();
+    if (models.length === 0) {
+      throw new Error('No model loaded in LM Studio. Please load a model first.');
+    }
+    
+    const model = models[0];
+    const contextLength = await model.getContextLength() || 23832;
+    const systemOverhead = 2000; // System instructions overhead
+    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
+    
+    // Early chunking decision: Estimate content size
+    const totalContentLength = Object.values(fileContents).join('').length;
+    const estimatedTokens = Math.floor(totalContentLength / 4) + systemOverhead; // Rough token estimate
+    
+    if (estimatedTokens > availableTokens) {
+      // Process with chunking for large content
+      return await this.executeWithChunking(params, fileContents, entryPointInfo, traceDepth, showParameters, llmClient, model, availableTokens);
+    }
+    
+    // Process normally for small operations
+    return await this.executeSinglePass(params, fileContents, entryPointInfo, traceDepth, showParameters, llmClient, model);
+  }
+  
+  /**
+   * Execute for small operations that fit in single context window
+   */
+  private async executeSinglePass(params: any, fileContents: Record<string, string>, entryPointInfo: any, traceDepth: number, showParameters: boolean, llmClient: any, model: any): Promise<any> {
+    // Generate 3-stage prompt
+    const promptStages = this.getPromptStages({
       entryPoint: params.entryPoint,
       entryPointInfo,
       traceDepth,
@@ -76,26 +106,22 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
     });
     
     try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
-      }
+      // Get context limit for 3-stage manager
+      const contextLength = await model.getContextLength();
+      const promptManager = new ThreeStagePromptManager(contextLength || 23832);
       
-      // Use the first loaded model
-      const model = models[0];
+      // Create chunked conversation
+      const conversation = promptManager.createChunkedConversation(promptStages);
       
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert code execution tracer. Analyze code execution paths, function call sequences, and data flow through multiple files. Provide detailed execution traces with clear call chains.'
-        },
-        {
-          role: 'user', 
-          content: prompt
-        }
-      ], {
+      // Build messages array for LM Studio
+      const messages = [
+        conversation.systemMessage,
+        ...conversation.dataMessages,
+        conversation.analysisMessage
+      ];
+      
+      // Call the model with 3-stage conversation
+      const prediction = model.respond(messages, {
         temperature: 0.1,
         maxTokens: 4000
       });
@@ -126,36 +152,109 @@ export class ExecutionTracer extends BasePlugin implements IPromptPlugin {
       );
     }
   }
+  
+  /**
+   * Execute for large operations using file-level chunking
+   */
+  private async executeWithChunking(params: any, fileContents: Record<string, string>, entryPointInfo: any, traceDepth: number, showParameters: boolean, llmClient: any, model: any, availableTokens: number): Promise<any> {
+    // For execution tracing, we need the entry point file plus related files
+    // So we'll chunk by file groups rather than splitting individual files
+    const fileList = Object.keys(fileContents);
+    const chunkSize = Math.max(2, Math.floor(fileList.length / 3)); // Create ~3 chunks
+    const fileChunks: string[][] = [];
+    
+    // Always put the first file (likely contains entry point) in the first chunk
+    for (let i = 0; i < fileList.length; i += chunkSize) {
+      fileChunks.push(fileList.slice(i, i + chunkSize));
+    }
+    
+    const chunkResults: any[] = [];
+    
+    for (let chunkIndex = 0; chunkIndex < fileChunks.length; chunkIndex++) {
+      try {
+        const chunkFiles = fileChunks[chunkIndex];
+        const chunkFileContents: Record<string, string> = {};
+        chunkFiles.forEach(file => {
+          chunkFileContents[file] = fileContents[file];
+        });
+        
+        const result = await this.executeSinglePass(params, chunkFileContents, entryPointInfo, traceDepth, showParameters, llmClient, model);
+        
+        chunkResults.push({
+          chunkIndex,
+          result,
+          success: true
+        });
+      } catch (error) {
+        chunkResults.push({
+          chunkIndex,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          success: false
+        });
+      }
+    }
+    
+    // Combine results
+    const successfulChunks = chunkResults.filter(r => r.success);
+    
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'trace_execution_path',
+      JSON.stringify({
+        summary: {
+          totalChunks: fileChunks.length,
+          successfulChunks: successfulChunks.length,
+          totalFiles: fileList.length,
+          entryPoint: params.entryPoint
+        },
+        results: successfulChunks.map(r => r.result)
+      }, null, 2),
+      model.identifier || 'unknown'
+    );
+  }
 
+  /**
+   * Legacy getPrompt method for BasePlugin compatibility
+   */
   getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
+  }
+
+  /**
+   * 3-Stage prompt architecture method
+   */
+  getPromptStages(params: any): PromptStages {
     const { entryPoint, entryPointInfo, traceDepth, showParameters, fileContents } = params;
     
-    // Build file sections
-    let filesSection = '';
+    // STAGE 1: System instructions and task context
+    const systemAndContext = `You are an expert code execution tracer specializing in execution flow analysis and call graph generation.
+
+Execution Trace Context:
+- Entry point: ${entryPoint}
+- Entry type: ${entryPointInfo.type}
+- ${entryPointInfo.className ? `Class: ${entryPointInfo.className}` : 'Global scope'}
+- ${entryPointInfo.methodName ? `Method: ${entryPointInfo.methodName}` : `Function: ${entryPointInfo.functionName || entryPointInfo.name}`}
+- Maximum trace depth: ${traceDepth}
+- Parameter details: ${showParameters ? 'Include full signatures' : 'Method names only'}
+- Files to analyze: ${Object.keys(fileContents).length}`;
+
+    // STAGE 2: Data payload (file contents)
+    let dataPayload = '';
     Object.entries(fileContents).forEach(([path, content]) => {
       const fileName = basename(path);
-      filesSection += `\n${'='.repeat(80)}\nFile: ${fileName}\nPath: ${path}\n${'='.repeat(80)}\n${content}\n`;
+      dataPayload += `\n${'='.repeat(80)}\nFile: ${fileName}\nPath: ${path}\n${'='.repeat(80)}\n${content}\n`;
     });
-    
+
+    // STAGE 3: Output instructions and analysis tasks
     const parameterSection = showParameters 
       ? 'Include full parameter information (types, names, default values) at each step.'
       : 'Focus on method/function names without detailed parameter information.';
     
-    return `You are an expert code analyst specializing in execution flow analysis and call graph generation.
-
-Trace the execution path starting from: ${entryPoint}
-Maximum trace depth: ${traceDepth}
+    const outputInstructions = `TRACING REQUIREMENTS:
 ${parameterSection}
 
-Entry point details:
-- Type: ${entryPointInfo.type}
-- ${entryPointInfo.className ? `Class: ${entryPointInfo.className}` : 'Global function/method'}
-- ${entryPointInfo.methodName ? `Method: ${entryPointInfo.methodName}` : `Function: ${entryPointInfo.functionName}`}
-
-Files to analyze:
-${filesSection}
-
-TRACING REQUIREMENTS:
+EXECUTION TRACING TASKS:
 
 1. **Start Point Identification**
    - Locate the exact entry point in the provided files
@@ -189,6 +288,11 @@ TRACING REQUIREMENTS:
 
 OUTPUT FORMAT:
 
+## Entry Point Analysis
+- **Location Found**: [File:Line] or "Not found - likely location: [suggestion]"
+- **Context**: [Class/Module/Global scope]
+- **Signature**: [Full method/function signature]
+
 ## Execution Trace
 
 \`\`\`
@@ -202,26 +306,54 @@ ${entryPoint}
 └─> Step 3: [File:Line] FinalCall
 \`\`\`
 
-## Call Flow Summary
-- Total execution steps: X
-- Files touched: Y
-- Maximum depth reached: Z
-- Recursive calls detected: Yes/No
-- External dependencies: [List]
+## Execution Flow Summary
+- **Total execution steps**: [number]
+- **Files touched**: [count and list]
+- **Maximum depth reached**: [number]
+- **Recursive calls detected**: [Yes/No with details]
+- **External dependencies**: [List of external libraries/modules called]
+
+## Cross-File Transitions
+List all file boundary crossings:
+1. [File A] → [File B]: [Method/function call]
+2. [File B] → [File C]: [Method/function call]
 
 ## Key Decision Points
-List any conditional logic that significantly affects the execution path
+Identify conditional logic that significantly affects execution path:
+- **Condition**: [Description]
+  **Location**: [File:Line]
+  **Impact**: [How it changes execution flow]
 
-## Potential Issues
-- Missing methods/functions
-- Circular dependencies
-- Unreachable code
-- Error handling gaps
+## Potential Issues Found
+- **Missing methods/functions**: [List any called but not found]
+- **Circular dependencies**: [List any cycles detected]
+- **Unreachable code**: [Any code that can't be reached]
+- **Error handling gaps**: [Missing try/catch or error checks]
+
+## Call Graph Insights
+- **Most called methods**: [Top 3-5 methods with call counts]
+- **Deepest call chains**: [Longest sequences found]
+- **Bottleneck methods**: [Methods with many callers]
+
+## Architecture Observations
+- **Design patterns detected**: [Observer, Factory, etc.]
+- **Coupling assessment**: [Tight/loose coupling observations]
+- **Separation of concerns**: [How well separated]
 
 ## Recommendations
-Suggest any improvements to the execution flow or architecture
+Suggest any improvements to the execution flow or architecture:
+1. **Performance optimizations**
+2. **Error handling improvements**
+3. **Code organization suggestions**
+4. **Potential refactoring opportunities**
 
-Provide a clear, traceable path from the entry point through the codebase, making it easy to understand how the code executes.`;
+Provide a clear, traceable path from the entry point through the codebase, making it easy to understand how the code executes and identifying any architectural concerns.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
   }
   
   private parseEntryPoint(entryPoint: string): any {
