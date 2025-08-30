@@ -1,10 +1,11 @@
 /**
- * Code Structure Analysis Plugin
+ * Code Structure Analysis Plugin - Modern v4.2
  * Analyzes the structure of a single code file with framework-specific insights
  */
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../shared/types.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { withSecurity } from '../../security/integration-helpers.js';
@@ -94,20 +95,6 @@ export class CodeStructureAnalyzer extends BasePlugin implements IPromptPlugin {
         codeToAnalyze = await readFileContent(secureParams.filePath);
       }
       
-      // Prepare context with defaults
-      const context: AnalysisContext = {
-        projectType: secureParams.context?.projectType || 'generic',
-        framework: secureParams.context?.framework || 'none specified',
-        frameworkVersion: secureParams.context?.frameworkVersion,
-        standards: secureParams.context?.standards,
-        environment: secureParams.context?.environment,
-        language: secureParams.language || 'javascript',
-        languageVersion: secureParams.context?.languageVersion
-      };
-      
-      // Generate prompt
-      const prompt = this.getPrompt({ ...secureParams, code: codeToAnalyze, context });
-      
       try {
         // Get the loaded model from LM Studio
         const models = await llmClient.llm.listLoaded();
@@ -118,17 +105,28 @@ export class CodeStructureAnalyzer extends BasePlugin implements IPromptPlugin {
         // Use the first loaded model
         const model = models[0];
         
-        // Call the model with proper LM Studio SDK pattern
-        const prediction = model.respond([
+        // Get the 3-stage prompt structure
+        const promptStages = this.getPromptStages({ ...secureParams, code: codeToAnalyze });
+        
+        // For single file analysis, we typically don't need chunking
+        // but we could add ThreeStagePromptManager logic here if needed
+        const messages = [
           {
             role: 'system',
-            content: 'You are an expert code analyst. Provide structured, actionable analysis of code architecture, patterns, and potential improvements. Be concise but thorough.'
+            content: promptStages.systemAndContext
           },
           {
-            role: 'user', 
-            content: prompt
+            role: 'user',
+            content: promptStages.dataPayload
+          },
+          {
+            role: 'user',
+            content: promptStages.outputInstructions
           }
-        ], {
+        ];
+        
+        // Call the model with proper LM Studio SDK pattern
+        const prediction = model.respond(messages, {
           temperature: 0.1,
           maxTokens: 2000
         });
@@ -161,23 +159,41 @@ export class CodeStructureAnalyzer extends BasePlugin implements IPromptPlugin {
     });
   }
 
-  getPrompt(params: any): string {
-    const content = params.code;
+  /**
+   * MODERN v4.2: 3-Stage Prompt Architecture
+   */
+  getPromptStages(params: any): PromptStages {
     const context = params.context || {};
-    
     const projectType = context?.projectType || 'generic';
     const framework = context?.framework || 'none specified';
     const standards = context?.standards?.join(', ') || 'clean code principles';
+    const language = params.language || context?.language || 'javascript';
     
-    return `You are analyzing ${context?.language || 'code'} for a ${projectType} project.
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert code analyst specializing in ${params.analysisDepth || 'detailed'} analysis.
 
-Context:
+Analysis Context:
 - Project Type: ${projectType}
 - Framework: ${framework} ${context?.frameworkVersion ? `v${context.frameworkVersion}` : ''}
+- Programming Language: ${language}
 - Coding Standards: ${standards}
 - Environment: ${context?.environment || 'not specified'}
+- Language Version: ${context?.languageVersion || 'latest'}
 
-IMPORTANT: Provide your response as a JSON object with this structure:
+Your task is to provide structured, actionable analysis of code architecture, patterns, and potential improvements.
+
+${this.getProjectSpecificInstructions(projectType)}`;
+
+    // STAGE 2: Data payload (the code to analyze)
+    const dataPayload = `Code to analyze:
+
+\`\`\`${language}
+${params.code}
+\`\`\``;
+
+    // STAGE 3: Output instructions
+    const outputInstructions = `Provide your analysis as a JSON object with this exact structure:
+
 {
   "summary": "Brief overview of the code architecture and purpose",
   "structure": {
@@ -206,25 +222,18 @@ IMPORTANT: Provide your response as a JSON object with this structure:
   "suggestions": ["suggestion1", "suggestion2"]
 }
 
-Analyze this code:
-\`\`\`${context?.language || 'javascript'}
-${content}
-\`\`\`
+Focus on:
+- Specific line numbers where possible
+- Actionable recommendations
+- Performance implications
+- Security considerations
+- Testability and maintainability`;
 
-${this.getProjectSpecificInstructions(projectType)}
-
-Focus on providing actionable insights with specific line numbers where possible.
-
-${this.getProjectSpecificInstructions(projectType)}
-
-Consider:
-- Language version compatibility (${context?.languageVersion || 'latest'})
-- Performance implications of architectural choices
-- Testability and maintainability of the structure
-- Security considerations for the architecture
-
-Code to analyze:
-${content}`;
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
   }
 
   private getProjectSpecificInstructions(projectType: string): string {
@@ -232,7 +241,7 @@ ${content}`;
       'wordpress-plugin': `
 WordPress Plugin Specific Analysis:
 - Hook usage and organization (actions vs filters)
-- Database interactions ($wpdb usage)
+- Database interactions ($wpdb usage)  
 - Admin interface components
 - AJAX handlers and REST API endpoints
 - Security measures (nonces, capabilities, escaping)
@@ -299,7 +308,7 @@ HTML Component Specific Analysis:
 - Performance considerations
 - Progressive enhancement`,
 
-      'generic': ''
+      'generic': 'Focus on general code quality, maintainability, and best practices.'
     };
 
     return instructions[projectType] || instructions.generic;

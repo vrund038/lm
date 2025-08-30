@@ -7,6 +7,7 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { withSecurity } from '../../security/integration-helpers.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 
 // Type definitions for n8n workflow analysis
 interface N8nAnalysisContext {
@@ -61,9 +62,6 @@ export class N8nWorkflowAnalyzer extends BasePlugin implements IPromptPlugin {
         suggestAlternativeNodes: secureParams.suggestAlternativeNodes !== false
       };
       
-      // Generate prompt
-      const prompt = this.getPrompt({ workflow: secureParams.workflow, context });
-      
       try {
         // Get the loaded model from LM Studio
         const models = await llmClient.llm.listLoaded();
@@ -74,15 +72,22 @@ export class N8nWorkflowAnalyzer extends BasePlugin implements IPromptPlugin {
         // Use the first loaded model
         const model = models[0];
         
+        // Get 3-stage prompt
+        const stages = this.getPromptStages({ workflow: secureParams.workflow, context });
+        
         // Call the model with proper LM Studio SDK pattern
         const prediction = model.respond([
           {
             role: 'system',
-            content: 'You are an expert n8n workflow analyst. Optimize workflows for efficiency, identify bottlenecks, suggest improvements, and ensure proper error handling. Focus on practical, actionable recommendations.'
+            content: stages.systemAndContext
           },
           {
             role: 'user', 
-            content: prompt
+            content: stages.dataPayload
+          },
+          {
+            role: 'user',
+            content: stages.outputInstructions
           }
         ], {
           temperature: 0.2,
@@ -117,126 +122,148 @@ export class N8nWorkflowAnalyzer extends BasePlugin implements IPromptPlugin {
     });
   }
 
-  getPrompt(params: any): string {
+  getPromptStages(params: any): PromptStages {
     const workflow = params.workflow;
     const context = params.context || {};
     
     const optimizationFocus = context.optimizationFocus || 'all';
     const includeCredentialCheck = context.includeCredentialCheck !== false;
     const suggestAlternativeNodes = context.suggestAlternativeNodes !== false;
-    
-    return `Analyze this n8n workflow for optimization and best practices:
 
-Workflow Data:
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert n8n workflow analyst specializing in workflow optimization and best practices.
+
+Analysis Context:
+- Optimization Focus: ${optimizationFocus}
+- Credential Check: ${includeCredentialCheck ? 'Enabled' : 'Disabled'}
+- Alternative Node Suggestions: ${suggestAlternativeNodes ? 'Enabled' : 'Disabled'}
+
+Your expertise covers:
+- Performance optimization and bottleneck identification
+- Error handling patterns and resilience
+- Security best practices and credential management
+- Node efficiency and workflow structure
+- Alternative node recommendations
+
+Focus on providing actionable, practical recommendations with clear implementation steps.`;
+
+    // STAGE 2: Data payload (the workflow JSON)
+    const dataPayload = `n8n Workflow to Analyze:
+
+\`\`\`json
 ${JSON.stringify(workflow, null, 2)}
+\`\`\``;
 
-Optimization Focus: ${optimizationFocus}
+    // STAGE 3: Output instructions
+    const outputInstructions = `Analyze this n8n workflow and provide a comprehensive optimization report in the following structured format:
 
-Analysis Requirements:
+## Workflow Analysis Summary
+- Overall complexity assessment
+- Node count and flow efficiency
+- Primary optimization opportunities
 
-1. **Efficiency Analysis**:
-   - Identify redundant nodes or operations
-   - Find duplicate API calls that could be consolidated
-   - Detect unnecessary data transformations
-   - Suggest node consolidation opportunities
-   - Identify loops that could be optimized
+## Detailed Analysis
 
-2. **Error Handling Review**:
-   - Check for proper error catching (Error Trigger nodes)
-   - Identify nodes without error handling
-   - Suggest try-catch patterns for critical operations
-   - Review error notification setup
-   - Validate retry configurations
+### 1. Efficiency Issues
+- Redundant nodes or operations
+- Duplicate API calls that could be consolidated
+- Unnecessary data transformations
+- Node consolidation opportunities
 
-3. **Performance Optimization**:
-   - Identify potential bottlenecks (synchronous operations that could be parallel)
-   - Check for large data processing without pagination
-   - Review API rate limiting considerations
-   - Suggest batch processing where applicable
-   - Memory usage concerns with large datasets
+### 2. Error Handling Review
+- Missing error handling (Error Trigger nodes)
+- Proper try-catch pattern implementation
+- Retry configurations and strategies
+- Error notification setup
 
-4. **Security Assessment**:
-   ${includeCredentialCheck ? `- Flag exposed credentials or API keys in code nodes
-   - Check for sensitive data in logs
-   - Review webhook security (authentication)
-   - Identify data exposure risks
-   - Validate input sanitization` : '- Security check skipped'}
+### 3. Performance Optimization
+- Bottlenecks and synchronous operations
+- Parallel processing opportunities
+- API rate limiting considerations
+- Memory usage with large datasets
 
-5. **Maintainability Improvements**:
-   - Suggest better node naming conventions
-   - Recommend grouping related nodes
-   - Identify complex flows that could be sub-workflows
-   - Suggest documentation nodes (Sticky Notes)
-   - Review variable naming in code nodes
+${includeCredentialCheck ? `
+### 4. Security Assessment
+- Exposed credentials or API keys
+- Sensitive data in logs
+- Webhook authentication security
+- Input sanitization validation
+` : ''}
 
-6. **Best Practices Compliance**:
-   - Use of proper node types (Code vs Function nodes)
-   - Consistent data structure throughout workflow
-   - Proper use of expressions vs static values
-   - Environment variable usage for configuration
-   - Webhook response handling
+### 5. Maintainability Improvements
+- Node naming conventions
+- Workflow organization and grouping
+- Sub-workflow opportunities
+- Documentation completeness
 
 ${suggestAlternativeNodes ? `
-7. **Alternative Node Suggestions**:
-   - More efficient node types for operations
-   - Built-in nodes vs custom code
-   - Community nodes that could help
-   - Newer node versions with better features
-   - Simpler approaches to achieve same result` : ''}
+### 6. Alternative Node Suggestions
+- More efficient node alternatives
+- Built-in vs custom code nodes
+- Community node recommendations
+- Simpler implementation approaches
+` : ''}
 
-Provide:
-1. **Optimization Summary**: Key improvements with impact assessment
-2. **Refactored Workflow**: Updated JSON with improvements (if applicable)
-3. **Implementation Guide**: Step-by-step changes needed
-4. **Risk Assessment**: Potential issues with current setup
-5. **Performance Metrics**: Expected improvements
+## Implementation Recommendations
+1. Priority changes (high impact, low effort)
+2. Performance improvements with expected metrics
+3. Step-by-step implementation guide
+4. Risk assessment for proposed changes
 
-Focus on practical improvements that enhance reliability and performance.
+## Optimized Workflow Structure
+If applicable, suggest key structural improvements to the workflow design.
 
-Additional Checks by Focus:
-${this.getAdditionalChecks(optimizationFocus)}`;
+${this.getAdditionalInstructions(optimizationFocus)}
+
+Be specific with node names and provide actionable recommendations with clear business impact.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
   }
 
-  private getAdditionalChecks(focus: string): string {
-    const checks: Record<string, string> = {
+  private getAdditionalInstructions(focus: string): string {
+    const instructions: Record<string, string> = {
       'performance': `
-Performance-Specific Checks:
-- Node execution time analysis
-- Memory consumption patterns
-- Database query optimization
-- API call batching opportunities
-- Parallel processing potential
-- Caching strategies`,
+**Performance Focus Instructions:**
+- Prioritize execution speed improvements
+- Identify memory optimization opportunities
+- Focus on API call efficiency
+- Suggest parallel processing where possible
+- Provide performance metrics estimates`,
 
       'error-handling': `
-Error Handling-Specific Checks:
-- Recovery strategies for each failure point
-- Retry logic configuration
-- Dead letter queue implementation
-- Alert mechanism completeness
-- Rollback procedures
-- Data consistency checks`,
+**Error Handling Focus Instructions:**
+- Examine every failure point in the workflow
+- Recommend comprehensive error recovery strategies
+- Suggest proper retry logic configurations
+- Focus on workflow resilience and reliability
+- Include alerting and monitoring recommendations`,
 
       'maintainability': `
-Maintainability-Specific Checks:
-- Code complexity in function nodes
-- Documentation completeness
-- Variable naming consistency
-- Workflow modularity
-- Version control friendliness
-- Testing approach`,
+**Maintainability Focus Instructions:**
+- Assess code complexity in function nodes
+- Review workflow organization and structure
+- Focus on documentation and clarity
+- Suggest modularization opportunities
+- Consider long-term maintenance implications`,
 
       'all': `
-Comprehensive Analysis:
-- All performance optimizations
-- Complete error handling review
-- Full maintainability assessment
-- Security audit
-- Best practices compliance
-- Future scalability considerations`
+**Comprehensive Analysis Instructions:**
+- Balance all aspects: performance, reliability, maintainability
+- Prioritize recommendations by impact and implementation effort
+- Consider scalability and future requirements
+- Provide holistic optimization strategy`
     };
 
-    return checks[focus] || checks['all'];
+    return instructions[focus] || instructions['all'];
+  }
+
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 

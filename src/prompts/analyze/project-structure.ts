@@ -4,8 +4,10 @@
  */
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
-import { IPromptPlugin } from '../../plugins/types.js';
+import { IPromptPlugin } from '../shared/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
+import { PromptStages } from '../../types/prompt-stages.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { readdirSync, statSync, readFileSync, existsSync } from 'fs';
 import { resolve, join, extname, relative, basename } from 'path';
 import { validateAndNormalizePath } from '../shared/helpers.js';
@@ -99,16 +101,6 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
       // Sample code files for pattern analysis
       const codeSamples = await this.sampleCodeFiles(projectPath, structure);
       
-      // Generate analysis prompt
-      const prompt = this.getPrompt({
-        projectPath,
-        structure,
-        configFiles,
-        codeSamples,
-        focusAreas,
-        maxDepth
-      });
-      
       try {
         // Get the loaded model from LM Studio
         const models = await llmClient.llm.listLoaded();
@@ -118,37 +110,27 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
         
         // Use the first loaded model
         const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
         
-        // Call the model with proper LM Studio SDK pattern
-        const prediction = model.respond([
-          {
-            role: 'system',
-            content: 'You are a senior software architect with expertise in project analysis, code organization, and architectural patterns. Provide comprehensive analysis of project structures, identifying patterns, potential issues, and improvement opportunities.'
-          },
-          {
-            role: 'user', 
-            content: prompt
-          }
-        ], {
-          temperature: 0.2,
-          maxTokens: 5000
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          projectPath,
+          structure,
+          configFiles,
+          codeSamples,
+          focusAreas,
+          maxDepth
         });
         
-        // Stream the response
-        let response = '';
-        for await (const chunk of prediction) {
-          if (chunk.content) {
-            response += chunk.content;
-          }
-        }
+        // Check if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
         
-        // Use ResponseFactory for consistent, spec-compliant output
-        ResponseFactory.setStartTime();
-        return ResponseFactory.parseAndCreateResponse(
-          'analyze_project_structure',
-          response,
-          model.identifier || 'unknown'
-        );
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
         
       } catch (error: any) {
         return ResponseFactory.createErrorResponse(
@@ -162,28 +144,23 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
     });
   }
 
-  getPrompt(params: any): string {
+  getPromptStages(params: any): PromptStages {
     const { projectPath, structure, configFiles, codeSamples, focusAreas, maxDepth } = params;
     
-    // Format structure overview
-    const structureOverview = this.formatStructureOverview(structure);
-    
-    // Format configuration files
-    const configSection = this.formatConfigFiles(configFiles);
-    
-    // Format code samples
-    const samplesSection = this.formatCodeSamples(codeSamples);
-    
-    // Build focus section
-    const focusSection = focusAreas.length > 0
-      ? `Focus specifically on: ${focusAreas.join(', ')}`
-      : 'Provide comprehensive analysis of all aspects';
-    
-    return `You are an expert software architect specializing in project structure analysis and architecture assessment.
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are a senior software architect with expertise in project analysis, code organization, and architectural patterns.
 
-Analyze the structure and architecture of this project: ${basename(projectPath)}
+Analysis Context:
+- Project: ${basename(projectPath)}
+- Focus Areas: ${focusAreas.length > 0 ? focusAreas.join(', ') : 'comprehensive analysis'}
+- Analysis Depth: ${maxDepth} directory levels
+- Total Files: ${structure.statistics.totalFiles}
+- Total Directories: ${structure.statistics.totalDirectories}
 
-PROJECT STATISTICS:
+Your task is to provide comprehensive architecture analysis covering patterns, organization, dependencies, code quality, and actionable recommendations.`;
+
+    // STAGE 2: Data payload (the project data to analyze)
+    const dataPayload = `PROJECT STATISTICS:
 - Total Files: ${structure.statistics.totalFiles}
 - Total Directories: ${structure.statistics.totalDirectories}
 - Maximum Depth: ${structure.statistics.maxDepth}
@@ -198,65 +175,16 @@ ${Array.from(structure.statistics.filesByExtension.entries())
   .join('\n')}
 
 DIRECTORY STRUCTURE (depth ${maxDepth}):
-${structureOverview}
+${this.formatStructureOverview(structure)}
 
 CONFIGURATION FILES:
-${configSection}
+${this.formatConfigFiles(configFiles)}
 
 CODE SAMPLES:
-${samplesSection}
+${this.formatCodeSamples(codeSamples)}`;
 
-ANALYSIS REQUIREMENTS:
-${focusSection}
-
-Perform comprehensive analysis covering:
-
-1. **Architecture Pattern**
-   - Identify the overall architectural pattern (MVC, MVVM, Microservices, Monolith, etc.)
-   - Assess how well the project follows the pattern
-   - Note any deviations or mixed patterns
-
-2. **Project Organization**
-   - Evaluate directory structure and naming conventions
-   - Assess separation of concerns
-   - Identify any organizational anti-patterns
-   - Suggest improvements to structure
-
-3. **Dependency Analysis**
-   - Identify key dependencies from configuration files
-   - Assess dependency management approach
-   - Note any outdated or risky dependencies
-   - Check for dependency conflicts
-
-4. **Code Patterns**
-   - Identify design patterns used in the code samples
-   - Assess consistency across the codebase
-   - Note any anti-patterns or code smells
-   - Evaluate code quality indicators
-
-5. **Technology Stack**
-   - Identify all technologies, frameworks, and languages used
-   - Assess technology choices for the project's purpose
-   - Note any technology conflicts or redundancies
-
-6. **Build and Deployment**
-   - Identify build tools and processes
-   - Assess deployment configuration
-   - Note CI/CD setup if present
-   - Identify potential deployment issues
-
-7. **Testing Strategy**
-   - Identify testing frameworks and tools
-   - Assess test coverage indicators
-   - Note testing patterns used
-   - Suggest testing improvements
-
-8. **Documentation**
-   - Assess documentation presence and quality
-   - Identify missing documentation
-   - Note documentation tools used
-
-OUTPUT FORMAT:
+    // STAGE 3: Output instructions
+    const outputInstructions = `Perform comprehensive analysis and provide your response in the following structured format:
 
 ## Executive Summary
 Brief overview of the project and key findings
@@ -323,6 +251,85 @@ Score: [X/10]
 Summary and recommended next steps
 
 Provide actionable insights and specific recommendations for improving the project structure and architecture.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
+  }
+
+  // MODERN: Direct execution for manageable projects
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 5000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'analyze_project_structure',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN: Chunked execution for large projects
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 5000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'analyze_project_structure',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // LEGACY: Backwards compatibility method
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
   
   private async analyzeProjectStructure(projectPath: string, maxDepth: number): Promise<ProjectStructure> {
