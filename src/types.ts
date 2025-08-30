@@ -1,35 +1,7 @@
-export enum TaskType {
-  ANALYZE_SINGLE_FILE = 'analyze_single_file',
-  GENERATE_TESTS = 'generate_unit_tests',
-  DOCUMENT_FUNCTION = 'generate_documentation',
-  SUGGEST_REFACTOR = 'suggest_refactoring',
-  CHECK_PATTERNS = 'detect_patterns',
-  EXPLAIN_CODE = 'explain_code',
-  FIND_BUGS = 'validate_syntax',
-  OPTIMISE_PERFORMANCE = 'optimise_performance',
-  GENERATE_TYPES = 'generate_types',
-  CREATE_EXAMPLES = 'create_examples',
-  VARIABLE_NAMES = 'suggest_variable_names',
-  ANALYZE_FILE = 'analyze_file',
-  ANALYZE_CSV_DATA = 'analyze_csv_data'
-}
-
-export interface OffloadTask {
-  task: TaskType;
-  content?: string;
-  filePath?: string;
-  language?: string;
-  instructions?: string;
-  extractFormat?: 'json' | 'list' | 'summary';
-  filterCriteria?: string;
-  columns?: string[];
-  returnFormat?: 'json' | 'csv' | 'list';
-}
-
-export interface TaskPrompt {
-  systemPrompt: string;
-  prompt: (content: string, language?: string, additionalParams?: any) => string;
-}
+/**
+ * Core Types for Local LLM MCP Server v4.2
+ * Modern plugin architecture - no legacy prompt handling
+ */
 
 export interface Config {
   lmStudioUrl: string;
@@ -40,7 +12,6 @@ export interface Config {
   timeout: number;
   maxFileSize: number;
   supportedFileTypes: string[];
-  taskPrompts: Record<TaskType, TaskPrompt>;
   security?: {
     enableSanitisation: boolean;
     enableInjectionDetection: boolean;
@@ -51,15 +22,28 @@ export interface Config {
   };
 }
 
-export interface FileAnalysisParams {
-  filePath: string;
-  instructions?: string;
-  extractFormat?: 'json' | 'list' | 'summary';
+/**
+ * LM Studio Client Configuration
+ */
+export interface LMStudioConfig {
+  baseUrl: string;
+  timeout?: number;
 }
 
-export interface CsvAnalysisParams {
-  filePath: string;
-  filterCriteria: string;
-  columns?: string[];
-  returnFormat?: 'json' | 'csv' | 'list';
+/**
+ * Plugin execution context
+ */
+export interface PluginContext {
+  modelUsed?: string;
+  executionTimeMs?: number;
+  contextLength?: number;
+}
+
+/**
+ * Security validation result
+ */
+export interface SecurityResult {
+  blocked: boolean;
+  sanitised: any;
+  warnings: string[];
 }
