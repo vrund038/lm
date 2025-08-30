@@ -4,10 +4,11 @@
  */
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
-import { IPromptPlugin } from '../../plugins/types.js';
+import { IPromptPlugin } from '../shared/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { resolve, join, extname, dirname, basename } from 'path';
 import { validateAndNormalizePath } from '../shared/helpers.js';
@@ -36,9 +37,145 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate required parameters
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      try {
+        // Validate parameters
+        this.validateSecureParams(secureParams);
+        
+        // Read calling file
+        const callingFile = secureParams.callingFile;
+        if (!existsSync(callingFile)) {
+          throw new Error(`Calling file not found: ${callingFile}`);
+        }
+        
+        const callingFileContent = readFileSync(callingFile, 'utf-8');
+        
+        // Find files that might contain the called class
+        const classFiles = await this.findClassFiles(secureParams.calledClass, dirname(callingFile));
+        
+        if (classFiles.length === 0) {
+          throw new Error(`Could not find any files containing class: ${secureParams.calledClass}`);
+        }
+        
+        // Read class file contents
+        const classFileContents: Record<string, string> = {};
+        for (const file of classFiles) {
+          try {
+            classFileContents[file] = readFileSync(file, 'utf-8');
+          } catch (error) {
+            // Skip files we can't read
+          }
+        }
+        
+        // Get model for context limit detection
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
+        
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          ...secureParams,
+          callingFileContent,
+          classFileContents
+        });
+        
+        // Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
+        
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'diff_method_signatures',
+          'EXECUTION_ERROR',
+          `Failed to compare method signatures: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
+      }
+    });
+  }
+
+  // MODERN PATTERN: Direct execution for manageable operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'diff_method_signatures',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN PATTERN: Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'diff_method_signatures',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN PATTERN: Secure parameter validation
+  private validateSecureParams(params: any): void {
     if (!params.callingFile || typeof params.callingFile !== 'string') {
-      throw new Error('callingFile is required and must be a string path');
+      throw new Error('callingFile is required and must be a string');
     }
     
     if (!params.calledClass || typeof params.calledClass !== 'string') {
@@ -48,359 +185,82 @@ export class SignatureDiffer extends BasePlugin implements IPromptPlugin {
     if (!params.methodName || typeof params.methodName !== 'string') {
       throw new Error('methodName is required and must be a string');
     }
-    
-    // Validate and resolve calling file using secure path validation
-    const callingFile = await validateAndNormalizePath(params.callingFile);
-    
-    if (!existsSync(callingFile)) {
-      throw new Error(`Calling file does not exist: ${callingFile}`);
-    }
-    
-    // Read calling file securely
-    let callingFileContent: string;
-    try {
-      const { readFileContent } = await import('../shared/helpers.js');
-      callingFileContent = await readFileContent(callingFile);
-    } catch (error) {
-      throw new Error(`Failed to read calling file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-    
-    // Try to find the class definition file
-    const classFiles = await this.findClassDefinition(params.calledClass, dirname(callingFile));
-    
-    if (classFiles.length === 0) {
-      throw new Error(`Could not find definition for class: ${params.calledClass}`);
-    }
-    
-    // Read class definition files
-    const classFileContents: Record<string, string> = {};
-    const { readFileContent } = await import('../shared/helpers.js');
-    for (const classFile of classFiles) {
-      try {
-        classFileContents[classFile] = await readFileContent(classFile);
-      } catch (error) {
-        console.warn(`Could not read class file: ${classFile}`, error);
-      }
-    }
-    
-    // Get model for context limit detection
-    const models = await llmClient.llm.listLoaded();
-    if (models.length === 0) {
-      throw new Error('No model loaded in LM Studio. Please load a model first.');
-    }
-    
-    const model = models[0];
-    const contextLength = await model.getContextLength() || 23832;
-    const systemOverhead = 2000; // System instructions overhead
-    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
-    
-    // Early chunking decision: Estimate content size
-    const totalContentLength = callingFileContent.length + Object.values(classFileContents).join('').length;
-    const estimatedTokens = Math.floor(totalContentLength / 4) + systemOverhead; // Rough token estimate
-    
-    if (estimatedTokens > availableTokens) {
-      // Process with chunking for large content
-      return await this.executeWithChunking(params, callingFile, callingFileContent, classFileContents, llmClient, model, availableTokens);
-    }
-    
-    // Process normally for small operations
-    return await this.executeSinglePass(params, callingFile, callingFileContent, classFileContents, llmClient, model);
-  }
-  
-  /**
-   * Execute for small operations that fit in single context window
-   */
-  private async executeSinglePass(params: any, callingFile: string, callingFileContent: string, classFileContents: Record<string, string>, llmClient: any, model: any): Promise<any> {
-    // Generate 3-stage prompt
-    const promptStages = this.getPromptStages({
-      callingFile,
-      callingFileContent,
-      calledClass: params.calledClass,
-      methodName: params.methodName,
-      classFileContents
-    });
-    
-    try {
-      // Get context limit for 3-stage manager
-      const contextLength = await model.getContextLength();
-      const promptManager = new ThreeStagePromptManager(contextLength || 23832);
-      
-      // Create chunked conversation
-      const conversation = promptManager.createChunkedConversation(promptStages);
-      
-      // Build messages array for LM Studio
-      const messages = [
-        conversation.systemMessage,
-        ...conversation.dataMessages,
-        conversation.analysisMessage
-      ];
-      
-      // Call the model with 3-stage conversation
-      const prediction = model.respond(messages, {
-        temperature: 0.1,
-        maxTokens: 3000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
-      }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'diff_method_signatures',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'diff_method_signatures',
-        'MODEL_ERROR',
-        `Failed to diff method signatures: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
-  }
-  
-  /**
-   * Execute for large operations using content chunking
-   */
-  private async executeWithChunking(params: any, callingFile: string, callingFileContent: string, classFileContents: Record<string, string>, llmClient: any, model: any, availableTokens: number): Promise<any> {
-    // For signature diffing, we need both caller and callee files
-    // We'll process in chunks but maintain the relationship
-    const allContent = [
-      { type: 'calling', path: callingFile, content: callingFileContent },
-      ...Object.entries(classFileContents).map(([path, content]) => ({ type: 'class', path, content }))
-    ];
-    
-    const chunkResults: any[] = [];
-    
-    // Process calling file with each class file separately
-    for (let i = 1; i < allContent.length; i++) {
-      try {
-        const chunkClassContents: Record<string, string> = {};
-        chunkClassContents[allContent[i].path] = allContent[i].content;
-        
-        const result = await this.executeSinglePass(params, callingFile, callingFileContent, chunkClassContents, llmClient, model);
-        
-        chunkResults.push({
-          chunkIndex: i - 1,
-          classFile: allContent[i].path,
-          result,
-          success: true
-        });
-      } catch (error) {
-        chunkResults.push({
-          chunkIndex: i - 1,
-          classFile: allContent[i].path,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          success: false
-        });
-      }
-    }
-    
-    // Combine results
-    const successfulChunks = chunkResults.filter(r => r.success);
-    
-    ResponseFactory.setStartTime();
-    return ResponseFactory.parseAndCreateResponse(
-      'diff_method_signatures',
-      JSON.stringify({
-        summary: {
-          totalChunks: chunkResults.length,
-          successfulChunks: successfulChunks.length,
-          callingFile,
-          methodName: params.methodName,
-          calledClass: params.calledClass
-        },
-        results: successfulChunks.map(r => r.result)
-      }, null, 2),
-      model.identifier || 'unknown'
-    );
   }
 
-
-
-  /**
-   * 3-Stage prompt architecture method
-   */
   getPromptStages(params: any): PromptStages {
-    const { callingFile, callingFileContent, calledClass, methodName, classFileContents } = params;
+    const { callingFile, calledClass, methodName, callingFileContent, classFileContents } = params;
     
-    // STAGE 1: System instructions and task context
-    const systemAndContext = `You are an expert method signature analyst specializing in parameter matching and compatibility analysis.
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert code analyzer specializing in method signature comparison and compatibility analysis.
 
-Signature Comparison Context:
-- Target method: ${calledClass}.${methodName} or ${calledClass}::${methodName}
-- Calling file: ${basename(callingFile)}
-- Class definition files: ${Object.keys(classFileContents).length}
-- Task: Compare method signatures between caller and callee to identify parameter mismatches`;
+Method Signature Analysis Context:
+- Calling File: ${basename(callingFile)}
+- Called Class: ${calledClass}
+- Method Name: ${methodName}
+- Analysis Focus: Parameter compatibility, type mismatches, signature differences
 
-    // STAGE 2: Data payload (calling file + class files)
-    let dataPayload = '';
+Your task is to:
+1. Identify the method signature in the calling file
+2. Find the corresponding method in the class definition
+3. Compare signatures for compatibility issues
+4. Provide specific recommendations for fixes`;
+
+    // STAGE 2: Code analysis data
+    let dataPayload = '=== CALLING FILE CONTENT ===\n';
+    dataPayload += `File: ${callingFile}\n`;
+    dataPayload += callingFileContent + '\n\n';
     
-    // Add calling file first
-    dataPayload += `\n${'='.repeat(80)}\nCALLING FILE\n${'='.repeat(80)}\nFile: ${basename(callingFile)}\nPath: ${callingFile}\n${'='.repeat(80)}\n${callingFileContent}\n`;
-    
-    // Add class definition files
-    Object.entries(classFileContents).forEach(([path, content]) => {
-      const fileName = basename(path);
-      dataPayload += `\n${'='.repeat(80)}\nCLASS DEFINITION FILE\n${'='.repeat(80)}\nFile: ${fileName}\nPath: ${path}\n${'='.repeat(80)}\n${content}\n`;
+    dataPayload += '=== CLASS DEFINITION FILES ===\n';
+    Object.entries(classFileContents).forEach(([file, content]) => {
+      dataPayload += `File: ${file}\n`;
+      dataPayload += content + '\n';
+      dataPayload += '-'.repeat(80) + '\n';
     });
 
-    // STAGE 3: Output instructions and analysis tasks
-    const outputInstructions = `SIGNATURE ANALYSIS REQUIREMENTS:
+    // STAGE 3: Analysis instructions
+    const outputInstructions = `Analyze the method signature compatibility between the caller and callee.
 
-ANALYSIS TASKS:
+## Required Analysis:
 
-1. **Locate Method Call**
-   - Find where ${methodName} is called on ${calledClass} in the calling file
-   - Identify all call sites if there are multiple
-   - Extract the exact parameters being passed
-   - Note any parameter transformations or preparations
+### 1. Method Call Analysis
+- Locate the call to ${calledClass}::${methodName} in the calling file
+- Extract the parameters being passed
+- Note the calling context and variable types
 
-2. **Locate Method Definition**
-   - Find the ${methodName} definition in ${calledClass}
-   - Extract the complete method signature
-   - Note parameter types, names, and default values
-   - Check for method overloads if applicable
+### 2. Method Definition Analysis  
+- Find the ${methodName} method definition in class ${calledClass}
+- Document the expected parameter signature
+- Note parameter types, order, and optional parameters
 
-3. **Signature Comparison**
-   - Compare number of parameters (required vs provided)
-   - Check parameter types (if typed language)
-   - Verify parameter order
-   - Check for named parameter usage
-   - Identify optional parameters and defaults
+### 3. Compatibility Assessment
+- Compare the call signature with the method definition
+- Identify any mismatches in:
+  - Parameter count
+  - Parameter types
+  - Parameter order
+  - Required vs optional parameters
+  - Default values
 
-4. **Compatibility Analysis**
-   - Determine if the call is compatible with the definition
-   - Identify any type mismatches
-   - Check for missing required parameters
-   - Note extra parameters being passed
-   - Verify return type expectations
+### 4. Issues Found
+For each issue:
+- **Type**: Parameter mismatch type
+- **Location**: Line numbers in both files
+- **Expected**: What the method expects
+- **Actual**: What is being passed
+- **Severity**: Critical/High/Medium/Low
+- **Impact**: Potential runtime effects
 
-5. **Context Analysis**
-   - Check if the method is static or instance
-   - Verify class instantiation if instance method
-   - Check inheritance chain if method is inherited
-   - Note any interface implementations
+### 5. Recommendations
+- Specific code changes needed
+- Type casting suggestions
+- Parameter reordering if needed
+- Alternative approaches if applicable
 
-OUTPUT FORMAT:
-
-## Summary
-Brief overview of the signature comparison results and compatibility status
-
-## Method Call Analysis
-### Call Sites Found
-For each call site discovered:
-- **Location**: [File:Line]
-- **Call Syntax**: \`exact code from file\`
-- **Parameters Passed**: 
-  1. [param1]: [value/expression] - [type if determinable]
-  2. [param2]: [value/expression] - [type if determinable]
-  ...
-- **Call Context**: [static/instance, object context]
-
-## Method Definition Analysis
-### Method Signature
-- **Location**: [File:Line]
-- **Full Signature**: \`exact signature from code\`
-- **Parameters Expected**:
-  1. [name]: [type] {default value if any} - [required/optional]
-  2. [name]: [type] {required/optional}
-  ...
-- **Return Type**: [type]
-- **Modifiers**: [static/public/private/protected/abstract/etc.]
-- **Class Context**: [inheritance info if relevant]
-
-## Compatibility Results
-
-### ✅ Compatible Aspects
-List everything that matches correctly:
-- [Parameter count matches]
-- [Types are compatible]
-- [Call context is correct]
-
-### ❌ Critical Incompatibilities
-Issues that will cause runtime errors:
-- **Issue**: [Specific problem description]
-  **Severity**: Critical
-  **Current**: \`current calling code\`
-  **Expected**: \`expected signature\`
-  **Fix**: \`corrected calling code\`
-
-### ⚠️ Potential Issues
-Issues that might cause problems:
-- **Issue**: [Description]
-  **Severity**: [High/Medium]
-  **Risk**: [What could go wrong]
-  **Recommendation**: [How to address]
-
-## Detailed Mismatch Analysis
-For each specific mismatch found:
-
-### Parameter Mismatch [N]
-- **Parameter**: [name/position]
-- **Issue Type**: [missing/extra/type-mismatch/order-wrong]
-- **Current**: \`what's being passed\`
-- **Expected**: \`what signature requires\`
-- **Fix**: \`exact code correction\`
-- **Impact**: [What happens if not fixed]
-
-## Type Compatibility Assessment
-- **Language**: [JavaScript/TypeScript/PHP/etc.]
-- **Type System**: [Dynamic/Static/Gradual]
-- **Type Checking**: [Runtime/Compile-time/None]
-- **Compatibility Score**: [X/10] with explanation
-
-## Recommendations
-
-### 1. Immediate Fixes (Critical)
-Must be fixed to prevent runtime errors:
-- [Specific actionable fix with code]
-- [Another fix if needed]
-
-### 2. Improvements (Non-breaking)
-Suggestions for better code quality:
-- [Type annotations if applicable]
-- [Parameter validation improvements]
-- [Error handling suggestions]
-
-### 3. Best Practices
-Long-term code quality suggestions:
-- [Interface definitions]
-- [Documentation improvements]
-- [Testing recommendations]
-
-## Code Examples
-
-### Before (Current Code)
-\`\`\`[language]
-[current calling code]
-\`\`\`
-
-### After (Fixed Code)
-\`\`\`[language]
-[corrected calling code with proper parameters]
-\`\`\`
-
-## Verification Steps
-Steps to verify the fixes work correctly:
-1. **Syntax Check**: [How to verify syntax is correct]
-2. **Type Check**: [How to verify types match]
-3. **Runtime Test**: [Suggested test cases]
-4. **Integration Test**: [How to test in context]
-
-## Additional Notes
-Any other observations about code quality, architecture, or potential improvements.
-
-Provide specific, actionable fixes for any signature mismatches found, with exact code that can be copied and applied directly.`;
+## Output Format:
+- Use clear headings and bullet points
+- Include code snippets showing issues
+- Provide line numbers for all findings
+- Give actionable fix recommendations`;
 
     return {
       systemAndContext,
@@ -408,158 +268,88 @@ Provide specific, actionable fixes for any signature mismatches found, with exac
       outputInstructions
     };
   }
-  
-  private async findClassDefinition(className: string, searchDir: string): Promise<string[]> {
-    const foundFiles: string[] = [];
-    const maxFiles = 10; // Limit search
+
+  /**
+   * Find files that might contain the specified class
+   */
+  private async findClassFiles(className: string, searchDir: string): Promise<string[]> {
+    const classFiles: string[] = [];
+    const maxFiles = 50; // Limit search scope
     
-    // First try to find in the same directory
-    const localFiles = await this.searchForClass(searchDir, className, maxFiles);
-    foundFiles.push(...localFiles);
-    
-    // If not found locally, try parent directories (up to project root)
-    if (foundFiles.length === 0) {
-      let currentDir = searchDir;
-      let attempts = 0;
-      const maxAttempts = 5;
-      
-      while (attempts < maxAttempts && foundFiles.length === 0) {
-        const parentDir = dirname(currentDir);
-        if (parentDir === currentDir) break; // Reached root
-        
-        currentDir = parentDir;
-        const parentFiles = await this.searchForClass(currentDir, className, maxFiles);
-        foundFiles.push(...parentFiles);
-        attempts++;
-      }
-    }
-    
-    // If still not found, try common source directories
-    if (foundFiles.length === 0) {
-      const projectRoot = this.findProjectRoot(searchDir);
-      const commonDirs = ['src', 'lib', 'app', 'includes', 'classes'];
-      
-      for (const dir of commonDirs) {
-        const fullDir = join(projectRoot, dir);
-        if (existsSync(fullDir)) {
-          const dirFiles = await this.searchForClass(fullDir, className, maxFiles - foundFiles.length);
-          foundFiles.push(...dirFiles);
-          if (foundFiles.length >= maxFiles) break;
-        }
-      }
-    }
-    
-    return foundFiles;
-  }
-  
-  private async searchForClass(dir: string, className: string, maxFiles: number): Promise<string[]> {
-    const foundFiles: string[] = [];
-    const codeExtensions = ['.js', '.ts', '.jsx', '.tsx', '.php', '.java', '.cs', '.cpp', '.hpp', '.py', '.rb'];
-    
-    // Common patterns for class file naming
-    const possibleFileNames = [
-      className, // ExactMatch.js
-      className.charAt(0).toLowerCase() + className.slice(1), // camelCase.js
-      className.replace(/([A-Z])/g, '-$1').toLowerCase().slice(1), // kebab-case.js
-      className.replace(/([A-Z])/g, '_$1').toLowerCase().slice(1), // snake_case.js
-    ];
-    
-    async function traverse(currentDir: string, depth: number = 0): Promise<void> {
-      if (foundFiles.length >= maxFiles || depth > 3) return;
+    const searchDirectory = async (dirPath: string, depth: number = 0): Promise<void> => {
+      if (depth > 3 || classFiles.length >= maxFiles) return; // Limit depth and files
       
       try {
-        const entries = readdirSync(currentDir);
+        const entries = readdirSync(dirPath, { withFileTypes: true });
         
         for (const entry of entries) {
-          if (foundFiles.length >= maxFiles) break;
+          if (classFiles.length >= maxFiles) break;
           
-          const fullPath = join(currentDir, entry);
+          const fullPath = join(dirPath, entry.name);
           
-          try {
-            const stat = statSync(fullPath);
-            
-            if (stat.isDirectory()) {
-              // Skip common non-source directories
-              if (!['node_modules', '.git', 'vendor', 'dist', 'build'].includes(entry)) {
-                await traverse(fullPath, depth + 1);
-              }
-            } else if (stat.isFile()) {
-              const ext = extname(entry).toLowerCase();
-              const nameWithoutExt = basename(entry, ext);
-              
-              if (codeExtensions.includes(ext)) {
-                // Check if filename might contain the class
-                if (possibleFileNames.some(name => nameWithoutExt.includes(name))) {
-                  foundFiles.push(fullPath);
-                } else {
-                  // Quick content check for class definition
-                  try {
-                    const { readFileContent } = await import('../shared/helpers.js');
-                    const content = await readFileContent(fullPath);
-                    if (content.includes(`class ${className}`) || 
-                        content.includes(`interface ${className}`) ||
-                        content.includes(`export class ${className}`) ||
-                        content.includes(`export default class ${className}`)) {
-                      foundFiles.push(fullPath);
-                    }
-                  } catch {
-                    // Skip files we can't read
-                  }
-                }
-              }
+          // Skip common ignore patterns
+          if (this.shouldIgnore(entry.name)) continue;
+          
+          if (entry.isDirectory()) {
+            await searchDirectory(fullPath, depth + 1);
+          } else if (entry.isFile() && this.isCodeFile(entry.name)) {
+            // Check if file might contain the class
+            if (await this.fileContainsClass(fullPath, className)) {
+              classFiles.push(fullPath);
             }
-          } catch {
-            // Skip entries we can't stat
           }
         }
-      } catch {
+      } catch (error) {
         // Skip directories we can't read
       }
-    }
+    };
     
-    await traverse(dir);
-    return foundFiles;
-  }
-  
-  private findProjectRoot(startDir: string): string {
-    let currentDir = startDir;
-    const maxLevels = 10;
-    let level = 0;
-    
-    while (level < maxLevels) {
-      // Check for project indicators
-      const indicators = ['package.json', '.git', 'composer.json', 'pom.xml'];
-      
-      for (const indicator of indicators) {
-        if (existsSync(join(currentDir, indicator))) {
-          return currentDir;
-        }
-      }
-      
-      const parentDir = dirname(currentDir);
-      if (parentDir === currentDir) break; // Reached root
-      
-      currentDir = parentDir;
-      level++;
-    }
-    
-    return startDir; // Default to start directory
-  }
-  
-  /**
-   * Get prompt for BasePlugin interface compatibility
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params);
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
+    await searchDirectory(searchDir);
+    return classFiles;
   }
 
-  private isPathSafe(path: string): boolean {
-    const suspicious = ['../', '..\\', '/etc/', '\\etc\\', '/root/', '\\root\\'];
-    const normalizedPath = path.toLowerCase();
+  /**
+   * Check if we should ignore this file/directory
+   */
+  private shouldIgnore(name: string): boolean {
+    const ignorePatterns = [
+      'node_modules', '.git', 'dist', 'build', 'coverage',
+      '__pycache__', 'vendor', '.idea', '.vscode'
+    ];
     
-    return !suspicious.some(pattern => normalizedPath.includes(pattern));
+    return ignorePatterns.some(pattern => name.includes(pattern));
   }
+
+  /**
+   * Check if this is a code file we should search
+   */
+  private isCodeFile(filename: string): boolean {
+    const codeExtensions = ['.js', '.ts', '.jsx', '.tsx', '.php', '.py', '.java', '.cs', '.cpp', '.c'];
+    return codeExtensions.some(ext => filename.endsWith(ext));
+  }
+
+  /**
+   * Check if a file contains a class definition
+   */
+  private async fileContainsClass(filePath: string, className: string): Promise<boolean> {
+    try {
+      const content = readFileSync(filePath, 'utf-8');
+      
+      // Simple heuristic - look for class definition patterns
+      const classPatterns = [
+        new RegExp(`class\\s+${className}\\s*{`, 'i'),
+        new RegExp(`class\\s+${className}\\s+extends`, 'i'),
+        new RegExp(`class\\s+${className}\\s+implements`, 'i'),
+        new RegExp(`export\\s+class\\s+${className}`, 'i'),
+        new RegExp(`function\\s+${className}\\s*\\(`, 'i'), // Constructor function
+      ];
+      
+      return classPatterns.some(pattern => pattern.test(content));
+    } catch (error) {
+      return false;
+    }
+  }
+
 }
 
 export default SignatureDiffer;

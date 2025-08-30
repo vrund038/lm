@@ -8,8 +8,9 @@ import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 import { existsSync, statSync } from 'fs';
-import { resolve, join, extname, relative } from 'path';
+import { resolve, join, extname, relative, dirname } from 'path';
 import { readFileContent, validateAndNormalizePath } from '../shared/helpers.js';
 
 interface FileMatch {
@@ -48,7 +49,141 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate parameters
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      try {
+        // Validate parameters
+        this.validateSecureParams(secureParams);
+        
+        // Path already validated by withSecurity
+        const projectPath = secureParams.projectPath;
+        
+        if (!existsSync(projectPath)) {
+          throw new Error(`Project path does not exist: ${projectPath}`);
+        }
+        
+        if (!statSync(projectPath).isDirectory()) {
+          throw new Error(`Project path is not a directory: ${projectPath}`);
+        }
+        
+        // Validate context lines
+        const includeContext = Math.min(Math.max(secureParams.includeContext || 3, 0), 10);
+        
+        // Find all code files and search for patterns
+        const codeFiles = await this.findCodeFiles(projectPath);
+        
+        if (codeFiles.length === 0) {
+          throw new Error(`No code files found in project: ${projectPath}`);
+        }
+        
+        const matchResults = await this.searchPatterns(codeFiles, secureParams.patterns, includeContext);
+        
+        // Get model for context limit detection
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
+        
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          ...secureParams,
+          matchResults,
+          totalFiles: codeFiles.length
+        });
+        
+        // Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
+        
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'find_pattern_usage',
+          'EXECUTION_ERROR',
+          `Failed to find patterns: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
+      }
+    });
+  }
+
+  // MODERN PATTERN: Direct execution for manageable operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.1,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'find_pattern_usage',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN PATTERN: Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.1,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'find_pattern_usage',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN PATTERN: Secure parameter validation
+  private validateSecureParams(params: any): void {
     if (!params.projectPath || typeof params.projectPath !== 'string') {
       throw new Error('projectPath is required and must be a string');
     }
@@ -56,69 +191,20 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
     if (!params.patterns || !Array.isArray(params.patterns) || params.patterns.length === 0) {
       throw new Error('patterns is required and must be a non-empty array');
     }
-    
-    // Validate and resolve project path using secure path validation
-    const projectPath = await validateAndNormalizePath(params.projectPath);
-    
-    if (!existsSync(projectPath)) {
-      throw new Error(`Project path does not exist: ${projectPath}`);
-    }
-    
-    if (!statSync(projectPath).isDirectory()) {
-      throw new Error(`Project path is not a directory: ${projectPath}`);
-    }
-    
-    // Validate context lines
-    const includeContext = Math.min(Math.max(params.includeContext || 3, 0), 10);
-    
-    // Find all code files in the project
-    const codeFiles = await this.findCodeFiles(projectPath);
-    
-    if (codeFiles.length === 0) {
-      throw new Error(`No code files found in project: ${projectPath}`);
-    }
-    
-    // Early chunking decision: Check if we need to process files in chunks
-    const estimatedFilesTokens = codeFiles.length * 500; // Rough estimate per file
-    const systemOverhead = 2000; // System instructions overhead
-    
-    // Get model for context limit detection
-    const models = await llmClient.llm.listLoaded();
-    if (models.length === 0) {
-      throw new Error('No model loaded in LM Studio. Please load a model first.');
-    }
-    
-    const model = models[0];
-    const contextLength = await model.getContextLength() || 23832;
-    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
-    
-    if (estimatedFilesTokens > availableTokens) {
-      // Process files in chunks
-      return await this.executeWithFileChunking(codeFiles, params, llmClient, model, availableTokens);
-    }
-    
-    // Process normally for small operations
-    return await this.executeSinglePass(codeFiles, params, llmClient, model);
   }
 
-  /**
-   * Execute for small operations that fit in single context window
-   */
-  private async executeSinglePass(codeFiles: string[], params: any, llmClient: any, model: any): Promise<any> {
-    const { projectPath, includeContext } = params;
-    
-    // Search for patterns in each file
+  private async searchPatterns(codeFiles: string[], patterns: string[], includeContext: number) {
     const results: FileMatch[] = [];
     
     for (const filePath of codeFiles) {
       try {
         const content = await readFileContent(filePath);
         const lines = content.split('\n');
-        const fileMatches = this.searchPatterns(lines, params.patterns, includeContext);
+        const fileMatches = this.findPatternsInLines(lines, patterns, includeContext);
         
         if (fileMatches.length > 0) {
           results.push({
-            file: relative(projectPath, filePath),
+            file: relative(dirname(codeFiles[0]), filePath),
             matches: fileMatches
           });
         }
@@ -126,150 +212,107 @@ export class PatternFinder extends BasePlugin implements IPromptPlugin {
         // Skip files that can't be read
       }
     }
-
-    // Generate 3-stage prompt
-    const promptStages = this.getPromptStages({
-      projectPath,
-      patterns: params.patterns,
-      results,
-      filesSearched: codeFiles.length,
-      includeContext
-    });
     
-    try {
-      // Get context limit for 3-stage manager
-      const contextLength = await model.getContextLength();
-      const promptManager = new ThreeStagePromptManager(contextLength || 23832);
+    return results;
+  }
+
+  private findPatternsInLines(lines: string[], patterns: string[], contextSize: number): Array<{
+    line: number;
+    column: number;
+    match: string;
+    context: string[];
+  }> {
+    const matches: Array<{
+      line: number;
+      column: number;
+      match: string;
+      context: string[];
+    }> = [];
+    
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+      const line = lines[lineIndex];
+      const lineNumber = lineIndex + 1;
       
-      // Create chunked conversation
-      const conversation = promptManager.createChunkedConversation(promptStages);
-      
-      // Build messages array for LM Studio
-      const messages = [
-        conversation.systemMessage,
-        ...conversation.dataMessages,
-        conversation.analysisMessage
-      ];
-      
-      // Call the model with 3-stage conversation
-      const prediction = model.respond(messages, {
-        temperature: 0.2,
-        maxTokens: 4000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
+      for (const pattern of patterns) {
+        try {
+          // Try to create regex from pattern
+          const regex = new RegExp(pattern, 'gi');
+          let match;
+          
+          while ((match = regex.exec(line)) !== null) {
+            // Get context lines
+            const contextStart = Math.max(0, lineIndex - contextSize);
+            const contextEnd = Math.min(lines.length - 1, lineIndex + contextSize);
+            const contextLines: string[] = [];
+            
+            for (let i = contextStart; i <= contextEnd; i++) {
+              const prefix = i === lineIndex ? '>>> ' : '    ';
+              contextLines.push(`${prefix}${i + 1}: ${lines[i]}`);
+            }
+            
+            matches.push({
+              line: lineNumber,
+              column: match.index + 1,
+              match: match[0],
+              context: contextLines
+            });
+          }
+        } catch (error) {
+          // Invalid regex pattern, try literal match
+          const index = line.toLowerCase().indexOf(pattern.toLowerCase());
+          if (index !== -1) {
+            const contextStart = Math.max(0, lineIndex - contextSize);
+            const contextEnd = Math.min(lines.length - 1, lineIndex + contextSize);
+            const contextLines: string[] = [];
+            
+            for (let i = contextStart; i <= contextEnd; i++) {
+              const prefix = i === lineIndex ? '>>> ' : '    ';
+              contextLines.push(`${prefix}${i + 1}: ${lines[i]}`);
+            }
+            
+            matches.push({
+              line: lineNumber,
+              column: index + 1,
+              match: pattern,
+              context: contextLines
+            });
+          }
         }
       }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'find_pattern_usage',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'find_pattern_usage',
-        'MODEL_ERROR',
-        `Failed to find pattern usage: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
     }
+    
+    return matches;
   }
 
-  /**
-   * Execute for large operations using file-level chunking
-   */
-  private async executeWithFileChunking(codeFiles: string[], params: any, llmClient: any, model: any, availableTokens: number): Promise<any> {
-    // Simple file chunking - divide files into manageable chunks
-    const chunkSize = Math.max(1, Math.floor(codeFiles.length / 4)); // Create ~4 chunks
-    const fileChunks: string[][] = [];
-    
-    for (let i = 0; i < codeFiles.length; i += chunkSize) {
-      fileChunks.push(codeFiles.slice(i, i + chunkSize));
-    }
-    
-    const chunkResults: any[] = [];
-    
-    for (let chunkIndex = 0; chunkIndex < fileChunks.length; chunkIndex++) {
-      try {
-        const chunkFiles = fileChunks[chunkIndex];
-        const result = await this.executeSinglePass(chunkFiles, params, llmClient, model);
-        
-        chunkResults.push({
-          chunkIndex,
-          result,
-          success: true
-        });
-      } catch (error) {
-        chunkResults.push({
-          chunkIndex,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          success: false
-        });
-      }
-    }
-    
-    // Combine results
-    const successfulChunks = chunkResults.filter(r => r.success);
-    
-    ResponseFactory.setStartTime();
-    return ResponseFactory.parseAndCreateResponse(
-      'find_pattern_usage',
-      JSON.stringify({
-        summary: {
-          totalChunks: fileChunks.length,
-          successfulChunks: successfulChunks.length,
-          totalFiles: codeFiles.length
-        },
-        results: successfulChunks.map(r => r.result)
-      }, null, 2),
-      model.identifier || 'unknown'
-    );
-  }
-
-
-
-  /**
-   * 3-Stage prompt architecture method
-   */
   getPromptStages(params: any): PromptStages {
-    const { projectPath, patterns, results, filesSearched, includeContext } = params;
+    const { patterns, matchResults, totalFiles, includeContext } = params;
     
     // STAGE 1: System instructions and task context
     const systemAndContext = `You are an expert code analyst specializing in pattern recognition and code search analysis.
 
 Project Analysis Context:
-- Project path: ${projectPath}
-- Patterns searched: ${patterns.map(p => `"${p}"`).join(', ')}
-- Files searched: ${filesSearched}
-- Context lines: ${includeContext}
-- Files with matches: ${results.length}
-- Total matches found: ${results.reduce((sum: number, r: FileMatch) => sum + r.matches.length, 0)}`;
+- Patterns searched: ${patterns.map((p: string) => `"${p}"`).join(', ')}
+- Files searched: ${totalFiles}
+- Context lines: ${includeContext || 3}
+- Files with matches: ${matchResults.length}
+- Total matches found: ${matchResults.reduce((sum: number, r: FileMatch) => sum + r.matches.length, 0)}`;
 
     // STAGE 2: Data payload (search results)
     let dataPayload = '';
     
-    if (results.length === 0) {
+    if (matchResults.length === 0) {
       dataPayload = 'No matches found for the specified patterns.';
     } else {
-      results.forEach((fileResult: FileMatch) => {
+      matchResults.forEach((fileResult: FileMatch) => {
         dataPayload += `\n${'='.repeat(80)}\nFile: ${fileResult.file}\nMatches: ${fileResult.matches.length}\n${'='.repeat(80)}\n`;
         
-        fileResult.matches.forEach((match, index) => {
+        fileResult.matches.forEach((match: any, index: number) => {
           dataPayload += `\n[Match ${index + 1}] Line ${match.line}, Column ${match.column}:\n`;
           dataPayload += `Pattern matched: "${match.match}"\n`;
           
-          if (match.context.length > 0) {
+          if (match.context && match.context.length > 0) {
             dataPayload += 'Context:\n';
-            match.context.forEach(contextLine => {
+            match.context.forEach((contextLine: string) => {
               dataPayload += `  ${contextLine}\n`;
             });
           }
@@ -355,65 +398,6 @@ Provide actionable insights based on the pattern search results.`;
     };
   }
   
-  private searchPatterns(lines: string[], patterns: string[], contextSize: number): Array<any> {
-    const matches: Array<any> = [];
-    
-    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-      const line = lines[lineIndex];
-      const lineNumber = lineIndex + 1;
-      
-      for (const pattern of patterns) {
-        try {
-          // Try to create regex from pattern
-          const regex = new RegExp(pattern, 'gi');
-          let match;
-          
-          while ((match = regex.exec(line)) !== null) {
-            // Get context lines
-            const contextStart = Math.max(0, lineIndex - contextSize);
-            const contextEnd = Math.min(lines.length - 1, lineIndex + contextSize);
-            const contextLines: string[] = [];
-            
-            for (let i = contextStart; i <= contextEnd; i++) {
-              const prefix = i === lineIndex ? '>>> ' : '    ';
-              contextLines.push(`${prefix}${i + 1}: ${lines[i]}`);
-            }
-            
-            matches.push({
-              line: lineNumber,
-              column: match.index + 1,
-              match: match[0],
-              context: contextLines
-            });
-          }
-        } catch (error) {
-          // If pattern is not a valid regex, do a simple string search
-          const index = line.indexOf(pattern);
-          if (index !== -1) {
-            // Get context lines
-            const contextStart = Math.max(0, lineIndex - contextSize);
-            const contextEnd = Math.min(lines.length - 1, lineIndex + contextSize);
-            const contextLines: string[] = [];
-            
-            for (let i = contextStart; i <= contextEnd; i++) {
-              const prefix = i === lineIndex ? '>>> ' : '    ';
-              contextLines.push(`${prefix}${i + 1}: ${lines[i]}`);
-            }
-            
-            matches.push({
-              line: lineNumber,
-              column: index + 1,
-              match: pattern,
-              context: contextLines
-            });
-          }
-        }
-      }
-    }
-    
-    return matches;
-  }
-  
   private async findCodeFiles(projectPath: string): Promise<string[]> {
     const codeFiles: string[] = [];
     const maxFiles = 500; // Prevent overwhelming analysis
@@ -460,15 +444,6 @@ Provide actionable insights based on the pattern search results.`;
     await traverse(projectPath);
     return codeFiles;
   }
-  
-  /**
-   * Get prompt for BasePlugin interface compatibility
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params);
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
-  }
-
 }
 
 export default PatternFinder;

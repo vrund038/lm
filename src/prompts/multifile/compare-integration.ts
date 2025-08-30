@@ -8,6 +8,7 @@ import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, basename } from 'path';
 import { validateAndNormalizePath } from '../shared/helpers.js';
@@ -41,346 +42,254 @@ export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate required parameters
-    if (!params.files || !Array.isArray(params.files) || params.files.length < 2) {
-      throw new Error('At least 2 files are required for integration comparison');
-    }
-    
-    // Read all files with security checks
-    const fileContents: Record<string, { content: string; error?: string }> = {};
-    
-    for (const filePath of params.files) {
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
       try {
-        // Validate and resolve path using secure path validation
-        const resolvedPath = await validateAndNormalizePath(filePath);
+        // Validate required parameters
+        this.validateSecureParams(secureParams);
         
-        if (!existsSync(resolvedPath)) {
-          fileContents[filePath] = {
-            content: '',
-            error: 'File not found'
-          };
-          continue;
+        // Read all files with security checks (paths already secured by withSecurity)
+        const fileContents: Record<string, { content: string; error?: string }> = {};
+        
+        for (const filePath of secureParams.files) {
+          try {
+            if (!existsSync(filePath)) {
+              fileContents[filePath] = { 
+                content: '', 
+                error: `File not found: ${filePath}` 
+              };
+              continue;
+            }
+            
+            const content = readFileSync(filePath, 'utf-8');
+            fileContents[filePath] = { content };
+          } catch (error: any) {
+            fileContents[filePath] = { 
+              content: '', 
+              error: `Failed to read file: ${error.message}` 
+            };
+          }
         }
         
-        // Read file content securely
-        const { readFileContent } = await import('../shared/helpers.js');
-        const content = await readFileContent(resolvedPath);
-        fileContents[filePath] = { content };
-      } catch (error) {
-        fileContents[filePath] = {
-          content: '',
-          error: error instanceof Error ? error.message : 'Unknown error reading file'
-        };
+        // Check if we have at least 2 valid files
+        const validFiles = Object.entries(fileContents).filter(([_, data]) => !data.error && data.content);
+        if (validFiles.length < 2) {
+          const errors = Object.entries(fileContents)
+            .filter(([_, data]) => data.error)
+            .map(([path, data]) => `${path}: ${data.error}`)
+            .join('\n');
+          throw new Error(`Could not read enough files for comparison. Errors:\n${errors}`);
+        }
+        
+        // Get model for context limit detection
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
+        
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          ...secureParams,
+          fileContents
+        });
+        
+        // Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
+        
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'compare_integration',
+          'EXECUTION_ERROR',
+          `Failed to compare integration: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
       }
-    }
-    
-    // Check if we have at least 2 valid files
-    const validFiles = Object.entries(fileContents).filter(([_, data]) => !data.error && data.content);
-    if (validFiles.length < 2) {
-      const errors = Object.entries(fileContents)
-        .filter(([_, data]) => data.error)
-        .map(([path, data]) => `${path}: ${data.error}`)
-        .join('\n');
-      throw new Error(`Could not read enough files for comparison. Errors:\n${errors}`);
-    }
-    
-    // Get model for context limit detection
-    const models = await llmClient.llm.listLoaded();
-    if (models.length === 0) {
-      throw new Error('No model loaded in LM Studio. Please load a model first.');
-    }
-    
-    const model = models[0];
-    const contextLength = await model.getContextLength() || 23832;
-    const systemOverhead = 2000; // System instructions overhead
-    const availableTokens = Math.floor(contextLength * 0.8) - systemOverhead; // 80% with system overhead
-    
-    // Early chunking decision: Estimate content size
-    const contentData = Object.fromEntries(
-      Object.entries(fileContents).map(([path, data]) => [path, data.content])
-    );
-    const totalContentLength = Object.values(contentData).join('').length;
-    const estimatedTokens = Math.floor(totalContentLength / 4) + systemOverhead; // Rough token estimate
-    
-    if (estimatedTokens > availableTokens) {
-      // Process with chunking for large content
-      return await this.executeWithChunking(params, contentData, llmClient, model, availableTokens);
-    }
-    
-    // Process normally for small operations
-    return await this.executeSinglePass(params, contentData, llmClient, model);
-  }
-  
-  /**
-   * Execute for small operations that fit in single context window
-   */
-  private async executeSinglePass(params: any, fileContents: Record<string, string>, llmClient: any, model: any): Promise<any> {
-    // Generate 3-stage prompt
-    const promptStages = this.getPromptStages({
-      ...params,
-      fileContents
     });
-    
-    try {
-      // Get context limit for 3-stage manager
-      const contextLength = await model.getContextLength();
-      const promptManager = new ThreeStagePromptManager(contextLength || 23832);
-      
-      // Create chunked conversation
-      const conversation = promptManager.createChunkedConversation(promptStages);
-      
-      // Build messages array for LM Studio
-      const messages = [
-        conversation.systemMessage,
-        ...conversation.dataMessages,
-        conversation.analysisMessage
-      ];
-      
-      // Call the model with 3-stage conversation
-      const prediction = model.respond(messages, {
-        temperature: 0.1,
-        maxTokens: 4000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
-      }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'compare_integration',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'compare_integration',
-        'MODEL_ERROR',
-        `Failed to compare integration: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
   }
-  
-  /**
-   * Execute for large operations using file-level chunking
-   */
-  private async executeWithChunking(params: any, fileContents: Record<string, string>, llmClient: any, model: any, availableTokens: number): Promise<any> {
-    // For integration comparison, we need to process all files together
-    // So we'll break down the content instead of splitting files
-    const fileList = Object.keys(fileContents);
-    const chunkSize = Math.max(2, Math.floor(fileList.length / 2)); // Create ~2 chunks, minimum 2 files each
-    const fileChunks: string[][] = [];
-    
-    for (let i = 0; i < fileList.length; i += chunkSize) {
-      fileChunks.push(fileList.slice(i, i + chunkSize));
-    }
-    
-    const chunkResults: any[] = [];
-    
-    for (let chunkIndex = 0; chunkIndex < fileChunks.length; chunkIndex++) {
-      try {
-        const chunkFiles = fileChunks[chunkIndex];
-        const chunkFileContents: Record<string, string> = {};
-        chunkFiles.forEach(file => {
-          chunkFileContents[file] = fileContents[file];
-        });
-        
-        const result = await this.executeSinglePass(params, chunkFileContents, llmClient, model);
-        
-        chunkResults.push({
-          chunkIndex,
-          result,
-          success: true
-        });
-      } catch (error) {
-        chunkResults.push({
-          chunkIndex,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          success: false
-        });
+
+  // MODERN PATTERN: Direct execution for manageable operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
       }
     }
-    
-    // Combine results
-    const successfulChunks = chunkResults.filter(r => r.success);
-    
+
     ResponseFactory.setStartTime();
     return ResponseFactory.parseAndCreateResponse(
       'compare_integration',
-      JSON.stringify({
-        summary: {
-          totalChunks: fileChunks.length,
-          successfulChunks: successfulChunks.length,
-          totalFiles: fileList.length
-        },
-        results: successfulChunks.map(r => r.result)
-      }, null, 2),
+      response,
       model.identifier || 'unknown'
     );
   }
 
-
-
-  /**
-   * 3-Stage prompt architecture method
-   */
-  getPromptStages(params: any): PromptStages {
-    const { fileContents, analysisType = 'integration', focus = [] } = params;
+  // MODERN PATTERN: Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
     
-    // STAGE 1: System instructions and task context
-    const systemAndContext = `You are an expert software integration analyst specializing in ${analysisType} analysis across multiple files.
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
 
-Project Analysis Context:
-- Files to analyze: ${Object.keys(fileContents).length}
-- Analysis type: ${analysisType}
-- Focus areas: ${focus.length > 0 ? focus.join(', ') : 'All aspects'}
-- Task: Identify compatibility issues, missing imports, method signature mismatches, and integration problems`;
-
-    // STAGE 2: Data payload (file contents)
-    let dataPayload = '';
-    Object.entries(fileContents).forEach(([path, content]) => {
-      const fileName = basename(path);
-      dataPayload += `\n${'='.repeat(80)}\nFile: ${fileName}\nPath: ${path}\n${'='.repeat(80)}\n${content}\n`;
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
     });
 
-    // STAGE 3: Output instructions and analysis tasks
-    const focusSection = focus.length > 0 
-      ? this.buildFocusSection(focus)
-      : this.getDefaultFocusSection(analysisType);
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'compare_integration',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN PATTERN: Secure parameter validation
+  private validateSecureParams(params: any): void {
+    if (!params.files || !Array.isArray(params.files) || params.files.length < 2) {
+      throw new Error('At least 2 files are required for integration comparison');
+    }
+  }
+
+  getPromptStages(params: any): PromptStages {
+    const { analysisType, focus, fileContents } = params;
     
-    const outputInstructions = `ANALYSIS REQUIREMENTS:
-${focusSection}
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert software architect and integration specialist analyzing multi-file compatibility.
 
-ANALYSIS TASKS:
+Integration Analysis Context:
+- Analysis Type: ${analysisType}
+- Focus Areas: ${focus && focus.length > 0 ? focus.join(', ') : 'General integration'}
+- Files to Analyze: ${Object.keys(fileContents).length}
 
-1. **Method Compatibility**
-   - Verify all called methods exist with correct signatures
-   - Check parameter types and counts match
-   - Identify any parameter ordering issues
-   - Flag deprecated method usage
+Your task is to identify integration issues, compatibility problems, and missing connections between the files.`;
 
-2. **Namespace and Import Analysis**
-   - Identify missing import statements
-   - Find incorrect namespace references
-   - Detect circular dependencies
-   - Check for unused imports
+    // STAGE 2: File contents for analysis
+    let dataPayload = '=== FILES FOR INTEGRATION ANALYSIS ===\n\n';
+    
+    for (const [filePath, fileData] of Object.entries(fileContents)) {
+      const data = fileData as { content: string; error?: string };
+      if (data.error) {
+        dataPayload += `File: ${filePath}\nStatus: ERROR - ${data.error}\n\n`;
+        continue;
+      }
+      
+      const fileName = basename(filePath);
+      dataPayload += `File: ${fileName}\nPath: ${filePath}\nContent:\n`;
+      dataPayload += '```\n' + data.content + '\n```\n\n';
+      dataPayload += '-'.repeat(80) + '\n\n';
+    }
 
-3. **Data Flow Analysis**
-   - Trace how data moves between files
-   - Identify type mismatches in data passed between components
-   - Find potential null/undefined issues
-   - Check for data transformation problems
+    // STAGE 3: Analysis instructions
+    const outputInstructions = `COMPREHENSIVE INTEGRATION ANALYSIS
 
-4. **Integration Issues**
-   - Find undefined references and broken dependencies
-   - Identify incompatible interfaces
-   - Check for version mismatches
-   - Detect missing required properties or methods
+Analyze the provided files and identify all integration issues, compatibility problems, and missing connections.
 
-5. **Architecture Consistency**
-   - Verify consistent patterns across files
-   - Check for proper separation of concerns
-   - Identify tight coupling issues
+## Required Analysis Sections:
 
-OUTPUT FORMAT:
+### 1. Integration Overview
+- **Files Analyzed**: List all files with their roles/purposes
+- **Overall Integration Health**: Rate as Excellent/Good/Fair/Poor
+- **Critical Issues Count**: Number of issues by severity
 
-## Summary
-Brief overview of the integration status and key findings
+### 2. Compatibility Analysis
+For each file pair combination, check:
+- **Method Signatures**: Parameter mismatches, return type conflicts
+- **Data Type Compatibility**: Inconsistent data structures
+- **API Contracts**: Interface violations or missing implementations
+- **Dependencies**: Missing imports or circular dependencies
 
-## Critical Issues (Must Fix)
-- **Issue**: [Description]
-  **Location**: [File:Line]
-  **Impact**: [What breaks]
-  **Fix**: [Specific code change]
+### 3. Integration Issues Found
+For each issue identified:
+- **Type**: Specific integration problem (Method Mismatch, Missing Import, etc.)
+- **Severity**: Critical/High/Medium/Low
+- **Files Affected**: Which files are involved
+- **Location**: Specific line numbers where possible
+- **Description**: Clear explanation of the problem
+- **Impact**: What could break or malfunction
+- **Fix**: Specific code changes needed
 
-## High Priority Issues
-- **Issue**: [Description]
-  **Location**: [File:Line]
-  **Problem**: [Why it's problematic]
-  **Fix**: [Specific code change]
+### 4. Missing Connections
+- **Unused Exports**: Functions/classes exported but not imported elsewhere  
+- **Missing Imports**: Required dependencies not imported
+- **Interface Gaps**: Missing method implementations
+- **Data Flow Breaks**: Inconsistent data passing between files
 
-## Medium Priority Issues
-- **Issue**: [Description]
-  **Location**: [File:Line]
-  **Suggestion**: [Recommended change]
+### 5. Architecture Assessment
+- **Design Patterns**: Good practices already in use
+- **Anti-patterns**: Problematic integration approaches
+- **Coupling Analysis**: Too tight/loose coupling between modules
+- **Abstraction Issues**: Missing interfaces or over-abstraction
 
-## Low Priority Issues
-- **Issue**: [Description]
-  **Location**: [File:Line]
-  **Note**: [Optional improvement]
+### 6. Actionable Recommendations
+#### Immediate Fixes (Critical/High)
+- Step-by-step fixes with specific line numbers
+- Code examples for corrections
+- Priority order for implementation
 
-## Integration Health Score
-Overall integration quality: [Score/10] with justification
+#### Architectural Improvements
+- Better integration patterns to adopt
+- Refactoring suggestions for cleaner interfaces
+- Long-term structural improvements
 
-## Recommended Refactoring
-If applicable, suggest architectural improvements:
-1. **Immediate Actions** - Critical fixes needed now
-2. **Short-term Improvements** - Performance and maintainability
-3. **Long-term Architecture** - Scalability and design patterns
+### 7. Integration Testing Suggestions
+- Unit tests for individual file interfaces
+- Integration tests for file interactions
+- Mock strategies for testing file dependencies
+- Error handling test scenarios
 
-## Verification Steps
-Steps to verify the fixes work correctly:
-1. [Specific testing approach]
-2. [What to validate]
-3. [Success criteria]
-
-Provide specific, actionable fixes with exact code snippets that can be directly applied.`;
+## Output Requirements:
+- Use markdown formatting for readability
+- Include specific line numbers for all issues
+- Provide code snippets showing problems and fixes
+- Rate severity consistently (Critical/High/Medium/Low)
+- Focus on actionable, specific recommendations`;
 
     return {
       systemAndContext,
       dataPayload,
       outputInstructions
     };
-  }
-  
-  private buildFocusSection(focus: string[]): string {
-    const focusMap: Record<string, string> = {
-      'method_compatibility': 'Pay special attention to method signatures and parameter matching',
-      'namespace_dependencies': 'Focus on import statements and namespace resolution',
-      'data_flow': 'Trace data movement and transformations between components',
-      'missing_connections': 'Identify undefined references and broken links'
-    };
-    
-    const focusDescriptions = focus
-      .map(f => focusMap[f] || f)
-      .map((desc, i) => `${i + 1}. ${desc}`)
-      .join('\n');
-    
-    return `Focus Areas (Priority):\n${focusDescriptions}`;
-  }
-  
-  private getDefaultFocusSection(analysisType: string): string {
-    const defaults: Record<string, string> = {
-      'integration': 'Analyze all aspects of file integration with equal priority',
-      'compatibility': 'Focus on API compatibility and version alignment',
-      'dependencies': 'Emphasize dependency analysis and import resolution'
-    };
-    
-    return defaults[analysisType] || defaults['integration'];
-  }
-
-  /**
-   * Get prompt for BasePlugin interface compatibility
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params);
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
-  }
-  
-  private isPathSafe(path: string): boolean {
-    // Basic security check - ensure path doesn't contain suspicious patterns
-    const suspicious = ['../', '..\\', '/etc/', '\\etc\\', '/root/', '\\root\\'];
-    const normalizedPath = path.toLowerCase();
-    
-    return !suspicious.some(pattern => normalizedPath.includes(pattern));
   }
 }
 

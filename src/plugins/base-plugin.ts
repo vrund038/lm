@@ -24,15 +24,7 @@ export abstract class BasePlugin implements IPromptPlugin {
    */
   abstract getPromptStages(params: any): PromptStages;
   
-  /**
-   * Legacy compatibility method
-   * DEPRECATED: Will be removed in v5.0
-   * Use getPromptStages() instead
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params);
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
-  }
+
   
   /**
    * Validate parameters before execution

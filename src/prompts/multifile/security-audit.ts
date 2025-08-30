@@ -1,7 +1,11 @@
 /**
  * Multifile Security Audit Plugin
  * Performs comprehensive security audits across entire projects,
- * analyzing data flows, authentication chains, and cross-file vulnerabilities
+ * analyzing data flows, authentication chains, and cross-file vulnerabilities.
+ * 
+ * DIRECT FILE PROCESSING: This function reads and analyzes security-relevant files directly,
+ * categorizes them by risk level, and performs comprehensive cross-file security analysis.
+ * WORKFLOW: Provide project path → plugin finds and reads security files → performs audit → returns detailed report
  */
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
@@ -9,6 +13,7 @@ import { IPromptPlugin } from '../shared/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
+import { withSecurity } from '../../security/integration-helpers.js';
 import { existsSync, statSync } from 'fs';
 import { resolve, join, extname, relative, basename } from 'path';
 import { readFileContent, validateAndNormalizePath } from '../shared/helpers.js';
@@ -86,7 +91,140 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
   };
 
   async execute(params: any, llmClient: any) {
-    // Validate parameters
+    return await withSecurity(this, params, llmClient, async (secureParams) => {
+      try {
+        // Validate parameters
+        this.validateSecureParams(secureParams);
+        
+        // Validate and resolve project path (already secured by withSecurity)
+        const projectPath = secureParams.projectPath;
+        
+        if (!existsSync(projectPath)) {
+          throw new Error(`Project path does not exist: ${projectPath}`);
+        }
+        
+        if (!statSync(projectPath).isDirectory()) {
+          throw new Error(`Project path is not a directory: ${projectPath}`);
+        }
+
+        // Find and categorize security-relevant files
+        const securityFiles = await this.findSecurityRelevantFiles(projectPath, secureParams.projectType);
+        
+        if (securityFiles.length === 0) {
+          throw new Error(`No security-relevant files found in project: ${projectPath}`);
+        }
+
+        // Generate comprehensive security analysis data
+        const auditData = await this.performSecurityAnalysis(securityFiles, secureParams);
+
+        // Get model for context limit detection
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
+
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          ...secureParams,
+          securityFiles,
+          auditData,
+          projectPath
+        });
+
+        // Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
+
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'security_audit',
+          'EXECUTION_ERROR',
+          `Failed to perform security audit: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
+      }
+    });
+  }
+
+  // MODERN PATTERN: Direct execution for manageable operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.1,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'security_audit',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN PATTERN: Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.1,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'security_audit',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN PATTERN: Secure parameter validation
+  private validateSecureParams(params: any): void {
     if (!params.projectPath || typeof params.projectPath !== 'string') {
       throw new Error('projectPath is required and must be a string');
     }
@@ -94,187 +232,11 @@ export class MultiFileSecurityAuditor extends BasePlugin implements IPromptPlugi
     if (!params.projectType) {
       throw new Error('projectType is required for security audit');
     }
-    
-    // Validate and resolve project path using secure path validation
-    const projectPath = await validateAndNormalizePath(params.projectPath);
-    
-    if (!existsSync(projectPath)) {
-      throw new Error(`Project path does not exist: ${projectPath}`);
-    }
-    
-    if (!statSync(projectPath).isDirectory()) {
-      throw new Error(`Project path is not a directory: ${projectPath}`);
-    }
-    
-    // Security check
-    if (!this.isPathSafe(projectPath)) {
-      throw new Error(`Access denied to path: ${projectPath}`);
-    }
-
-    // Find and categorize security-relevant files
-    const securityFiles = await this.findSecurityRelevantFiles(projectPath, params.projectType);
-    
-    if (securityFiles.length === 0) {
-      throw new Error(`No security-relevant files found in project: ${projectPath}`);
-    }
-
-    // Get model for context limit detection
-    const models = await llmClient.llm.listLoaded();
-    if (models.length === 0) {
-      throw new Error('No model loaded in LM Studio. Please load a model first.');
-    }
-    
-    const model = models[0];
-    const contextLength = await model.getContextLength() || 23832;
-    const availableTokens = Math.floor(contextLength * 0.8) - 2000; // 80% with system overhead
-
-    // Estimate tokens needed
-    const estimatedTokens = this.estimateTokensNeeded(securityFiles);
-    
-    if (estimatedTokens > availableTokens) {
-      // Use file chunking for large projects
-      return await this.executeWithFileChunking(securityFiles, params, llmClient, model, availableTokens);
-    }
-    
-    // Process all files in single pass
-    return await this.executeSinglePass(securityFiles, params, llmClient, model);
   }
+
 
   /**
-   * Execute security audit in single pass for smaller projects
-   */
-  private async executeSinglePass(securityFiles: SecurityFile[], params: any, llmClient: any, model: any): Promise<any> {
-    // Generate comprehensive security analysis data
-    const auditData = await this.performSecurityAnalysis(securityFiles, params);
-    
-    // Generate 3-stage prompt
-    const promptStages = this.getPromptStages({
-      ...params,
-      securityFiles,
-      auditData
-    });
-    
-    try {
-      // Get context limit for 3-stage manager
-      const contextLength = await model.getContextLength();
-      const promptManager = new ThreeStagePromptManager(contextLength || 23832);
-      
-      // Create chunked conversation
-      const conversation = promptManager.createChunkedConversation(promptStages);
-      
-      // Build messages array for LM Studio
-      const messages = [
-        conversation.systemMessage,
-        ...conversation.dataMessages,
-        conversation.analysisMessage
-      ];
-      
-      // Call the model with 3-stage conversation
-      const prediction = model.respond(messages, {
-        temperature: 0.1,
-        maxTokens: 4000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
-        }
-      }
-      
-      // Use ResponseFactory for consistent output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'security_audit',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'security_audit',
-        'MODEL_ERROR',
-        `Failed to perform security audit: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
-  }
 
-  /**
-   * Execute security audit with file chunking for large projects
-   */
-  private async executeWithFileChunking(securityFiles: SecurityFile[], params: any, llmClient: any, model: any, availableTokens: number): Promise<any> {
-    // Prioritize critical files first
-    const sortedFiles = securityFiles.sort((a, b) => {
-      const priority = { 'critical': 3, 'security-sensitive': 2, 'config': 1, 'standard': 0 };
-      return priority[b.type] - priority[a.type];
-    });
-    
-    // Create chunks based on token estimates
-    const fileChunks: SecurityFile[][] = [];
-    let currentChunk: SecurityFile[] = [];
-    let currentTokens = 0;
-    
-    for (const file of sortedFiles) {
-      const fileTokens = Math.ceil(file.content.length / 4); // Rough token estimate
-      
-      if (currentTokens + fileTokens > availableTokens && currentChunk.length > 0) {
-        fileChunks.push([...currentChunk]);
-        currentChunk = [file];
-        currentTokens = fileTokens;
-      } else {
-        currentChunk.push(file);
-        currentTokens += fileTokens;
-      }
-    }
-    
-    if (currentChunk.length > 0) {
-      fileChunks.push(currentChunk);
-    }
-    
-    const chunkResults: any[] = [];
-    
-    // Process each chunk
-    for (let chunkIndex = 0; chunkIndex < fileChunks.length; chunkIndex++) {
-      try {
-        const chunkFiles = fileChunks[chunkIndex];
-        const result = await this.executeSinglePass(chunkFiles, params, llmClient, model);
-        
-        chunkResults.push({
-          chunkIndex,
-          fileCount: chunkFiles.length,
-          result,
-          success: true
-        });
-      } catch (error) {
-        chunkResults.push({
-          chunkIndex,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          success: false
-        });
-      }
-    }
-    
-    // Combine results
-    const successfulChunks = chunkResults.filter(r => r.success);
-    
-    ResponseFactory.setStartTime();
-    return ResponseFactory.parseAndCreateResponse(
-      'security_audit',
-      JSON.stringify({
-        summary: {
-          totalChunks: fileChunks.length,
-          successfulChunks: successfulChunks.length,
-          totalFiles: securityFiles.length,
-          auditScope: 'multifile-chunked'
-        },
-        results: successfulChunks.map(r => r.result)
-      }, null, 2),
-      model.identifier || 'unknown'
-    );
-  }
 
   /**
    * Find and categorize security-relevant files in the project
@@ -995,25 +957,6 @@ Provide a thorough, professional security audit report that development teams ca
     };
 
     return checklists[projectType] || checklists.generic;
-  }
-
-  /**
-   * BasePlugin compatibility method
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params);
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
-  }
-
-  /**
-   * Security path validation
-   */
-  private isPathSafe(path: string): boolean {
-    const suspicious = ['../', '..\\', '/etc/', '\\etc\\', '/root/', '\\root\\', '/sys/', '\\sys\\'];
-    const normalizedPath = path.toLowerCase();
-    
-    return !suspicious.some(pattern => normalizedPath.includes(pattern));
-  }
-}
+  }}
 
 export default MultiFileSecurityAuditor;

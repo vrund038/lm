@@ -17,9 +17,6 @@ export interface IPromptPlugin {
   // Optional methods
   validateParams?(params: any): void;
   getToolDefinition(): any;
-  
-  // LEGACY: Backwards compatibility (will be removed in v5.0)
-  getPrompt?(params: any): string;
 }
 
 export interface ParameterSchema {
