@@ -26,7 +26,7 @@ export const config: Config = {
     enableInjectionDetection: true,
     enableOutputEncoding: true,
     injectionThreshold: 0.5, // 0-1 scale for detection sensitivity
-    allowedDirectories: process.env.LLM_MCP_ALLOWED_DIRS?.split(',') || [process.cwd()],
+    allowedDirectories: process.env.LLM_MCP_ALLOWED_DIRS?.split(',') || ['C:\\MCP', 'C:\\DEV'],
     maxInputSize: {
       'file-path': 1000,
       'code': 100000,

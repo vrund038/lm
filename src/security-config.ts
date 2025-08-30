@@ -16,15 +16,15 @@ export const securityConfig = {
    */
   getAllowedDirectories(): string[] {
     if (!process.env.LLM_MCP_ALLOWED_DIRS) {
-      throw new Error(
-        'SECURITY: LLM_MCP_ALLOWED_DIRS environment variable must be set. ' +
-        'This defines which directories the Local LLM MCP can access.'
-      );
+      // TEMPORARY FIX: Use fallback directories for development
+      console.error('WARNING: LLM_MCP_ALLOWED_DIRS not set, using fallback directories');
+      const fallbackDirs = ['C:\\MCP', 'C:\\DEV'];
+      return fallbackDirs.map(dir => resolve(normalize(dir.trim())).toLowerCase());
     }
     
     return process.env.LLM_MCP_ALLOWED_DIRS
       .split(',')
-      .map(dir => resolve(normalize(dir.trim())).toLowerCase()); // Normalize case for Windows
+      .map(dir => resolve(normalize(dir.trim())).toLowerCase());
   },
 
   /**

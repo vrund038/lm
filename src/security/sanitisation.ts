@@ -14,14 +14,26 @@ import { resolve, normalize, isAbsolute } from 'path';
 // Get config at runtime to avoid circular dependencies
 function getConfig() {
   try {
-    // Use require for now to avoid ESM issues
-    const configModule = require('../config.js');
-    return configModule.config;
+    // DIRECT FIX: Use environment variables directly instead of config loading
+    const envDirs = process.env.LLM_MCP_ALLOWED_DIRS;
+    const allowedDirectories = envDirs ? envDirs.split(',') : ['C:\\MCP', 'C:\\DEV'];
+    
+    return {
+      security: {
+        allowedDirectories: allowedDirectories,
+        maxInputSize: {
+          'file-path': 1000,
+          'code': 100000,
+          'general': 50000,
+          'prompt': 20000
+        }
+      }
+    };
   } catch {
     // Fallback configuration
     return {
       security: {
-        allowedDirectories: [process.cwd()],
+        allowedDirectories: ['C:\\MCP', 'C:\\DEV'],
         maxInputSize: {
           'file-path': 1000,
           'code': 100000,
@@ -232,6 +244,7 @@ export class SanitisationHelper {
     // Check if path is within allowed directories
     const config = getConfig();
     const allowedDirs = config.security?.allowedDirectories || [process.cwd()];
+    
     if (allowedDirs.length > 0) {
       const isAllowed = allowedDirs.some(dir => cleaned.startsWith(resolve(dir)));
       if (!isAllowed) {

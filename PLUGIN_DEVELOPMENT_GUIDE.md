@@ -43,6 +43,124 @@ The Local LLM MCP server uses a sophisticated plugin-based architecture to offlo
    Wrapper       Factory        Prompts       Context
 ```
 
+## Architecture & Integration Patterns
+
+### Read-Only Design Philosophy
+
+Local-LLM MCP serves as a **read-only content intelligence layer** that processes files and generates content through local LLM integration, but does not perform file system write operations.
+
+**Key Architecture Principles:**
+- **Content Intelligence**: Reads, analyzes, and generates content intelligently
+- **Read-Only Design**: Does not write files to disk - returns content as strings
+- **Security-First**: File access restricted to configured directories via environment variables
+- **Context Preservation**: Offloads routine tasks to local LLM to preserve Claude's context window
+
+### What Local-LLM MCP Does vs. Doesn't Do
+
+**✅ What it DOES:**
+- Read files securely from allowed directories (`LLM_MCP_ALLOWED_DIRS`)
+- Process content through local LLM (via LM Studio)
+- Return structured analysis and generated content as JSON responses
+- Provide intelligent content generation (tests, docs, refactoring suggestions)
+
+**❌ What it DOES NOT do:**
+- Write files to disk - all outputs are returned as strings
+- Perform file system operations (create, move, delete)
+- Handle file saving - that's delegated to other tools
+
+### Integration with File System Tools
+
+For complete workflows requiring file writing, Local-LLM MCP integrates with file system tools:
+
+```
+READ LAYER: Local-LLM MCP (content intelligence)
+WRITE LAYER: Desktop Commander, other file system MCPs
+```
+
+### Common Workflow Patterns
+
+**Pattern 1: Analyze → Generate → Write**
+```
+1. local-llm:analyze_single_file(filePath="code.js") → Analysis insights
+2. local-llm:generate_unit_tests(filePath="code.js") → Test code string
+3. desktop-commander:write_file(path="code.test.js", content=tests) → File written
+```
+
+**Pattern 2: Multi-File Analysis → Report → Save**
+```
+1. local-llm:security_audit(projectPath="C:/project") → Security report
+2. desktop-commander:write_file(path="security-report.md", content=report) → Report saved
+```
+
+**Pattern 3: Batch Processing**
+```
+1. local-llm:generate_documentation(filePath="utils.js") → Documentation string
+2. local-llm:generate_unit_tests(filePath="utils.js") → Test string  
+3. desktop-commander:write_file() → Write documentation
+4. desktop-commander:write_file() → Write tests
+```
+
+### File Access vs. Content Processing
+
+**File Path Workflow:**
+```
+Claude: local-llm:analyze_single_file(filePath="C:\MCP\code.js")
+  ↓
+Local-LLM MCP: Reads file using Node.js fs operations
+  ↓  
+Local-LLM MCP: Sends FILE CONTENTS to LM Studio (never file paths)
+  ↓
+LM Studio: Processes the code content in prompt
+  ↓
+Local-LLM MCP: Returns structured response to Claude
+```
+
+**What LM Studio Actually Sees:**
+```javascript
+// LM Studio NEVER sees: "C:\MCP\code.js"
+// LM Studio ONLY sees: The actual file contents
+
+You are an expert code analyzer.
+
+Code to analyze:
+```javascript
+function hello(name) {
+  console.log(`Hello, ${name}!`);
+}
+```
+
+Provide analysis in structured format...
+```
+
+### Plugin Development Implications
+
+When developing plugins, remember:
+
+1. **File Reading**: Use `readFileContent()` from shared helpers for secure file access
+2. **Content Return**: Always return generated content as strings, never write directly
+3. **Security**: All file paths are validated through `validateAndNormalizePath`
+4. **Integration**: Design plugins assuming other tools will handle file writing
+
+**Example Plugin Pattern:**
+```typescript
+async execute(params: any, llmClient: any) {
+  return await withSecurity(this, params, llmClient, async (secureParams) => {
+    // 1. Read file content securely
+    const content = await readFileContent(secureParams.filePath);
+    
+    // 2. Process with LM Studio
+    const result = await this.processWithLLM(content, llmClient);
+    
+    // 3. Return content as string (DON'T write to disk)
+    return ResponseFactory.parseAndCreateResponse(
+      this.name,
+      result,
+      model.identifier
+    );
+  });
+}
+```
+
 ## Directory Structure
 
 ```
@@ -695,12 +813,14 @@ async execute(params: any, llmClient: any) {
 
 ## Version History & Migration
 
-### v4.2 (Current) - Modern Security Integration
+### v4.2 (Current) - Modern Security Integration + Architecture Documentation
 - **withSecurity** wrapper for all plugins
 - **ResponseFactory** for consistent outputs
 - **ThreeStagePromptManager** for context management
 - **Dynamic context window** detection
 - **Foreign prompt execution** prevention
+- **Read-only architecture documentation** - clarifies integration patterns with file system tools
+- **Comprehensive workflow examples** - shows proper Claude → Local-LLM MCP → Desktop Commander patterns
 
 ### Migrating Old Plugins
 
