@@ -7,6 +7,8 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from '../../plugins/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { withSecurity } from '../../security/integration-helpers.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 
 // Type definitions for WordPress plugin requirements
 interface WPPluginRequirements {
@@ -123,9 +125,6 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
         includeGutenberg: secureParams.includeGutenberg || false
       };
       
-      // Generate prompt
-      const prompt = this.getPrompt({ requirements });
-      
       try {
         // Get the loaded model from LM Studio
         const models = await llmClient.llm.listLoaded();
@@ -133,39 +132,23 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
           throw new Error('No model loaded in LM Studio. Please load a model first.');
         }
         
-        // Use the first loaded model
         const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
         
-        // Call the model with proper LM Studio SDK pattern
-        const prediction = model.respond([
-          {
-            role: 'system',
-            content: 'You are an expert WordPress plugin developer. Generate complete, production-ready WordPress plugins following WordPress coding standards, security best practices, and modern PHP patterns. Include proper hooks, nonces, capabilities, and internationalization.'
-          },
-          {
-            role: 'user', 
-            content: prompt
-          }
-        ], {
-          temperature: 0.3,
-          maxTokens: 6000
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          requirements
         });
         
-        // Stream the response
-        let response = '';
-        for await (const chunk of prediction) {
-          if (chunk.content) {
-            response += chunk.content;
-          }
-        }
+        // Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
         
-        // Use ResponseFactory for consistent, spec-compliant output
-        ResponseFactory.setStartTime();
-        return ResponseFactory.parseAndCreateResponse(
-          'generate_wordpress_plugin',
-          response,
-          model.identifier || 'unknown'
-        );
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
         
       } catch (error: any) {
         return ResponseFactory.createErrorResponse(
@@ -179,21 +162,40 @@ export class WordPressPluginGenerator extends BasePlugin implements IPromptPlugi
     });
   }
 
-  getPrompt(params: any): string {
+  // MODERN: 3-Stage prompt architecture
+  getPromptStages(params: any): PromptStages {
     const requirements = params.requirements;
     const { name, description, features, wpVersion = '6.0', phpVersion = '7.4', prefix } = requirements;
     
-    return `Create a WordPress plugin following these specifications:
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert WordPress plugin developer specializing in modern, secure plugin architecture.
 
-Plugin Details:
+Plugin Development Context:
+- WordPress Standards: Follow WordPress Coding Standards (WPCS)
+- Security: Implement proper nonces, capabilities, escaping, and sanitization
+- Architecture: Use modern PHP patterns with namespaces and dependency injection
+- Compatibility: WordPress ${wpVersion}+ and PHP ${phpVersion}+
+- Internationalization: Ready for translation with proper text domains
+
+Your task is to generate a complete, production-ready WordPress plugin structure.`;
+
+    // STAGE 2: Data payload (plugin requirements)
+    const dataPayload = `Plugin Specifications:
 - Name: ${name}
-- Purpose: ${description}
+- Description: ${description}
 - Features: ${features.join(', ')}
-- WordPress Version: ${wpVersion}+
-- PHP Version: ${phpVersion}+
+- Prefix: ${prefix}
 - Text Domain: ${requirements.textDomain || prefix}
+- Include Admin Interface: ${requirements.includeAdmin}
+- Include Database: ${requirements.includeDatabase}
+- Include AJAX: ${requirements.includeAjax}
+- Include REST API: ${requirements.includeRest}
+- Include Gutenberg Blocks: ${requirements.includeGutenberg}`;
 
-Required Components:
+    // STAGE 3: Output instructions
+    const outputInstructions = `Generate the complete WordPress plugin structure with these files:
+
+## Required Components:
 1. **Main Plugin File** (${prefix}.php):
    - Proper plugin headers with all metadata
    - Namespace: ${prefix.charAt(0).toUpperCase() + prefix.slice(1)}
@@ -204,12 +206,10 @@ Required Components:
    - Database table creation (if needed)
    - Default options setup
    - Capability registration
-   - Scheduled events setup
    - Proper cleanup on deactivation
 
 3. **Core Functionality** (includes/class-${prefix}-core.php):
    - Hook registration (actions and filters)
-   - Dependency injection setup
    - Feature initialization
    - Error handling
 
@@ -218,87 +218,120 @@ ${requirements.includeAdmin ? `
    - Admin menu registration
    - Settings page with sections and fields
    - Form handling with nonces
-   - Admin notices system
-   - Screen options (if applicable)` : ''}
+   - Admin notices system` : ''}
 
 ${requirements.includeDatabase ? `
 5. **Database Handler** (includes/class-${prefix}-db.php):
    - Custom table schema
    - CRUD operations with $wpdb
-   - Data validation and sanitization
-   - Migration support for updates` : ''}
+   - Data validation and sanitization` : ''}
 
 ${requirements.includeAjax ? `
 6. **AJAX Handlers** (includes/class-${prefix}-ajax.php):
    - Nonce verification
    - Capability checks
-   - Response formatting
-   - Error handling with wp_send_json_error()` : ''}
+   - Response formatting` : ''}
 
 ${requirements.includeRest ? `
 7. **REST API Endpoints** (includes/class-${prefix}-rest.php):
    - Endpoint registration
    - Permission callbacks
-   - Schema definitions
-   - Response formatting` : ''}
+   - Schema definitions` : ''}
 
 ${requirements.includeGutenberg ? `
-8. **Gutenberg Block** (blocks/):
+8. **Gutenberg Blocks** (blocks/):
    - Block registration
-   - Edit and save components
-   - Block attributes and controls
-   - Server-side rendering (if dynamic)` : ''}
+   - JavaScript/CSS assets
+   - Block attributes and rendering` : ''}
 
-9. **Uninstall Cleanup** (uninstall.php):
-   - Remove database tables
-   - Clean up options
-   - Remove user meta
-   - Clear scheduled events
+## WordPress Standards Required:
+- Proper escaping: esc_html(), esc_attr(), esc_url()
+- Sanitization: sanitize_text_field(), sanitize_email(), etc.
+- Nonce verification for all forms and AJAX
+- Capability checks for all admin functions
+- Internationalization: __(), _e(), _x() functions
+- WordPress hooks: properly registered actions and filters
 
-WordPress Coding Standards to Follow:
-- Use proper prefixing: ${prefix}_ for functions, ${prefix.toUpperCase()}_ for constants
-- Escape all output: esc_html(), esc_attr(), esc_url(), wp_kses()
-- Sanitize all input: sanitize_text_field(), sanitize_email(), etc.
-- Use WordPress APIs exclusively (don't reinvent)
-- Include inline documentation (PHPDoc blocks)
-- Implement internationalization: __(), _e(), _n()
-- Add action/filter documentation
+Provide complete, functional code for each file with proper error handling and security measures.`;
 
-Security Requirements:
-- Nonce verification on all forms and AJAX
-- Capability checks: current_user_can()
-- SQL injection prevention: $wpdb->prepare()
-- File upload validation (if applicable)
-- Data validation before saving
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
+  }
 
-Generate:
-1. Complete file structure with all necessary files
-2. Core plugin code with proper OOP structure
-3. Basic admin interface with settings
-4. Installation and usage instructions
-5. Hook reference documentation
+  // MODERN: Direct execution for small operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
 
-File Structure:
-${prefix}/
-├── ${prefix}.php
-├── uninstall.php
-├── readme.txt
-├── includes/
-│   ├── class-${prefix}-activator.php
-│   ├── class-${prefix}-deactivator.php
-│   ├── class-${prefix}-core.php
-│   └── class-${prefix}-loader.php
-├── admin/
-│   ├── class-${prefix}-admin.php
-│   ├── css/
-│   └── js/
-├── public/
-│   ├── class-${prefix}-public.php
-│   ├── css/
-│   └── js/
-└── languages/
+    const prediction = model.respond(messages, {
+      temperature: 0.3,
+      maxTokens: 6000
+    });
 
-Provide complete, working code for each file with proper WordPress standards and security practices.`;
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'generate_wordpress_plugin',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN: Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.3,
+      maxTokens: 6000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'generate_wordpress_plugin',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // LEGACY: Backwards compatibility method
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 

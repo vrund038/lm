@@ -1,5 +1,5 @@
 /**
- * Health Check Plugin
+ * Health Check Plugin - Modern v4.2 Pattern
  * Checks if LM Studio is running and responding
  */
 
@@ -7,6 +7,7 @@ import { BasePlugin } from '../plugins/base-plugin.js';
 import { IPromptPlugin } from '../prompts/shared/types.js';
 import { ResponseFactory } from '../validation/response-factory.js';
 import { withSecurity } from '../security/integration-helpers.js';
+import { PromptStages } from '../types/prompt-stages.js';
 import { LMStudioClient } from '@lmstudio/sdk';
 import { config } from '../config.js';
 
@@ -90,9 +91,25 @@ export class HealthCheckPlugin extends BasePlugin implements IPromptPlugin {
     });
   }
 
+  /**
+   * MODERN v4.2: 3-stage prompt architecture
+   * Note: Health check is a system utility that doesn't use prompts
+   */
+  getPromptStages(params: any): PromptStages {
+    return {
+      systemAndContext: 'Health check system utility - no prompt required',
+      dataPayload: 'Checking LM Studio connection and model status',
+      outputInstructions: 'Return connection status and model information'
+    };
+  }
+
+  /**
+   * LEGACY: Backwards compatibility
+   * DEPRECATED: Will be removed in v5.0
+   */
   getPrompt(params: any): string {
-    // This is a utility function, no prompt needed
-    return '';
+    // Health check is a utility function, no prompt needed
+    return 'Health check - no prompt required for system utilities';
   }
 }
 

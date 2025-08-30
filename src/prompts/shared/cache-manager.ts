@@ -7,6 +7,8 @@ import { BasePlugin } from '../../plugins/base-plugin.js';
 import { IPromptPlugin } from './types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { withSecurity } from '../../security/integration-helpers.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 
 export class CacheManager {
   private static cache: Map<string, any> = new Map();
@@ -71,9 +73,19 @@ export class ClearCachePlugin extends BasePlugin implements IPromptPlugin {
     });
   }
 
+  // MODERN: 3-Stage prompt architecture (system utility - no prompting needed)
+  getPromptStages(params: any): PromptStages {
+    return {
+      systemAndContext: 'System cache management utility',
+      dataPayload: 'Cache clearing operation',
+      outputInstructions: 'Clear cache and return status'
+    };
+  }
+
+  // LEGACY: Backwards compatibility method
   getPrompt(params: any): string {
-    // This is a utility function, no prompt needed
-    return '';
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 
@@ -108,9 +120,19 @@ export class CacheStatisticsPlugin extends BasePlugin implements IPromptPlugin {
     });
   }
 
+  // MODERN: 3-Stage prompt architecture (system utility - no prompting needed)
+  getPromptStages(params: any): PromptStages {
+    return {
+      systemAndContext: 'System cache statistics utility',
+      dataPayload: 'Cache statistics request',
+      outputInstructions: 'Return cache statistics and metrics'
+    };
+  }
+
+  // LEGACY: Backwards compatibility method
   getPrompt(params: any): string {
-    // This is a utility function, no prompt needed
-    return '';
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 

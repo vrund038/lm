@@ -8,6 +8,8 @@ import { IPromptPlugin } from '../../plugins/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { withSecurity } from '../../security/integration-helpers.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 
 // Type definitions for test context
 interface TestContext {
@@ -114,9 +116,6 @@ export class UnitTestGenerator extends BasePlugin implements IPromptPlugin {
         includePerformanceTests: secureParams.context?.includePerformanceTests || false
       };
       
-      // Generate prompt
-      const prompt = this.getPrompt({ ...secureParams, code: codeToTest, context });
-      
       try {
         // Get the loaded model from LM Studio
         const models = await llmClient.llm.listLoaded();
@@ -124,39 +123,25 @@ export class UnitTestGenerator extends BasePlugin implements IPromptPlugin {
           throw new Error('No model loaded in LM Studio. Please load a model first.');
         }
         
-        // Use the first loaded model
         const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
         
-        // Call the model with proper LM Studio SDK pattern
-        const prediction = model.respond([
-          {
-            role: 'system',
-            content: 'You are an expert test engineer. Generate comprehensive, well-structured unit tests that follow best practices and provide excellent code coverage. Focus on readability, maintainability, and thorough edge case testing.'
-          },
-          {
-            role: 'user', 
-            content: prompt
-          }
-        ], {
-          temperature: 0.2,
-          maxTokens: 4000
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          ...secureParams,
+          code: codeToTest,
+          context
         });
         
-        // Stream the response
-        let response = '';
-        for await (const chunk of prediction) {
-          if (chunk.content) {
-            response += chunk.content;
-          }
-        }
+        // Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
         
-        // Use ResponseFactory for consistent, spec-compliant output
-        ResponseFactory.setStartTime();
-        return ResponseFactory.parseAndCreateResponse(
-          'generate_unit_tests',
-          response,
-          model.identifier || 'unknown'
-        );
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
         
       } catch (error: any) {
         return ResponseFactory.createErrorResponse(
@@ -170,21 +155,37 @@ export class UnitTestGenerator extends BasePlugin implements IPromptPlugin {
     });
   }
 
-  getPrompt(params: any): string {
-    const content = params.code;
-    const context = params.context || {};
+  // MODERN: 3-Stage prompt architecture
+  getPromptStages(params: any): PromptStages {
+    const { code, context = {}, language, testFramework, coverageTarget } = params;
     
-    const { projectType, testFramework, coverageTarget = 80, mockStrategy = 'minimal' } = context;
+    const projectType = context.projectType || 'generic';
+    const mockStrategy = context.mockStrategy || 'minimal';
     
-    return `Generate comprehensive unit tests for ${projectType || 'generic'} code.
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert test engineer specializing in ${testFramework || 'jest'} testing.
 
-Testing Requirements:
+Testing Context:
+- Project Type: ${projectType}
 - Framework: ${testFramework || 'jest'}
-- Coverage Target: ${coverageTarget}% minimum
+- Language: ${language || 'javascript'}
+- Coverage Target: ${this.getCoverageTargetPercent(coverageTarget)}%
 - Mock Strategy: ${mockStrategy}
 - Test Style: ${context.testStyle || 'descriptive'}
 
-Required Test Categories:
+Your task is to generate comprehensive, production-ready unit tests following best practices.`;
+
+    // STAGE 2: Data payload (the code to test)
+    const dataPayload = `Code to generate tests for:
+
+\`\`\`${language || 'javascript'}
+${code}
+\`\`\``;
+
+    // STAGE 3: Output instructions
+    const outputInstructions = `Generate comprehensive unit tests with the following requirements:
+
+## Test Categories Required:
 1. **Happy Path**: Standard successful operations
 2. **Edge Cases**: Boundary conditions, empty inputs, null/undefined, large datasets
 3. **Error Scenarios**: Invalid inputs, network failures, permission issues, timeouts
@@ -192,9 +193,7 @@ Required Test Categories:
 5. **Performance Tests**: ${context.includePerformanceTests ? 'Response times, memory usage, concurrent operations' : 'Skip performance tests'}
 6. **Integration Points**: External dependencies, API calls, database operations
 
-${this.getFrameworkTestGuidelines(context)}
-
-Test Structure Requirements:
+## Test Structure Requirements:
 - Use descriptive test names: ${this.getTestNamingPattern(context.testStyle)}
 - Group related tests in describe/context blocks
 - Include proper setup/teardown (beforeEach/afterEach)
@@ -202,15 +201,95 @@ Test Structure Requirements:
 - Mock external dependencies appropriately
 - Test both synchronous and asynchronous operations
 
-Code to test:
-${content}
+${this.getFrameworkTestGuidelines(context)}
 
 Generate tests that:
 - Are isolated and don't depend on external state
 - Can run in any order
 - Clean up after themselves
 - Provide clear failure messages
-- Cover the specified coverage target`;
+- Cover the specified coverage target
+
+Provide the complete test file with all necessary imports and setup.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
+  }
+
+  // MODERN: Direct execution for small operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'generate_unit_tests',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN: Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'generate_unit_tests',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // LEGACY: Backwards compatibility method
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 
   private getCoverageTargetPercent(target?: string): number {

@@ -8,6 +8,8 @@ import { IPromptPlugin } from '../shared/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { withSecurity } from '../../security/integration-helpers.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -84,28 +86,31 @@ export class FindUnusedFiles extends BasePlugin implements IPromptPlugin {
       // Perform the comprehensive file analysis
       const analysisResult = await this.performFileAnalysis(context);
 
-      // Generate the prompt for LLM processing
-      const prompt = this.getPrompt({ 
-        ...secureParams, 
-        analysisResult,
-        context 
-      });
-
-      // Get LLM response
+      // Get LLM response using modern architecture
       const models = await llmClient.llm.listLoaded();
       if (models.length === 0) {
         throw new Error('No model loaded in LM Studio');
       }
 
       const model = models[0];
-      const prediction = model.respond([
-        { role: 'system', content: this.getSystemPrompt() },
-        { role: 'user', content: prompt }
-      ]);
-
+      const contextLength = await model.getContextLength() || 23832;
+      
+      // Generate 3-stage prompt
+      const promptStages = this.getPromptStages({
+        ...secureParams,
+        analysisResult,
+        context
+      });
+      
+      // Determine if chunking is needed
+      const promptManager = new ThreeStagePromptManager(contextLength);
+      const needsChunking = promptManager.needsChunking(promptStages);
+      
       let response = '';
-      for await (const token of prediction) {
-        response += token;
+      if (needsChunking) {
+        response = await this.executeWithChunking(promptStages, model, promptManager);
+      } else {
+        response = await this.executeDirect(promptStages, model);
       }
 
       // Parse and validate the response
@@ -716,27 +721,130 @@ Always consider that some files may appear unused but serve important purposes i
 - External tooling`;
   }
 
-  getPrompt(params: any): string {
+  // MODERN: 3-Stage prompt architecture
+  getPromptStages(params: any): PromptStages {
     const { analysisResult, context } = params;
     
-    return `Analyze the unused files detection results for a TypeScript/JavaScript project.
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert code architecture analyst specializing in unused file detection.
 
-PROJECT CONTEXT:
-- Project Path: ${context.projectPath}
+Analysis Context:
+- Project Type: TypeScript/JavaScript project
+- Detection Method: Comprehensive dependency traversal with dynamic loading analysis
 - Entry Points: ${context.entryPoints.join(', ')}
-- Total Files Analyzed: ${analysisResult.totalFiles}
+- Total Files: ${analysisResult.totalFiles}
+- Analysis Depth: Advanced pattern recognition
+
+Your task is to provide expert insights on unused file detection results with practical cleanup recommendations.`;
+
+    // STAGE 2: Data payload (analysis results)
+    const dataPayload = `Project Analysis Results:
+- Project Path: ${context.projectPath}
 - Dev Artifacts Detection: ${context.includeDevArtifacts ? 'Enabled' : 'Disabled'}
 
-ANALYSIS RESULTS:
-${JSON.stringify(analysisResult, null, 2)}
+Analysis Data:
+${JSON.stringify(analysisResult, null, 2)}`;
 
-Please provide insights on:
-1. The reliability of unused file detection
-2. Any patterns that suggest files might be dynamically loaded
-3. Recommendations for safe cleanup
-4. Potential risks or edge cases to consider
+    // STAGE 3: Output instructions
+    const outputInstructions = `Provide comprehensive analysis covering:
 
-Focus on practical guidance for maintaining code quality while avoiding accidental deletion of important files.`;
+## 1. Detection Reliability Assessment
+- Confidence level of unused file identification
+- Potential false positives and reasons
+- Dynamic loading patterns that might be missed
+
+## 2. File Classification Analysis
+- Definitively unused files (safe to remove)
+- Potentially unused files (investigate first)
+- Files with unclear usage patterns
+
+## 3. Cleanup Recommendations
+- Safe removal candidates with justification
+- Files requiring manual investigation
+- Backup and testing strategies before deletion
+
+## 4. Risk Assessment
+- Potential impact of removing flagged files
+- Edge cases and architectural considerations
+- Plugin/configuration system implications
+
+## 5. Maintenance Strategy
+- Process for ongoing unused file management
+- Integration with development workflow
+- Automated detection improvements
+
+Focus on practical, actionable guidance that balances code cleanup with system stability.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
+  }
+
+  // MODERN: Direct execution for small operations
+  private async executeDirect(stages: PromptStages, model: any): Promise<string> {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    return response;
+  }
+
+  // MODERN: Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, model: any, promptManager: ThreeStagePromptManager): Promise<string> {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    return response;
+  }
+
+  // LEGACY: Backwards compatibility method
+
+  // LEGACY: Backwards compatibility method
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 
