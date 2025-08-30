@@ -1,16 +1,25 @@
 /**
- * TypeScript type definitions for the plugin system
+ * TypeScript type definitions for the modern v4.2 plugin system
  */
+
+import { PromptStages } from '../../types/prompt-stages.js';
 
 export interface IPromptPlugin {
   name: string;
   category: 'analyze' | 'generate' | 'multifile' | 'custom' | 'system';
   description: string;
   parameters: ParameterSchema;
+  
+  // MODERN v4.2: Required methods
   execute(params: any, llmClient: any): Promise<any>;
-  getPrompt(params: any): string;
+  getPromptStages(params: any): PromptStages;
+  
+  // Optional methods
   validateParams?(params: any): void;
   getToolDefinition(): any;
+  
+  // LEGACY: Backwards compatibility (will be removed in v5.0)
+  getPrompt?(params: any): string;
 }
 
 export interface ParameterSchema {
@@ -28,11 +37,13 @@ export interface ParameterDefinition {
 }
 
 export interface PluginContext {
-  projectType?: 'wordpress-plugin' | 'react-app' | 'node-api' | 'n8n-node' | 'generic';
+  projectType?: 'wordpress-plugin' | 'wordpress-theme' | 'react-app' | 'react-component' | 'node-api' | 'n8n-node' | 'n8n-workflow' | 'browser-extension' | 'cli-tool' | 'html-component' | 'generic';
   framework?: string;
   frameworkVersion?: string;
   environment?: 'browser' | 'node' | 'wordpress' | 'hybrid';
   standards?: string[];
+  language?: string;
+  languageVersion?: string;
 }
 
 export interface AnalysisResult {
@@ -45,10 +56,12 @@ export interface AnalysisResult {
 
 export interface Finding {
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
-  type: string;
+  type: 'issue' | 'warning' | 'suggestion' | 'info';
   message: string;
   location?: string;
   line?: number;
+  column?: number;
+  recommendation?: string;
 }
 
 export interface Suggestion {
@@ -56,17 +69,66 @@ export interface Suggestion {
   category: string;
   description: string;
   implementation?: string;
+  benefits?: string[];
+  risks?: string[];
 }
 
 export interface Metrics {
   linesOfCode?: number;
   cyclomaticComplexity?: number;
   cognitiveComplexity?: number;
+  maintainabilityIndex?: number;
   testCoverage?: number;
   [key: string]: any;
 }
 
+/**
+ * Modern LM Studio Client Interface (v4.2)
+ * Uses streaming and model management
+ */
 export interface LLMClient {
-  complete(prompt: string): Promise<string>;
-  completeWithSchema<T>(prompt: string, schema: any): Promise<T>;
+  llm: {
+    listLoaded(): Promise<LLMModel[]>;
+  };
+}
+
+export interface LLMModel {
+  identifier: string;
+  respond(messages: ChatMessage[], options: ModelOptions): AsyncIterable<ModelResponse>;
+  getContextLength?(): Promise<number>;
+}
+
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface ModelOptions {
+  temperature?: number;
+  maxTokens?: number;
+  topP?: number;
+}
+
+export interface ModelResponse {
+  content?: string;
+  [key: string]: any;
+}
+
+/**
+ * Security and validation types
+ */
+export interface SecurityResult {
+  blocked: boolean;
+  sanitised: any;
+  warnings: string[];
+}
+
+/**
+ * Plugin execution context
+ */
+export interface PluginExecutionContext {
+  modelUsed?: string;
+  executionTimeMs?: number;
+  contextLength?: number;
+  chunked?: boolean;
 }

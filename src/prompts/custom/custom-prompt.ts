@@ -1,5 +1,5 @@
 /**
- * Custom Prompt Executor Plugin
+ * Custom Prompt Executor Plugin - Modern v4.2
  * Allows Claude to communicate any task directly to local LLM
  * Provides unlimited capability beyond predefined functions
  */
@@ -10,11 +10,12 @@ import { ResponseFactory } from '../../validation/response-factory.js';
 import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
 import { PromptStages } from '../../types/prompt-stages.js';
 import { withSecurity } from '../../security/integration-helpers.js';
+import { readFileContent } from '../shared/helpers.js';
 import { basename } from 'path';
 
 export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
   name = 'custom_prompt';
-  category = 'multifile' as const;
+  category = 'custom' as const;
   description = 'Execute any custom prompt with optional file context. Allows Claude to communicate any task directly to local LLM for processing.';
   
   parameters = {
@@ -64,9 +65,6 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
         // Read files if provided - using secure file reading
         const fileContents: Record<string, string> = {};
         if (secureParams.files && Array.isArray(secureParams.files)) {
-          // Import secure file reading helper
-          const { readFileContent } = await import('../shared/helpers.js');
-          
           for (const filePath of secureParams.files) {
             try {
               // Use secure file reading which includes path validation
@@ -78,6 +76,9 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
           }
         }
 
+        // Store file contents in params for getPromptStages
+        secureParams._fileContents = fileContents;
+
         // Get model info
         const models = await llmClient.llm.listLoaded();
         if (models.length === 0) {
@@ -85,18 +86,19 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
         }
         
         const model = models[0];
-        
-        // Build comprehensive prompt with context
-        const fullPrompt = this.buildFullPrompt(secureParams, fileContents);
-        
-        // Execute with 3-stage architecture for large content
         const contextLength = await model.getContextLength() || 23832;
-        const estimatedTokens = Math.floor(fullPrompt.length / 4);
         
-        if (estimatedTokens > contextLength * 0.8) {
-          return await this.executeWithChunking(secureParams, fileContents, llmClient, model);
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages(secureParams);
+        
+        // Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
+        
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
         } else {
-          return await this.executeDirect(fullPrompt, llmClient, model, secureParams);
+          return await this.executeDirect(promptStages, llmClient, model);
         }
         
       } catch (error: any) {
@@ -111,116 +113,10 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
     });
   }
 
-  private buildFullPrompt(params: any, fileContents: Record<string, string>): string {
-    const { prompt, working_directory, context } = params;
-    
-    let fullPrompt = '';
-    
-    // Add working directory context if provided
-    if (working_directory) {
-      fullPrompt += `Working Directory: ${working_directory}\n\n`;
-    }
-    
-    // Add structured context if provided
-    if (context) {
-      fullPrompt += 'Context:\n';
-      if (context.task_type) fullPrompt += `- Task Type: ${context.task_type}\n`;
-      if (context.requirements) fullPrompt += `- Requirements: ${context.requirements.join(', ')}\n`;
-      if (context.constraints) fullPrompt += `- Constraints: ${context.constraints.join(', ')}\n`;
-      if (context.output_format) fullPrompt += `- Output Format: ${context.output_format}\n`;
-      fullPrompt += '\n';
-    }
-    
-    // Add the main prompt
-    fullPrompt += `Task:\n${prompt}\n\n`;
-    
-    // Add file contents if provided
-    if (Object.keys(fileContents).length > 0) {
-      fullPrompt += 'Files for context:\n';
-      for (const [filePath, content] of Object.entries(fileContents)) {
-        const fileName = basename(filePath);
-        fullPrompt += `\n${'='.repeat(60)}\nFile: ${fileName}\nPath: ${filePath}\n${'='.repeat(60)}\n${content}\n`;
-      }
-    }
-    
-    return fullPrompt;
-  }
-
-  private async executeDirect(prompt: string, llmClient: any, model: any, params: any) {
-    const prediction = model.respond([
-      {
-        role: 'system',
-        content: 'You are a helpful AI assistant. Execute the requested task precisely and provide clear, actionable results.'
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ], {
-      temperature: 0.1,
-      maxTokens: params.max_tokens || 4000
-    });
-    
-    let response = '';
-    for await (const chunk of prediction) {
-      if (chunk.content) {
-        response += chunk.content;
-      }
-    }
-    
-    ResponseFactory.setStartTime();
-    return ResponseFactory.parseAndCreateResponse(
-      'custom_prompt',
-      response,
-      model.identifier || 'unknown'
-    );
-  }
-
-  /**
-   * Legacy getPrompt method for BasePlugin compatibility
-   */
-  getPrompt(params: any): string {
-    const stages = this.getPromptStages(params, {});
-    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
-  }
-
-  private async executeWithChunking(params: any, fileContents: Record<string, string>, llmClient: any, model: any) {
-    // For large content, use 3-stage prompt manager
-    const promptStages = this.getPromptStages(params, fileContents);
-    
-    const contextLength = await model.getContextLength();
-    const promptManager = new ThreeStagePromptManager(contextLength || 23832);
-    
-    const conversation = promptManager.createChunkedConversation(promptStages);
-    
-    const messages = [
-      conversation.systemMessage,
-      ...conversation.dataMessages,
-      conversation.analysisMessage
-    ];
-    
-    const prediction = model.respond(messages, {
-      temperature: 0.1,
-      maxTokens: params.max_tokens || 4000
-    });
-    
-    let response = '';
-    for await (const chunk of prediction) {
-      if (chunk.content) {
-        response += chunk.content;
-      }
-    }
-    
-    ResponseFactory.setStartTime();
-    return ResponseFactory.parseAndCreateResponse(
-      'custom_prompt',
-      response,
-      model.identifier || 'unknown'
-    );
-  }
-
-  getPromptStages(params: any, fileContents: Record<string, string>): PromptStages {
-    const { prompt, working_directory, context } = params;
+  // MODERN: 3-stage prompt architecture
+  getPromptStages(params: any): PromptStages {
+    const { prompt, working_directory, context, _fileContents } = params;
+    const fileContents: Record<string, string> = _fileContents || {};
     
     // STAGE 1: System and Context
     let systemAndContext = 'You are a helpful AI assistant executing a custom task.';
@@ -257,6 +153,74 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
       dataPayload, 
       outputInstructions
     };
+  }
+
+  // MODERN: Direct execution for small operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.1,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    // MODERN: ResponseFactory integration
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'custom_prompt',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // MODERN: Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.1,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'custom_prompt',
+      response,
+      model.identifier || 'unknown'
+    );
   }
 }
 

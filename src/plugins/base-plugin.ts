@@ -1,11 +1,12 @@
 /**
- * Base Plugin Class
- * All prompt plugins extend from this base class
+ * Base Plugin Class - Modern v4.2 Architecture
+ * All plugins extend from this base class with modern patterns
  */
 
 import { IPromptPlugin, ParameterDefinition } from '../prompts/shared/types.js';
+import { PromptStages } from '../types/prompt-stages.js';
 
-export abstract class BasePlugin implements Partial<IPromptPlugin> {
+export abstract class BasePlugin implements IPromptPlugin {
   abstract name: string;
   abstract category: 'analyze' | 'generate' | 'multifile' | 'custom' | 'system';
   abstract description: string;
@@ -13,13 +14,25 @@ export abstract class BasePlugin implements Partial<IPromptPlugin> {
   
   /**
    * Execute the plugin with given parameters
+   * MODERN v4.2: Must use withSecurity wrapper
    */
   abstract execute(params: any, llmClient: any): Promise<any>;
   
   /**
-   * Get the prompt for the LLM based on parameters
+   * Get the 3-stage prompt structure for context management
+   * MODERN v4.2: Required method for all plugins
    */
-  abstract getPrompt(params: any): string;
+  abstract getPromptStages(params: any): PromptStages;
+  
+  /**
+   * Legacy compatibility method
+   * DEPRECATED: Will be removed in v5.0
+   * Use getPromptStages() instead
+   */
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
+  }
   
   /**
    * Validate parameters before execution
