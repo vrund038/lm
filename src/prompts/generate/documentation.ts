@@ -1,5 +1,5 @@
 /**
- * Documentation Generation Plugin
+ * Documentation Generation Plugin - Modern v4.2 Architecture
  * Generates documentation for code with audience-specific formatting
  */
 
@@ -8,6 +8,8 @@ import { IPromptPlugin } from '../shared/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { withSecurity } from '../../security/integration-helpers.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 
 // Type definitions for documentation context
 interface DocContext {
@@ -93,76 +95,47 @@ export class DocumentationGenerator extends BasePlugin implements IPromptPlugin 
 
   async execute(params: any, llmClient: any) {
     return await withSecurity(this, params, llmClient, async (secureParams) => {
-      // Validate at least one input provided
-      if (!secureParams.code && !secureParams.filePath) {
-        throw new Error('Either code or filePath must be provided');
-      }
-      
-      // Read file if needed
-      let codeToDocument = secureParams.code;
-      if (secureParams.filePath) {
-        codeToDocument = await readFileContent(secureParams.filePath);
-      }
-      
-      // Prepare context with defaults
-      const context: DocContext = {
-        projectType: secureParams.context?.projectType || 'generic',
-        docStyle: secureParams.docStyle || 'jsdoc',
-        detailLevel: secureParams.context?.detailLevel || 'standard',
-        includeExamples: secureParams.includeExamples !== false,
-        audience: secureParams.context?.audience || 'developer',
-        includeApiReference: secureParams.context?.includeApiReference !== false,
-        includeTroubleshooting: secureParams.context?.includeTroubleshooting !== false
-      };
-      
-      // Generate prompt
-      const prompt = this.getPrompt({ ...secureParams, code: codeToDocument, context });
-      
       try {
-        // Get the loaded model from LM Studio
+        // Validate at least one input provided
+        if (!secureParams.code && !secureParams.filePath) {
+          throw new Error('Either code or filePath must be provided');
+        }
+        
+        // Read file if needed
+        let codeToDocument = secureParams.code;
+        if (secureParams.filePath) {
+          codeToDocument = await readFileContent(secureParams.filePath);
+        }
+        
+        // Get loaded models
         const models = await llmClient.llm.listLoaded();
         if (models.length === 0) {
           throw new Error('No model loaded in LM Studio. Please load a model first.');
         }
         
-        // Use the first loaded model
         const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
         
-        // Call the model with proper LM Studio SDK pattern
-        const prediction = model.respond([
-          {
-            role: 'system',
-            content: 'You are a documentation expert. Generate clear, comprehensive documentation that helps developers understand and use code effectively. Follow the specified documentation style and include practical examples.'
-          },
-          {
-            role: 'user', 
-            content: prompt
-          }
-        ], {
-          temperature: 0.1,
-          maxTokens: 2500
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          ...secureParams,
+          code: codeToDocument
         });
         
-        // Stream the response
-        let response = '';
-        for await (const chunk of prediction) {
-          if (chunk.content) {
-            response += chunk.content;
-          }
-        }
+        // Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
         
-        // Use ResponseFactory for consistent, spec-compliant output
-        ResponseFactory.setStartTime();
-        return ResponseFactory.parseAndCreateResponse(
-          'generate_documentation',
-          response,
-          model.identifier || 'unknown'
-        );
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
         
       } catch (error: any) {
         return ResponseFactory.createErrorResponse(
           'generate_documentation',
-          'MODEL_ERROR',
+          'EXECUTION_ERROR',
           `Failed to generate documentation: ${error.message}`,
           { originalError: error.message },
           'unknown'
@@ -171,42 +144,144 @@ export class DocumentationGenerator extends BasePlugin implements IPromptPlugin 
     });
   }
 
-  getPrompt(params: any): string {
-    const content = params.code;
-    const context = params.context || {};
+  getPromptStages(params: any): PromptStages {
+    const context: DocContext = {
+      projectType: params.context?.projectType || 'generic',
+      docStyle: params.docStyle || 'jsdoc',
+      detailLevel: params.context?.detailLevel || 'standard',
+      includeExamples: params.includeExamples !== false,
+      audience: params.context?.audience || 'developer',
+      includeApiReference: params.context?.includeApiReference !== false,
+      includeTroubleshooting: params.context?.includeTroubleshooting !== false
+    };
+
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are a documentation expert specializing in creating clear, comprehensive documentation for ${context.audience} audiences.
+
+Documentation Context:
+- Style: ${context.docStyle}
+- Detail Level: ${context.detailLevel}
+- Project Type: ${context.projectType}
+- Language: ${params.language || 'javascript'}
+- Include Examples: ${context.includeExamples}
+- Include API Reference: ${context.includeApiReference}
+- Include Troubleshooting: ${context.includeTroubleshooting}
+
+Your task is to create professional documentation that helps developers understand and effectively use the code.`;
+
+    // STAGE 2: Data payload (the code to document)
+    const dataPayload = `Code to document:
+
+\`\`\`${params.language || 'javascript'}
+${params.code}
+\`\`\``;
+
+    // STAGE 3: Output instructions
+    const outputInstructions = `Generate comprehensive documentation with the following structure:
+
+## 1. Overview
+Brief description of purpose, problem solved, and key benefits
+
+## 2. Installation/Setup
+${this.getSetupInstructions(context.projectType)}
+
+## 3. Usage
+Core implementation patterns and basic usage examples
+
+${context.includeApiReference ? `## 4. API Reference
+Complete function/method reference with parameters and return types` : ''}
+
+## 5. Configuration
+Settings, environment variables, and customization options
+
+## 6. Dependencies
+External requirements and version constraints
+
+${context.includeExamples ? `## 7. Examples
+${this.getExampleRequirements(context.projectType, context.audience)}` : ''}
+
+${context.includeTroubleshooting ? `## 8. Troubleshooting
+Common issues and solutions` : ''}
+
+## 9. Best Practices
+Recommended patterns and anti-patterns to avoid
+
+${this.getProjectSpecificDocRequirements(context.projectType)}
+
+Format your response in clean ${context.docStyle} style, appropriate for ${context.audience} audience at ${context.detailLevel} detail level.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
+  }
+
+  // Direct execution for small operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.1,
+      maxTokens: 2500
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'generate_documentation',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
     
-    const { projectType, docStyle, detailLevel, includeExamples, audience } = context;
-    
-    return `Generate documentation for ${audience || 'developer'} audience.
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
 
-Documentation Standards:
-- Style: ${docStyle || 'jsdoc'}
-- Detail Level: ${detailLevel || 'standard'}
-- Include Examples: ${includeExamples !== false}
-- Project Type: ${projectType || 'generic'}
+    const prediction = model.respond(messages, {
+      temperature: 0.1,
+      maxTokens: 2500
+    });
 
-Required Sections:
-1. **Overview**: What problem does this solve? Why was it built?
-2. **Installation/Setup**: ${this.getSetupInstructions(projectType)}
-3. **Usage**: How to implement/use this code
-4. **API Reference**: ${context.includeApiReference !== false ? 'All public methods/functions with parameters and return types' : 'Skip API reference'}
-5. **Configuration**: Required settings, environment variables, or options
-6. **Dependencies**: External requirements and version constraints
-7. **Examples**: ${includeExamples ? this.getExampleRequirements(projectType, audience) : 'Skip examples'}
-8. **Troubleshooting**: ${context.includeTroubleshooting !== false ? 'Common issues and solutions' : 'Skip troubleshooting'}
-9. **Best Practices**: Recommended usage patterns and anti-patterns to avoid
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
 
-${this.getProjectSpecificDocRequirements(projectType)}
-
-Documentation should be:
-- Clear and concise for ${audience || 'developer'} audience
-- Technically accurate with proper terminology
-- Well-structured with logical flow
-- Searchable with good headings
-- Compatible with ${docStyle || 'jsdoc'} format
-
-Code to document:
-${content}`;
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'generate_documentation',
+      response,
+      model.identifier || 'unknown'
+    );
   }
 
   // Helper functions for documentation
@@ -238,7 +313,7 @@ ${content}`;
   private getProjectSpecificDocRequirements(projectType?: string): string {
     const requirements: Record<string, string> = {
       'wordpress-plugin': `
-WordPress-Specific Documentation:
+### WordPress-Specific Requirements:
 - Hook reference (actions and filters)
 - Shortcode usage (if applicable)
 - Admin interface guide
@@ -247,7 +322,7 @@ WordPress-Specific Documentation:
 - Translation/localization guide`,
       
       'wordpress-theme': `
-WordPress Theme Documentation:
+### WordPress Theme Requirements:
 - Template hierarchy
 - Customizer options
 - Widget areas
@@ -256,7 +331,7 @@ WordPress Theme Documentation:
 - Child theme guide`,
       
       'node-api': `
-API-Specific Documentation:
+### API-Specific Requirements:
 - Endpoint reference with methods
 - Request/response examples
 - Authentication guide
@@ -265,7 +340,7 @@ API-Specific Documentation:
 - API versioning`,
       
       'react-app': `
-React-Specific Documentation:
+### React-Specific Requirements:
 - Component props and types
 - State management approach
 - Routing structure
@@ -274,7 +349,7 @@ React-Specific Documentation:
 - Browser compatibility`,
       
       'react-component': `
-React Component Documentation:
+### React Component Requirements:
 - Props interface
 - Event callbacks
 - Styling customization
@@ -283,7 +358,7 @@ React Component Documentation:
 - Testing guide`,
       
       'n8n-node': `
-n8n-Specific Documentation:
+### n8n-Specific Requirements:
 - Node configuration options
 - Credential setup guide
 - Input/output data formats
@@ -292,7 +367,7 @@ n8n-Specific Documentation:
 - Resource limitations`,
       
       'n8n-workflow': `
-n8n Workflow Documentation:
+### n8n Workflow Requirements:
 - Workflow purpose and flow
 - Required nodes and versions
 - Environment variables
@@ -301,7 +376,7 @@ n8n Workflow Documentation:
 - Error handling strategy`,
       
       'html-component': `
-HTML Component Documentation:
+### HTML Component Requirements:
 - Browser support matrix
 - CSS variables for theming
 - JavaScript API
@@ -310,7 +385,7 @@ HTML Component Documentation:
 - Integration examples`,
       
       'browser-extension': `
-Browser Extension Documentation:
+### Browser Extension Requirements:
 - Supported browsers
 - Installation guide
 - Permission explanations
@@ -319,7 +394,7 @@ Browser Extension Documentation:
 - Update process`,
       
       'cli-tool': `
-CLI Tool Documentation:
+### CLI Tool Requirements:
 - Command reference
 - Option flags
 - Configuration files
@@ -331,6 +406,12 @@ CLI Tool Documentation:
     };
     
     return requirements[projectType || 'generic'] || '';
+  }
+
+  // Legacy compatibility method
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 

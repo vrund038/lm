@@ -1,17 +1,15 @@
 /**
- * Code Refactoring Suggestion Plugin
+ * Code Refactoring Suggestion Plugin - Modern v4.2 Architecture
  * Analyzes code and suggests refactoring improvements with project-specific patterns
  */
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
-import { IPromptPlugin } from '../../plugins/types.js';
+import { IPromptPlugin } from '../shared/types.js';
 import { readFileContent } from '../shared/helpers.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { withSecurity } from '../../security/integration-helpers.js';
-
-
-
-
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 
 // Type definitions for refactoring context
 interface RefactorContext {
@@ -95,131 +93,192 @@ export class RefactoringAnalyzer extends BasePlugin implements IPromptPlugin {
 
   async execute(params: any, llmClient: any) {
     return await withSecurity(this, params, llmClient, async (secureParams) => {
-      // Validate at least one input provided
-      if (!secureParams.code && !secureParams.filePath) {
-        throw new Error('Either code or filePath must be provided');
-      }
-      
-      // Read file if needed
-      let codeToRefactor = secureParams.code;
-      if (secureParams.filePath) {
-        codeToRefactor = await readFileContent(secureParams.filePath);
-      }
-      
-      // Prepare context with defaults
-      const context: RefactorContext = {
-        projectType: secureParams.context?.projectType || 'generic',
-        focusAreas: secureParams.focusAreas || ['readability', 'maintainability'],
-        preserveApi: secureParams.context?.preserveApi !== false,
-        modernizationLevel: secureParams.context?.modernizationLevel || 'moderate',
-        targetComplexity: secureParams.context?.targetComplexity || 10,
-        standards: secureParams.context?.standards,
-        teamConventions: secureParams.context?.teamConventions
-      };
-      
-      // Generate prompt
-      const prompt = this.getPrompt({ ...secureParams, code: codeToRefactor, context });
-    
-    try {
-      // Get the loaded model from LM Studio
-      const models = await llmClient.llm.listLoaded();
-      if (models.length === 0) {
-        throw new Error('No model loaded in LM Studio. Please load a model first.');
-      }
-      
-      // Use the first loaded model
-      const model = models[0];
-      
-      // Call the model with proper LM Studio SDK pattern
-      const prediction = model.respond([
-        {
-          role: 'system',
-          content: 'You are an expert software architect specializing in code refactoring. Provide specific, actionable refactoring suggestions that improve code quality, maintainability, and performance while preserving functionality.'
-        },
-        {
-          role: 'user', 
-          content: prompt
+      try {
+        // Validate at least one input provided
+        if (!secureParams.code && !secureParams.filePath) {
+          throw new Error('Either code or filePath must be provided');
         }
-      ], {
-        temperature: 0.3,
-        maxTokens: 4000
-      });
-      
-      // Stream the response
-      let response = '';
-      for await (const chunk of prediction) {
-        if (chunk.content) {
-          response += chunk.content;
+        
+        // Read file if needed
+        let codeToRefactor = secureParams.code;
+        if (secureParams.filePath) {
+          codeToRefactor = await readFileContent(secureParams.filePath);
         }
+        
+        // Get loaded models
+        const models = await llmClient.llm.listLoaded();
+        if (models.length === 0) {
+          throw new Error('No model loaded in LM Studio. Please load a model first.');
+        }
+        
+        const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
+        
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages({
+          ...secureParams,
+          code: codeToRefactor
+        });
+        
+        // Determine if chunking is needed
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
+        
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
+        }
+        
+      } catch (error: any) {
+        return ResponseFactory.createErrorResponse(
+          'suggest_refactoring',
+          'EXECUTION_ERROR',
+          `Failed to suggest refactoring: ${error.message}`,
+          { originalError: error.message },
+          'unknown'
+        );
       }
-      
-      // Use ResponseFactory for consistent, spec-compliant output
-      ResponseFactory.setStartTime();
-      return ResponseFactory.parseAndCreateResponse(
-        'suggest_refactoring',
-        response,
-        model.identifier || 'unknown'
-      );
-      
-    } catch (error: any) {
-      return ResponseFactory.createErrorResponse(
-        'suggest_refactoring',
-        'MODEL_ERROR',
-        `Failed to suggest refactoring: ${error.message}`,
-        { originalError: error.message },
-        'unknown'
-      );
-    }
     });
   }
 
-  getPrompt(params: any): string {
-    const content = params.code;
-    const context = params.context || {};
-    
-    const { projectType, focusAreas, preserveApi = true, modernizationLevel = 'moderate' } = context;
-    const standards = context.standards?.join(', ') || 'clean code principles';
-    
-    return `Analyze code for refactoring opportunities following ${projectType || 'generic'} best practices.
+  getPromptStages(params: any): PromptStages {
+    const context: RefactorContext = {
+      projectType: params.context?.projectType || 'generic',
+      focusAreas: params.focusAreas || ['readability', 'maintainability'],
+      preserveApi: params.context?.preserveApi !== false,
+      modernizationLevel: params.context?.modernizationLevel || 'moderate',
+      targetComplexity: params.context?.targetComplexity || 10,
+      standards: params.context?.standards,
+      teamConventions: params.context?.teamConventions
+    };
+
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert software architect specializing in code refactoring. Your task is to provide specific, actionable refactoring suggestions that improve code quality while preserving functionality.
 
 Refactoring Context:
-- Focus Areas: ${(focusAreas || ['readability', 'maintainability']).join(', ')}
-- Preserve API: ${preserveApi ? 'Yes - maintain backward compatibility' : 'No - breaking changes allowed'}
-- Modernization Level: ${modernizationLevel}
-- Standards: ${standards}
-- Target Complexity: ${context.targetComplexity || 10} (cyclomatic complexity)
+- Project Type: ${context.projectType}
+- Language: ${params.language || 'javascript'}
+- Focus Areas: ${context.focusAreas.join(', ')}
+- Preserve API: ${context.preserveApi ? 'Yes - maintain backward compatibility' : 'No - breaking changes allowed'}
+- Modernization Level: ${context.modernizationLevel}
+- Target Complexity: ${context.targetComplexity} (cyclomatic complexity)
+- Standards: ${context.standards?.join(', ') || 'clean code principles'}
 
-Refactoring Priorities:
-1. **Code Smells**: ${this.getCodeSmellsToCheck(focusAreas || [])}
-2. **Design Patterns**: Apply appropriate patterns for ${projectType || 'generic'}
-3. **Performance**: ${(focusAreas || []).includes('performance') ? this.getPerformanceTargets(projectType) : 'Not a priority'}
-4. **Maintainability**: ${(focusAreas || []).includes('maintainability') ? 'Improve readability, reduce coupling, increase cohesion' : 'Standard'}
-5. **Security**: ${(focusAreas || []).includes('security') ? 'Apply security best practices' : 'Maintain current security level'}
+Your analysis should identify code smells, suggest design patterns, and provide concrete improvements.`;
 
-Specific Guidelines:
-${this.getRefactoringGuidelines(projectType, modernizationLevel)}
+    // STAGE 2: Data payload (the code to refactor)
+    const dataPayload = `Code to analyze for refactoring:
 
-Consider:
-- Breaking large functions (>50 lines) into smaller, focused methods
-- Extracting reusable components/utilities
-- Improving naming for clarity (${context.teamConventions?.naming || 'appropriate convention'})
-- Reducing cyclomatic complexity below ${context.targetComplexity || 10}
-- Adding appropriate error handling
-- Implementing proper logging
-- Updating deprecated APIs (modernization level: ${modernizationLevel})
+\`\`\`${params.language || 'javascript'}
+${params.code}
+\`\`\``;
 
-Code to refactor:
-${content}
+    // STAGE 3: Output instructions
+    const outputInstructions = `Provide comprehensive refactoring analysis with this structure:
 
-Provide:
-1. Refactored code with clear improvements
-2. Explanation of each significant change
-3. Impact assessment on:
-   - Performance (if applicable)
-   - Maintainability score
-   - Test coverage implications
-   - API compatibility (if preserving)
-4. Migration guide if breaking changes`;
+## Code Smells Identified
+${this.getCodeSmellsToCheck(context.focusAreas)}
+
+## Refactoring Suggestions
+For each significant issue found, provide:
+- **Issue**: Specific problem identified
+- **Impact**: How it affects ${context.focusAreas.join(', ')}
+- **Solution**: Concrete refactoring approach
+- **Priority**: High/Medium/Low based on impact
+
+## Refactored Code Examples
+Show before/after code snippets for major improvements
+
+## Design Pattern Recommendations
+${this.getRefactoringGuidelines(context.projectType, context.modernizationLevel)}
+
+## Performance Impact
+${context.focusAreas.includes('performance') ? this.getPerformanceTargets(context.projectType) : 'Focus on maintainability over performance'}
+
+## Migration Strategy
+${context.preserveApi ? 'Provide backward-compatible migration path' : 'Outline breaking changes and migration steps'}
+
+## Quality Metrics Improvement
+- Current vs. target cyclomatic complexity
+- Maintainability improvements
+- Test coverage considerations
+- Security enhancements (if applicable)
+
+Focus on practical, implementable suggestions that align with ${context.projectType} best practices and ${context.modernizationLevel} modernization approach.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
+  }
+
+  // Direct execution for small operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.3,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'suggest_refactoring',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.3,
+      maxTokens: 4000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'suggest_refactoring',
+      response,
+      model.identifier || 'unknown'
+    );
   }
 
   // Helper functions for refactoring
@@ -259,15 +318,14 @@ Provide:
 
   private getRefactoringGuidelines(projectType?: string, modernizationLevel?: string): string {
     const baseGuidelines = `
-General Refactoring Rules:
-- Maintain single responsibility principle
-- Use dependency injection where appropriate
-- Prefer composition over inheritance
-- Apply DRY principle thoughtfully
-- Keep functions pure when possible`;
+General Patterns:
+- Single responsibility principle
+- Dependency injection
+- Composition over inheritance
+- DRY principle (applied thoughtfully)
+- Pure functions where possible`;
 
     const modernization = modernizationLevel === 'aggressive' ? `
-Aggressive Modernization:
 - Update to latest language features
 - Replace callbacks with promises/async
 - Use modern module systems
@@ -275,84 +333,84 @@ Aggressive Modernization:
 
     const projectGuidelines: Record<string, string> = {
       'wordpress-plugin': `
-WordPress Refactoring:
-- Use modern PHP features (${modernizationLevel === 'conservative' ? 'PHP 7.4+' : 'PHP 8.0+'})
+WordPress-Specific:
+- Modern PHP features (${modernizationLevel === 'conservative' ? 'PHP 7.4+' : 'PHP 8.0+'})
 - Replace direct SQL with $wpdb methods
-- Use WordPress coding standards
-- Implement proper hook organization
-- Add namespace to avoid conflicts`,
+- WordPress coding standards
+- Proper hook organization
+- Namespace implementation`,
       
       'wordpress-theme': `
-WordPress Theme Refactoring:
-- Use theme.json for block editor support
-- Implement proper template parts
-- Optimize asset loading
-- Use WordPress coding standards
-- Add proper escaping functions`,
+WordPress Theme:
+- theme.json for block editor support
+- Template parts optimization
+- Asset loading improvements
+- Escaping functions
+- Performance optimization`,
       
       'node-api': `
-Node.js Refactoring:
-- Use async/await over callbacks
-- Implement proper middleware structure
-- Add request validation layer
-- Improve error handling consistency
-- Modularize route handlers`,
+Node.js API:
+- Async/await over callbacks
+- Middleware structure
+- Request validation
+- Error handling consistency
+- Modular route handlers`,
       
       'react-app': `
-React Refactoring:
-- Convert class components to hooks (if ${modernizationLevel !== 'conservative'})
-- Extract custom hooks
-- Optimize with memo/useMemo/useCallback
-- Improve component composition
-- Add proper TypeScript types`,
+React Application:
+- Hooks over class components (if ${modernizationLevel !== 'conservative'})
+- Custom hooks extraction
+- Memoization optimization
+- Component composition
+- TypeScript integration`,
       
       'react-component': `
-React Component Refactoring:
-- Extract reusable logic to hooks
-- Improve prop interfaces
-- Add proper memoization
-- Enhance accessibility
-- Optimize bundle size`,
+React Component:
+- Reusable logic hooks
+- Prop interface improvements
+- Memoization strategies
+- Accessibility enhancements
+- Bundle optimization`,
       
       'n8n-node': `
-n8n Node Refactoring:
-- Improve error handling
-- Add proper TypeScript types
-- Optimize credential handling
-- Implement batching where possible
-- Add comprehensive logging`,
+n8n Node:
+- Error handling improvements
+- TypeScript implementation
+- Credential optimization
+- Batch processing
+- Comprehensive logging`,
       
       'n8n-workflow': `
-n8n Workflow Refactoring:
-- Simplify node connections
-- Add error handling nodes
-- Optimize data transformations
-- Parallelize independent operations
-- Add documentation nodes`,
+n8n Workflow:
+- Node simplification
+- Error handling nodes
+- Data transformation optimization
+- Parallel processing
+- Documentation enhancement`,
       
       'html-component': `
-HTML Component Refactoring:
-- Improve semantic HTML
-- Add ARIA labels
-- Optimize CSS selectors
-- Extract inline styles
-- Add progressive enhancement`,
+HTML Component:
+- Semantic HTML improvements
+- ARIA implementation
+- CSS optimization
+- Progressive enhancement
+- Performance optimization`,
       
       'browser-extension': `
-Browser Extension Refactoring:
-- Minimize permission requirements
-- Optimize content script injection
-- Improve message passing
-- Add proper error boundaries
-- Implement lazy loading`,
+Browser Extension:
+- Permission minimization
+- Content script optimization
+- Message passing improvements
+- Error boundaries
+- Lazy loading implementation`,
       
       'cli-tool': `
-CLI Tool Refactoring:
-- Improve argument parsing
-- Add command aliases
-- Enhance help documentation
-- Implement proper exit codes
-- Add progress indicators`,
+CLI Tool:
+- Argument parsing improvements
+- Command aliases
+- Help documentation
+- Exit codes
+- Progress indicators`,
       
       'generic': ''
     };
@@ -360,6 +418,12 @@ CLI Tool Refactoring:
     const projectSpecific = projectGuidelines[projectType || 'generic'] || '';
     
     return baseGuidelines + modernization + projectSpecific;
+  }
+
+  // Legacy compatibility method
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 

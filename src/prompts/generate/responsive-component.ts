@@ -1,12 +1,14 @@
 /**
- * Responsive Component Generator
+ * Responsive Component Generator - Modern v4.2 Architecture
  * Generates responsive, accessible HTML/CSS components with modern best practices
  */
 
 import { BasePlugin } from '../../plugins/base-plugin.js';
-import { IPromptPlugin } from '../../plugins/types.js';
+import { IPromptPlugin } from '../shared/types.js';
 import { ResponseFactory } from '../../validation/response-factory.js';
 import { withSecurity } from '../../security/integration-helpers.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
 
 // Type definitions for component specifications
 interface ComponentSpecs {
@@ -78,71 +80,38 @@ export class ResponsiveComponentGenerator extends BasePlugin implements IPromptP
 
   async execute(params: any, llmClient: any) {
     return await withSecurity(this, params, llmClient, async (secureParams) => {
-      // Validate required parameters
-      if (!secureParams.name || !secureParams.type) {
-        throw new Error('name and type are required');
-      }
-      
-      // Prepare specifications
-      const specs: ComponentSpecs = {
-        name: secureParams.name,
-        type: secureParams.type,
-        framework: secureParams.framework || 'vanilla',
-        designSystem: secureParams.designSystem || 'custom',
-        responsive: secureParams.responsive !== false,
-        accessible: secureParams.accessible !== false,
-        animations: secureParams.animations || false,
-        darkMode: secureParams.darkMode || false
-      };
-      
-      // Generate prompt
-      const prompt = this.getPrompt({ specs });
-      
       try {
-        // Get the loaded model from LM Studio
+        // Validate required parameters
+        if (!secureParams.name || !secureParams.type) {
+          throw new Error('name and type are required');
+        }
+        
+        // Get loaded models
         const models = await llmClient.llm.listLoaded();
         if (models.length === 0) {
           throw new Error('No model loaded in LM Studio. Please load a model first.');
         }
         
-        // Use the first loaded model
         const model = models[0];
+        const contextLength = await model.getContextLength() || 23832;
         
-        // Call the model with proper LM Studio SDK pattern
-        const prediction = model.respond([
-          {
-            role: 'system',
-            content: 'You are an expert frontend developer specializing in responsive, accessible web components. Create production-ready HTML/CSS/JavaScript components following modern web standards, WCAG accessibility guidelines, and responsive design principles.'
-          },
-          {
-            role: 'user', 
-            content: prompt
-          }
-        ], {
-          temperature: 0.3,
-          maxTokens: 5000
-        });
+        // Generate 3-stage prompt
+        const promptStages = this.getPromptStages(secureParams);
         
-        // Stream the response
-        let response = '';
-        for await (const chunk of prediction) {
-          if (chunk.content) {
-            response += chunk.content;
-          }
+        // Determine if chunking is needed (components usually don't need chunking)
+        const promptManager = new ThreeStagePromptManager(contextLength);
+        const needsChunking = promptManager.needsChunking(promptStages);
+        
+        if (needsChunking) {
+          return await this.executeWithChunking(promptStages, llmClient, model, promptManager);
+        } else {
+          return await this.executeDirect(promptStages, llmClient, model);
         }
-        
-        // Use ResponseFactory for consistent, spec-compliant output
-        ResponseFactory.setStartTime();
-        return ResponseFactory.parseAndCreateResponse(
-          'generate_responsive_component',
-          response,
-          model.identifier || 'unknown'
-        );
         
       } catch (error: any) {
         return ResponseFactory.createErrorResponse(
           'generate_responsive_component',
-          'MODEL_ERROR',
+          'EXECUTION_ERROR',
           `Failed to generate responsive component: ${error.message}`,
           { originalError: error.message },
           'unknown'
@@ -151,120 +120,255 @@ export class ResponsiveComponentGenerator extends BasePlugin implements IPromptP
     });
   }
 
-  getPrompt(params: any): string {
-    const specs = params.specs;
-    const { name, type, framework = 'vanilla', designSystem = 'custom' } = specs;
-    
-    return `Create a responsive, accessible ${type} component named "${name}":
+  getPromptStages(params: any): PromptStages {
+    const specs: ComponentSpecs = {
+      name: params.name,
+      type: params.type,
+      framework: params.framework || 'vanilla',
+      designSystem: params.designSystem || 'custom',
+      responsive: params.responsive !== false,
+      accessible: params.accessible !== false,
+      animations: params.animations || false,
+      darkMode: params.darkMode || false
+    };
+
+    // STAGE 1: System instructions and context
+    const systemAndContext = `You are an expert frontend developer specializing in responsive, accessible web components. Your task is to create production-ready components following modern web standards.
 
 Component Specifications:
-- Type: ${type}
-- Framework: ${framework}
-- Design System: ${designSystem}
-- Responsive: ${specs.responsive !== false}
-- Accessible: ${specs.accessible !== false}
-- Animations: ${specs.animations || false}
-- Dark Mode: ${specs.darkMode || false}
+- Name: ${specs.name}
+- Type: ${specs.type}
+- Framework: ${specs.framework}
+- Design System: ${specs.designSystem}
+- Responsive: ${specs.responsive}
+- Accessible: ${specs.accessible}
+- Animations: ${specs.animations}
+- Dark Mode: ${specs.darkMode}
 
-Requirements:
+You must create components that follow WCAG accessibility guidelines, responsive design principles, and modern frontend best practices.`;
 
-1. **HTML Structure**:
-   - Semantic HTML5 elements
-   - ARIA labels and roles where needed
-   - Proper heading hierarchy
-   - Form labels and associations
-   - Landmark regions (if applicable)
+    // STAGE 2: Data payload (specifications and requirements)
+    const dataPayload = `Create a ${specs.type} component named "${specs.name}" with the following requirements:
 
-2. **CSS Implementation**:
-   - Mobile-first responsive design
-   - CSS Grid and/or Flexbox for layout
-   - CSS custom properties for theming:
-     * --${name}-primary-color
-     * --${name}-background
-     * --${name}-text-color
-     * --${name}-spacing
-     * --${name}-border-radius
-   - Container queries (if supported)
-   - Logical properties for RTL support
+**Technical Requirements:**
+- Framework: ${specs.framework}
+- Design System: ${specs.designSystem}
+- Responsive Design: ${specs.responsive ? 'Mobile-first approach' : 'Fixed width'}
+- Accessibility: ${specs.accessible ? 'WCAG 2.1 AA compliance' : 'Basic accessibility'}
+- Animations: ${specs.animations ? 'Performance-optimized animations' : 'Static component'}
+- Dark Mode: ${specs.darkMode ? 'System preference detection' : 'Single theme'}
 
-3. **Accessibility Features**:
-   - Keyboard navigation (tab order, arrow keys where appropriate)
-   - Focus indicators (visible and high contrast)
-   - Screen reader announcements
-   - Color contrast (WCAG 2.1 AA minimum)
-   - Touch targets (minimum 44x44px)
-   - Reduced motion support
+**Browser Compatibility:**
+- Modern browsers (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
+- Progressive enhancement for older browsers
+- CSS feature detection where needed
 
-4. **Responsive Breakpoints**:
-   - Mobile: 320px - 767px
-   - Tablet: 768px - 1023px
-   - Desktop: 1024px+
-   - Handle landscape orientation
-   - Fluid typography with clamp()
+**Performance Requirements:**
+- Minimize layout shifts (CLS)
+- Optimize for Core Web Vitals
+- Efficient CSS selectors
+- Minimal JavaScript where needed`;
 
-5. **Interactive Features** (if applicable):
-   - State management (open/closed, active/inactive)
-   - Smooth transitions
-   - Loading states
-   - Error states
-   - Empty states
+    // STAGE 3: Output instructions
+    const outputInstructions = `Generate a complete, production-ready component with this structure:
 
-${specs.animations ? `
-6. **Animation Requirements**:
-   - Respect prefers-reduced-motion
-   - Performance optimized (transform, opacity)
-   - Natural easing functions
-   - No layout shifts` : ''}
+## HTML Structure
+Semantic HTML5 markup with proper ARIA attributes
 
-${specs.darkMode ? `
-7. **Dark Mode Support**:
-   - CSS custom properties for colors
-   - Media query: prefers-color-scheme
-   - Smooth transitions between modes
-   - Proper contrast in both modes` : ''}
+## CSS Styles
+Component styles with custom properties for theming:
+- Mobile-first responsive design
+- Dark mode support (if enabled)
+- Animation definitions (if enabled)
 
-${framework === 'react' ? `
-8. **React Specific**:
-   - TypeScript interfaces for props
-   - Proper event handlers
-   - Ref forwarding support
-   - Memoization where appropriate
-   - Error boundaries` : ''}
+## JavaScript Functionality
+Interactive behavior implementation:
+- Event handlers
+- State management
+- Error handling
 
-${framework === 'vue' ? `
-8. **Vue Specific**:
-   - Composition API preferred
-   - Props validation
-   - Emitted events documentation
-   - Scoped slots support
-   - Transition components` : ''}
+${this.getFrameworkSpecificRequirements(specs.framework)}
 
-${framework === 'angular' ? `
-8. **Angular Specific**:
-   - Component decorator setup
-   - Input/Output decorators
-   - Change detection strategy
-   - Template reference variables
-   - Dependency injection` : ''}
+## Usage Examples
+- Basic implementation
+- Advanced customization
+- Integration examples
 
-${framework === 'svelte' ? `
-8. **Svelte Specific**:
-   - Props with defaults
-   - Event dispatching
-   - Stores for state
-   - Transitions and animations
-   - Slot support` : ''}
+## Accessibility Features
+- Keyboard navigation support
+- Screen reader compatibility
+- Focus management
+- Color contrast compliance
 
-Generate:
-1. **HTML Structure** with all semantic markup
-2. **CSS Styles** (mobile-first, organized by component parts)
-3. **JavaScript** (if interactive, with proper event handling)
-4. **Usage Documentation** with examples
-5. **Accessibility Notes** for developers
-6. **Browser Support** information
-7. **Customization Guide** for theming
+## Customization Guide
+CSS custom properties available:
+- --${specs.name}-primary-color
+- --${specs.name}-background
+- --${specs.name}-text-color
+- --${specs.name}-spacing
+- --${specs.name}-border-radius
 
-Make it production-ready with performance optimization and cross-browser compatibility.`;
+## Browser Support Matrix
+Compatible browsers and fallbacks
+
+## Performance Notes
+- Rendering optimizations
+- Bundle size considerations
+- Runtime performance tips
+
+Ensure all code is production-ready with proper error handling and edge case coverage.`;
+
+    return {
+      systemAndContext,
+      dataPayload,
+      outputInstructions
+    };
+  }
+
+  // Direct execution for small operations
+  private async executeDirect(stages: PromptStages, llmClient: any, model: any) {
+    const messages = [
+      {
+        role: 'system',
+        content: stages.systemAndContext
+      },
+      {
+        role: 'user',
+        content: stages.dataPayload
+      },
+      {
+        role: 'user',
+        content: stages.outputInstructions
+      }
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.3,
+      maxTokens: 5000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'generate_responsive_component',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // Chunked execution for large operations
+  private async executeWithChunking(stages: PromptStages, llmClient: any, model: any, promptManager: ThreeStagePromptManager) {
+    const conversation = promptManager.createChunkedConversation(stages);
+    
+    const messages = [
+      conversation.systemMessage,
+      ...conversation.dataMessages,
+      conversation.analysisMessage
+    ];
+
+    const prediction = model.respond(messages, {
+      temperature: 0.3,
+      maxTokens: 5000
+    });
+
+    let response = '';
+    for await (const chunk of prediction) {
+      if (chunk.content) {
+        response += chunk.content;
+      }
+    }
+
+    ResponseFactory.setStartTime();
+    return ResponseFactory.parseAndCreateResponse(
+      'generate_responsive_component',
+      response,
+      model.identifier || 'unknown'
+    );
+  }
+
+  // Helper function for framework-specific requirements
+  private getFrameworkSpecificRequirements(framework: string): string {
+    const requirements: Record<string, string> = {
+      'react': `
+## React Implementation
+TypeScript component with proper props interface:
+- Ref forwarding support
+- Memoization where appropriate
+- Error boundaries
+
+### Props Interface
+- Type definitions for all props
+- Default values documentation
+- Event handler signatures`,
+
+      'vue': `
+## Vue Implementation
+Composition API implementation:
+- Props validation
+- Emitted events documentation
+- Scoped slots support
+
+### Vue Features
+- Composition API setup
+- Reactive properties
+- Template refs
+- Event emission`,
+
+      'angular': `
+## Angular Implementation
+Component decorator setup:
+- Input/Output decorators
+- Change detection strategy
+- Template reference variables
+
+### Angular Features
+- Component lifecycle hooks
+- Dependency injection
+- Template binding
+- Event handling`,
+
+      'svelte': `
+## Svelte Implementation
+Component with enhanced features:
+- Props with defaults
+- Event dispatching
+- Stores for state
+- Transitions and animations
+
+### Svelte Features
+- Reactive declarations
+- Component events
+- Slot support
+- Built-in transitions`,
+
+      'vanilla': `
+## Vanilla JavaScript
+ES6+ implementation:
+- Class or factory function pattern
+- Event delegation
+- DOM manipulation helpers
+- Module pattern
+
+### Vanilla Features
+- No framework dependencies
+- Web Components compatibility
+- Progressive enhancement
+- Minimal JavaScript footprint`
+    };
+
+    return requirements[framework] || requirements['vanilla'];
+  }
+
+  // Legacy compatibility method
+  getPrompt(params: any): string {
+    const stages = this.getPromptStages(params);
+    return `${stages.systemAndContext}\n\n${stages.dataPayload}\n\n${stages.outputInstructions}`;
   }
 }
 
