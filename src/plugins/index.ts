@@ -1,18 +1,17 @@
 /**
  * Plugin Loader and Registry
  * Dynamically loads and manages all prompt plugins
+ * Modern v4.2 architecture - plugins handle their own context management
  */
 
 import { IPromptPlugin } from './types.js';
 import { BasePlugin } from './base-plugin.js';
-import { ContextWindowManager } from '../core/ContextWindowManager.js';
 import path from 'path';
 import { promises as fs } from 'fs';
 
 export class PluginLoader {
   private plugins: Map<string, IPromptPlugin> = new Map();
   private categories: Map<string, IPromptPlugin[]> = new Map();
-  private contextManager: ContextWindowManager;
   
   constructor() {
     // Initialize category maps
@@ -21,19 +20,6 @@ export class PluginLoader {
     this.categories.set('multifile', []);
     this.categories.set('custom', []);
     this.categories.set('system', []);
-    
-    // Initialize context window manager with conservative default
-    // The actual context limit will be detected dynamically from LM Studio
-    try {
-      this.contextManager = new ContextWindowManager({
-        contextLimit: 4096,   // Conservative default, will be updated dynamically
-        safetyMargin: 0.8,    // Use 80% of context window
-        notificationThreshold: 3000, // Notify for tasks > 3K tokens (based on 4K default)
-        enableUserNotifications: true
-      });
-    } catch (error) {
-      throw error;
-    }
   }
   
   /**
@@ -53,10 +39,10 @@ export class PluginLoader {
             await this.loadPlugin(path.join(categoryPath, file), category as any);
           }
         }
-    } catch (error) {
-      // Silent error handling to avoid JSON-RPC interference
-      // console.error(`Error loading plugins from ${category}:`, error);
-    }
+      } catch (error) {
+        // Silent error handling to avoid JSON-RPC interference
+        // console.error(`Error loading plugins from ${category}:`, error);
+      }
     }
     
     // Load system plugins from shared (cache management)
@@ -162,7 +148,8 @@ export class PluginLoader {
   }
   
   /**
-   * Execute a plugin by name with intelligent context window management
+   * Execute a plugin by name
+   * Modern v4.2: Each plugin handles its own context management with ThreeStagePromptManager
    */
   async executePlugin(name: string, params: any, llmClient: any): Promise<any> {
     const plugin = this.getPlugin(name);
@@ -171,28 +158,15 @@ export class PluginLoader {
       throw new Error(`Plugin not found: ${name}`);
     }
     
-    // Apply defaults and validate
+    // Apply defaults and validate parameters
     if (plugin instanceof BasePlugin) {
       params = plugin.applyDefaults(params);
       plugin.validateParams(params);
     }
     
-    // Check if chunking is needed for this operation
-    try {
-      const estimatedTokens = this.contextManager.estimateTokens(params, name);
-      const shouldChunk = this.contextManager.shouldChunk(estimatedTokens, name);
-      
-      if (shouldChunk) {
-        // Use context window manager for chunking
-        return await this.contextManager.executeWithChunking(plugin, params, llmClient);
-      } else {
-        // Execute normally without chunking
-        return await plugin.execute(params, llmClient);
-      }
-    } catch (error) {
-      // Fall back to normal execution if context management fails
-      return await plugin.execute(params, llmClient);
-    }
+    // Execute plugin - let each plugin handle its own context management
+    // Modern plugins use ThreeStagePromptManager internally for intelligent chunking
+    return await plugin.execute(params, llmClient);
   }
 }
 

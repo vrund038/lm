@@ -162,8 +162,8 @@ export class OutputEncoder {
       .replace(/\n/g, '\\n')
       .replace(/\r/g, '\\r')
       .replace(/\t/g, '\\t')
-      .replace(/\f/g, '\\f')
-      .replace(/\b/g, '\\b');
+      .replace(/\f/g, '\\f');
+      // Removed .replace(/\b/g, '\\b') - was incorrectly escaping word boundaries
   }
   
   /**
