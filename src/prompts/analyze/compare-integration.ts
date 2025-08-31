@@ -24,7 +24,7 @@ import { getAnalysisCache } from '../../cache/index.js';
 
 export class IntegrationComparator extends BasePlugin implements IPromptPlugin {
   name = 'compare_integration';
-  category = 'multifile' as const;
+  category = 'analyze' as const;
   description = 'Compare integration between multiple files to identify mismatches, missing imports, and compatibility issues. Returns actionable fixes with line numbers.';
   
   // Universal parameter set - supports both single and multi-file scenarios

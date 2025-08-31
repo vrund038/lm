@@ -17,7 +17,6 @@ export class PluginLoader {
     // Initialize category maps
     this.categories.set('analyze', []);
     this.categories.set('generate', []);
-    this.categories.set('multifile', []);
     this.categories.set('custom', []);
     this.categories.set('system', []);
   }
@@ -26,7 +25,7 @@ export class PluginLoader {
    * Load all plugins from the prompts directory
    */
   async loadPlugins(promptsDir: string): Promise<void> {
-    const categories = ['analyze', 'generate', 'multifile', 'custom', 'system'];
+    const categories = ['analyze', 'generate', 'custom', 'system'];
     
     for (const category of categories) {
       const categoryPath = path.join(promptsDir, category);
@@ -52,7 +51,7 @@ export class PluginLoader {
   /**
    * Load a single plugin file
    */
-  private async loadPlugin(filePath: string, category: 'analyze' | 'generate' | 'multifile' | 'custom' | 'system'): Promise<void> {
+  private async loadPlugin(filePath: string, category: 'analyze' | 'generate' | 'custom' | 'system'): Promise<void> {
     try {
       // Skip .d.ts files (TypeScript declaration files)
       if (filePath.endsWith('.d.ts')) {
@@ -136,7 +135,7 @@ export class PluginLoader {
   /**
    * Get plugins by category
    */
-  getPluginsByCategory(category: 'analyze' | 'generate' | 'multifile' | 'system'): IPromptPlugin[] {
+  getPluginsByCategory(category: 'analyze' | 'generate' | 'system'): IPromptPlugin[] {
     return this.categories.get(category) || [];
   }
   

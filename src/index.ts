@@ -242,7 +242,6 @@ class LocalLLMServer {
     const categories = {
       analyze: this.pluginLoader.getPluginsByCategory('analyze').length,
       generate: this.pluginLoader.getPluginsByCategory('generate').length,
-      multifile: this.pluginLoader.getPluginsByCategory('multifile').length,
       system: this.pluginLoader.getPluginsByCategory('system').length
     };
 
