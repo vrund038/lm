@@ -19,13 +19,14 @@ export class PluginLoader {
     this.categories.set('generate', []);
     this.categories.set('custom', []);
     this.categories.set('system', []);
+    this.categories.set('fun', []);
   }
   
   /**
    * Load all plugins from the prompts directory
    */
   async loadPlugins(promptsDir: string): Promise<void> {
-    const categories = ['analyze', 'generate', 'custom', 'system'];
+    const categories = ['analyze', 'generate', 'custom', 'system', 'fun'];
     
     for (const category of categories) {
       const categoryPath = path.join(promptsDir, category);
