@@ -21,12 +21,15 @@ import {
   MultiFileAnalysis
 } from '../../utils/plugin-utilities.js';
 import { getAnalysisCache } from '../../cache/index.js';
-import { basename } from 'path';
+
+// Common Node.js modules - Use these instead of require()
+import { basename, dirname, extname, join, relative } from 'path';
+import { readFile, stat, readdir } from 'fs/promises';
 
 export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugin {
   name = 'analyze_project_structure';
   category = 'analyze' as const;
-  description = 'Analyze complete project structure and architecture. Returns comprehensive architecture analysis with patterns, dependencies, and strategic recommendations.';
+  description = 'Analyze complete project structure and architecture with actionable strategic recommendations';
   
   // Universal parameter set - supports both single and multi-file scenarios
   parameters = {
@@ -128,14 +131,14 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
    * Auto-detect whether this is single-file or multi-file analysis
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
-    // Multi-file indicators
-    if (params.projectPath || params.files || params.maxDepth !== undefined) {
-      return 'multi-file';
-    }
-    
-    // Single-file indicators  
+    // Single-file indicators take priority (avoids default parameter issues)
     if (params.code || params.filePath) {
       return 'single-file';
+    }
+    
+    // Multi-file indicators
+    if (params.projectPath || params.files) {
+      return 'multi-file';
     }
     
     // Default to multi-file for project structure analysis
@@ -249,159 +252,192 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
   }
 
   /**
-   * Single-file architectural analysis
+   * Single-file structure analysis - focuses on file's role in larger architecture
    */
   private getSingleFilePromptStages(params: any): PromptStages {
-    const { code, language, analysisDepth, analysisType, focusAreas } = params;
+    const { code, language, analysisDepth, analysisType, filePath } = params;
+    const fileName = filePath ? basename(filePath) : 'unknown';
+    const focusAreas = params.focusAreas || [];
     
-    const systemAndContext = `You are a senior software architect with expertise in code architecture, design patterns, and structural analysis.
+    const systemAndContext = `You are a senior software architect with 15+ years of experience analyzing codebases and providing strategic guidance to development teams.
 
-Analysis Context:
+**YOUR EXPERTISE:**
+- Identifying architectural patterns and anti-patterns
+- Recognizing scalability bottlenecks and technical debt
+- Providing actionable recommendations that balance pragmatism with best practices
+- Understanding business impact of technical decisions
+
+**ANALYSIS CONTEXT:**
+- File: ${fileName}
 - Language: ${language}
 - Analysis Depth: ${analysisDepth}
 - Analysis Type: ${analysisType}
-- Focus Areas: ${focusAreas.length > 0 ? focusAreas.join(', ') : 'comprehensive'}
-- Mode: Single File Architecture Analysis
+- Focus Areas: ${focusAreas.length ? focusAreas.join(', ') : 'comprehensive'}
+- Mode: Single File Architectural Analysis
 
-Your task is to analyze the architectural patterns, design quality, and structural organization of this individual file, providing actionable insights for improvement.`;
+**YOUR MISSION:**
+Analyze this file's role in the broader architecture. Don't just describe what it does - explain its strategic importance, potential issues, and how it fits into modern software patterns.`;
 
-    const dataPayload = `Code to analyze:
+    const dataPayload = `File to analyze: ${fileName}
 
 \`\`\`${language}
 ${code}
 \`\`\``;
 
-    const outputInstructions = `Provide your architectural analysis in the following structured format:
+    const outputInstructions = `Provide your architectural analysis in the following strategic format:
 
-## File Architecture Analysis
+{
+  "executiveSummary": {
+    "fileRole": "What role does this file play in the overall architecture?",
+    "architecturalPattern": "What pattern does this file implement or support?",
+    "businessCriticality": "How critical is this file to business operations?"
+  },
+  "structuralAnalysis": {
+    "responsibilities": ["Primary responsibilities of this file"],
+    "dependencies": {
+      "imports": ["Key dependencies this file relies on"],
+      "exports": ["What this file provides to other parts of the system"],
+      "coupling": "tight|loose|moderate - with explanation"
+    },
+    "designPatterns": ["Identified design patterns used"],
+    "codeOrganization": "How well is the code structured internally?"
+  },
+  "architecturalInsights": {
+    "strengthsAndOpportunities": ["What this file does well architecturally"],
+    "technicalDebt": ["Areas where technical debt is accumulating"],
+    "scalabilityConsiderations": ["How will this file behave as the system grows?"],
+    "maintainabilityScore": "1-10 with explanation"
+  },
+  "strategicRecommendations": [
+    {
+      "priority": "high|medium|low",
+      "recommendation": "Specific actionable recommendation",
+      "rationale": "Why this matters for the business/team",
+      "effort": "low|medium|high",
+      "impact": "Business or technical impact of implementing this"
+    }
+  ],
+  "confidence": 0.85
+}
 
-### Pattern Identification
-- **Primary Pattern**: [pattern name and description]
-- **Implementation Quality**: [score/10]
-- **Pattern Adherence**: [how well pattern is followed]
-
-### Structural Assessment
-- **Organization**: [well-structured/moderate/needs improvement]
-- **Separation of Concerns**: [excellent/good/poor]
-- **Code Cohesion**: [high/medium/low]
-
-### Design Quality
-- **SOLID Principles Compliance**: [score/10]
-- **Readability**: [score/10]
-- **Maintainability**: [score/10]
-
-### Identified Issues
-- [List architectural issues with severity: critical/important/minor]
-
-### Recommendations
-1. **Critical**: [immediate architectural improvements needed]
-2. **Important**: [significant improvements to consider]
-3. **Suggested**: [nice-to-have improvements]
-
-### Refactoring Opportunities
-- [Specific refactoring suggestions with rationale]
-
-**Overall Architecture Score**: [X/10]`;
+**REMEMBER:** Focus on strategic architectural insights that help developers make better decisions, not just code review comments.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
 
   /**
-   * Multi-file project architecture analysis
+   * Multi-file project structure analysis - comprehensive architectural overview
    */
   private getMultiFilePromptStages(params: any): PromptStages {
-    const { analysisResult, analysisType, analysisDepth, fileCount, focusAreas, projectPath } = params;
+    const { analysisResult, analysisType, analysisDepth, fileCount, projectPath } = params;
+    const focusAreas = params.focusAreas || [];
+    const projectName = projectPath ? basename(projectPath) : 'Project';
     
-    const systemAndContext = `You are a senior software architect with expertise in project architecture, system design, and enterprise patterns.
+    const systemAndContext = `You are a senior software architect and technical consultant specializing in ${analysisDepth} ${analysisType} analysis.
 
-Analysis Context:
-- Project: ${projectPath ? basename(projectPath) : 'Unknown'}
+**YOUR EXPERTISE:**
+- 15+ years architecting scalable software systems
+- Expert in identifying patterns, anti-patterns, and architectural smells
+- Skilled at translating technical analysis into business recommendations
+- Proven track record helping teams improve system design and maintainability
+
+**PROJECT CONTEXT:**
+- Project: ${projectName}
+- Files Analyzed: ${fileCount}
 - Analysis Type: ${analysisType}
 - Analysis Depth: ${analysisDepth}  
-- Files Analyzed: ${fileCount}
-- Focus Areas: ${focusAreas.length > 0 ? focusAreas.join(', ') : 'comprehensive'}
+- Focus Areas: ${focusAreas.length ? focusAreas.join(', ') : 'comprehensive architecture'}
 - Mode: Complete Project Architecture Analysis
 
-Your task is to provide comprehensive architectural analysis covering system design, patterns, dependencies, code organization, and strategic recommendations for the entire project.`;
+**YOUR MISSION:**
+Provide a comprehensive architectural assessment that helps the development team understand their system's current state and chart a path forward. Focus on actionable insights that balance technical excellence with practical business needs.`;
 
-    const dataPayload = `Project architecture analysis results:
+    const dataPayload = `Complete project structure analysis:
 
 ${JSON.stringify(analysisResult, null, 2)}`;
 
-    const outputInstructions = `Provide your comprehensive project architecture analysis in the following structured format:
+    const outputInstructions = `Provide your comprehensive project architecture analysis in this executive-ready format:
 
-## Executive Summary
-Brief overview of the project architecture and key findings
+{
+  "executiveSummary": {
+    "overallArchitecturalHealth": "excellent|good|concerning|poor - with 2-sentence explanation",
+    "primaryStrengths": ["Top 3 architectural strengths"],
+    "criticalConcerns": ["Top 3 areas requiring immediate attention"],
+    "recommendedFocus": "What should the team prioritize next?"
+  },
+  "architecturalOverview": {
+    "detectedPatterns": [
+      {
+        "pattern": "Pattern name (e.g., MVC, Microservices, Layered)",
+        "implementation": "well-implemented|partially-implemented|poorly-implemented",
+        "impact": "How this affects the system"
+      }
+    ],
+    "systemComplexity": {
+      "level": "low|moderate|high|excessive",
+      "justification": "Why this complexity level exists",
+      "manageable": true/false
+    },
+    "codeOrganization": {
+      "directoryStructure": "well-organized|adequate|chaotic",
+      "separationOfConcerns": "clear|mixed|tangled",
+      "consistencyScore": "1-10 with explanation"
+    }
+  },
+  "dependencyAnalysis": {
+    "externalDependencies": {
+      "count": ${fileCount},
+      "riskLevel": "low|medium|high",
+      "outdatedDependencies": ["List of concerning dependencies"],
+      "recommendations": ["Dependency management recommendations"]
+    },
+    "internalCoupling": {
+      "level": "loose|moderate|tight",
+      "problematicAreas": ["Files or modules with coupling issues"],
+      "refactoringOpportunities": ["Specific decoupling suggestions"]
+    }
+  },
+  "qualityAndMaintainability": {
+    "codeQualityScore": "1-10 with explanation",
+    "technicalDebtAreas": [
+      {
+        "area": "Specific area of technical debt",
+        "severity": "low|medium|high|critical",
+        "businessImpact": "How this affects business operations",
+        "remediation": "Specific steps to address"
+      }
+    ],
+    "testability": "How easy is this codebase to test?",
+    "documentation": "Current state of documentation"
+  },
+  "scalabilityAndPerformance": {
+    "currentScalability": "How well will this system scale?",
+    "performanceBottlenecks": ["Identified or potential performance issues"],
+    "resourceUtilization": "Efficient or concerning resource usage patterns",
+    "scalingRecommendations": ["Specific recommendations for growth"]
+  },
+  "strategicRecommendations": [
+    {
+      "category": "architecture|dependencies|quality|performance|team",
+      "priority": "critical|high|medium|low",
+      "recommendation": "Specific actionable recommendation",
+      "businessJustification": "Why this matters for business success",
+      "technicalJustification": "Technical reasoning",
+      "estimatedEffort": "hours|days|weeks|months",
+      "expectedImpact": "Measurable impact on team or system",
+      "prerequisites": ["What needs to happen first"],
+      "riskOfNotImplementing": "What happens if this is ignored"
+    }
+  ],
+  "nextSteps": {
+    "immediate": ["Actions to take this week"],
+    "shortTerm": ["Actions for next 1-3 months"],
+    "longTerm": ["Strategic initiatives for 6+ months"],
+    "teamCapabilityNeeds": ["Skills or knowledge the team should develop"]
+  }
+}
 
-## Architecture Analysis
-### System Design Pattern
-- **Primary Architecture**: [monolithic/microservices/layered/hexagonal/etc.]
-- **Implementation Quality**: [score/10]
-- **Pattern Consistency**: [excellent/good/poor]
-
-### Project Organization
-- **Structure Quality**: [score/10]
-- **Module Organization**: [logical/acceptable/chaotic]
-- **Dependency Management**: [excellent/good/poor]
-
-## Technology Stack Assessment
-### Languages & Frameworks
-- **Primary Languages**: [list with usage percentages]
-- **Frameworks**: [list major frameworks and versions]
-- **Technology Alignment**: [modern/acceptable/outdated]
-
-### Infrastructure & Tooling
-- **Build System**: [assessment]
-- **Testing Strategy**: [comprehensive/basic/minimal]
-- **DevOps Integration**: [mature/developing/absent]
-
-## Code Quality Indicators
-### Positive Patterns
-- [List observed good architectural practices]
-
-### Anti-patterns & Issues
-- [List architectural problems with severity: critical/important/minor]
-
-### Complexity Assessment
-- **Overall Complexity**: [low/medium/high/excessive]
-- **Complexity Hotspots**: [areas requiring attention]
-
-## Dependency Analysis
-### Architecture Dependencies
-- **Critical Dependencies**: [list key architectural dependencies]
-- **Coupling Assessment**: [loose/tight/mixed]
-- **Risk Factors**: [security, maintenance, vendor lock-in risks]
-
-## Strategic Recommendations
-### Critical (Address Immediately)
-1. [High priority architectural changes]
-
-### Important (Address Soon)  
-1. [Medium priority improvements]
-
-### Future Considerations
-1. [Long-term architectural evolution suggestions]
-
-## Refactoring Roadmap
-### Phase 1: Foundation
-- [Immediate structural improvements]
-
-### Phase 2: Enhancement
-- [Medium-term architectural upgrades]
-
-### Phase 3: Evolution
-- [Long-term architectural transformation]
-
-## Architecture Maturity Score
-**Overall Score**: [X/10]
-- **Design Patterns**: [X/10]
-- **Code Organization**: [X/10] 
-- **Dependency Management**: [X/10]
-- **Maintainability**: [X/10]
-- **Scalability**: [X/10]
-
-## Conclusion
-Summary of architectural state and recommended next steps for optimal project evolution.`;
+**CRITICAL:** Focus on recommendations that help the team ship better software faster. Every suggestion should clearly explain both the technical benefit and business value.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -450,25 +486,32 @@ Summary of architectural state and recommended next steps for optimal project ev
       contextLength
     );
     
-    // Enhanced aggregation for architectural analysis
+    // Aggregate results into comprehensive project analysis
     const aggregatedResult = {
-      summary: `Project architecture analysis of ${files.length} files`,
-      findings: fileAnalysisResults,
-      architecture: {
+      summary: `Project structure analysis of ${files.length} files`,
+      projectMetrics: {
         totalFiles: files.length,
         totalSize: fileAnalysisResults.reduce((sum: number, result: any) => sum + (result.size || 0), 0),
+        averageFileSize: Math.round(fileAnalysisResults.reduce((sum: number, result: any) => sum + (result.size || 0), 0) / files.length),
         totalLines: fileAnalysisResults.reduce((sum: number, result: any) => sum + (result.lines || 0), 0),
-        filesByType: this.groupFilesByType(fileAnalysisResults),
-        largestFiles: this.getLargestFiles(fileAnalysisResults),
-        directoryStructure: this.buildDirectoryStructure(files),
-        configurationFiles: await this.findConfigurationFiles(files),
-        dependencyIndicators: this.analyzeDependencyPatterns(fileAnalysisResults)
-      }
+        fileTypeDistribution: this.analyzeFileTypes(fileAnalysisResults),
+        directoryStructure: this.analyzeDirectoryStructure(files, params.projectPath)
+      },
+      architecturalInsights: {
+        largestFiles: fileAnalysisResults
+          .sort((a, b) => (b.size || 0) - (a.size || 0))
+          .slice(0, 10)
+          .map(f => ({ path: f.relativePath, size: f.size, lines: f.lines })),
+        complexityIndicators: this.calculateComplexityMetrics(fileAnalysisResults),
+        organizationPatterns: this.identifyOrganizationPatterns(files),
+        dependencyStructure: this.analyzeDependencyStructure(fileAnalysisResults)
+      },
+      fileAnalysisResults
     };
     
     await this.analysisCache.cacheAnalysis(cacheKey, aggregatedResult, {
       modelUsed: model.identifier || 'unknown',
-      executionTime: Date.now() - Date.now(),
+      executionTime: Date.now() - Date.now(), // TODO: Track actual execution time
       timestamp: new Date().toISOString()
     });
     
@@ -476,121 +519,169 @@ Summary of architectural state and recommended next steps for optimal project ev
   }
 
   private async analyzeIndividualFile(file: string, params: any, model: any): Promise<any> {
-    const content = await import('fs/promises').then(fs => fs.readFile(file, 'utf-8'));
-    const stats = await import('fs/promises').then(fs => fs.stat(file));
-    const lines = content.split('\n');
+    const content = await readFile(file, 'utf-8');
+    const stats = await stat(file);
     
     return {
       filePath: file,
+      fileName: basename(file),
       size: content.length,
-      lines: lines.length,
-      extension: file.split('.').pop() || '',
-      isDirectory: stats.isDirectory(),
-      modified: stats.mtime,
-      // Simple pattern detection
-      hasImports: /^(import|require|from|#include)/m.test(content),
-      hasExports: /^(export|module\.exports|__all__)/m.test(content),
-      hasClasses: /^(class|interface|struct)/m.test(content),
-      hasFunctions: /^(function|def|func|public|private)/m.test(content),
-      complexity: this.estimateComplexity(content)
+      lines: content.split('\n').length,
+      extension: extname(file),
+      relativePath: relative(params.projectPath || '', file),
+      directory: dirname(relative(params.projectPath || '', file)),
+      isEmpty: content.trim().length === 0,
+      isConfigFile: this.isConfigFile(file),
+      isTestFile: this.isTestFile(file),
+      lastModified: stats.mtime,
+      // Basic complexity indicators
+      functionsCount: this.countFunctions(content),
+      importsCount: this.countImports(content),
+      exportsCount: this.countExports(content)
     };
   }
 
   private getFileExtensions(analysisType: string): string[] {
     const extensionMap: Record<string, string[]> = {
-      'architecture': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go', '.rs', '.cpp', '.h', '.vue', '.svelte'],
-      'patterns': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go', '.rs'],
-      'comprehensive': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go', '.rs', '.cpp', '.h', '.vue', '.svelte', '.json', '.yaml', '.yml', '.xml', '.md']
+      'architecture': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go', '.json', '.yaml', '.yml', '.xml'],
+      'patterns': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go', '.vue', '.svelte'],
+      'comprehensive': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go', '.vue', '.svelte', '.json', '.yaml', '.yml', '.xml', '.md', '.txt', '.css', '.scss', '.less']
     };
     
     return extensionMap[analysisType] || extensionMap.comprehensive;
   }
 
-  // Helper methods for enhanced project analysis
-  private groupFilesByType(results: any[]): Record<string, number> {
-    const grouped: Record<string, number> = {};
+  // Helper methods for analysis
+  private analyzeFileTypes(results: any[]): Record<string, number> {
+    const typeCount: Record<string, number> = {};
     results.forEach(result => {
       const ext = result.extension || 'no-extension';
-      grouped[ext] = (grouped[ext] || 0) + 1;
+      typeCount[ext] = (typeCount[ext] || 0) + 1;
     });
-    return grouped;
+    return typeCount;
   }
 
-  private getLargestFiles(results: any[]): any[] {
-    return results
-      .sort((a, b) => (b.size || 0) - (a.size || 0))
-      .slice(0, 10)
-      .map(file => ({
-        path: file.filePath,
-        size: file.size,
-        lines: file.lines
-      }));
-  }
-
-  private buildDirectoryStructure(files: string[]): any {
+  private analyzeDirectoryStructure(files: string[], projectPath?: string): any {
     const structure: Record<string, any> = {};
-    
     files.forEach(file => {
-      const parts = file.split('/');
+      const relativePath = projectPath ? relative(projectPath, file) : file;
+      const parts = relativePath.split(/[\/\\]/);
       let current = structure;
       
       parts.forEach((part, index) => {
-        if (!current[part]) {
-          current[part] = index === parts.length - 1 ? null : {};
-        }
-        if (current[part] !== null) {
+        if (index === parts.length - 1) {
+          // It's a file
+          if (!current._files) current._files = [];
+          current._files.push(part);
+        } else {
+          // It's a directory
+          if (!current[part]) current[part] = {};
           current = current[part];
         }
       });
     });
-    
     return structure;
   }
 
-  private async findConfigurationFiles(files: string[]): Promise<string[]> {
-    const configPatterns = [
-      'package.json', 'composer.json', 'pom.xml', 'build.gradle',
-      'requirements.txt', 'Gemfile', 'Cargo.toml', 'go.mod',
-      'tsconfig.json', 'webpack.config.js', '.eslintrc',
-      'docker-compose.yml', 'Dockerfile', '.env', 'README.md'
-    ];
+  private calculateComplexityMetrics(results: any[]): any {
+    const sizes = results.map(r => r.size || 0);
+    const lines = results.map(r => r.lines || 0);
     
-    return files.filter(file => {
-      const fileName = basename(file);
-      return configPatterns.some(pattern => 
-        fileName === pattern || fileName.includes(pattern.replace('.*', ''))
-      );
-    });
+    return {
+      fileSizeVariance: this.calculateVariance(sizes),
+      lineLengthVariance: this.calculateVariance(lines),
+      largeFileCount: sizes.filter(s => s > 10000).length,
+      veryLargeFileCount: sizes.filter(s => s > 50000).length
+    };
   }
 
-  private analyzeDependencyPatterns(results: any[]): any {
-    const patterns = {
-      hasModuleSystem: results.some(r => r.hasImports || r.hasExports),
-      hasClasses: results.filter(r => r.hasClasses).length,
-      hasFunctions: results.filter(r => r.hasFunctions).length,
-      averageComplexity: results.reduce((sum, r) => sum + (r.complexity || 0), 0) / results.length,
-      complexFiles: results.filter(r => (r.complexity || 0) > 10).map(r => r.filePath)
-    };
+  private identifyOrganizationPatterns(files: string[]): string[] {
+    const patterns: string[] = [];
+    
+    // Check for common patterns
+    if (files.some(f => f.includes('/src/'))) patterns.push('src-directory');
+    if (files.some(f => f.includes('/lib/'))) patterns.push('lib-directory');
+    if (files.some(f => f.includes('/components/'))) patterns.push('component-structure');
+    if (files.some(f => f.includes('/utils/') || f.includes('/helpers/'))) patterns.push('utility-separation');
+    if (files.some(f => f.includes('/test/') || f.includes('/__tests__/'))) patterns.push('test-organization');
+    if (files.some(f => f.includes('/config/'))) patterns.push('configuration-separation');
     
     return patterns;
   }
 
-  private estimateComplexity(content: string): number {
-    // Simple complexity estimation based on control structures
-    const complexityPatterns = [
-      /if\s*\(/g, /else/g, /while\s*\(/g, /for\s*\(/g, 
-      /switch\s*\(/g, /case\s+/g, /catch\s*\(/g, /\?\s*:/g
+  private analyzeDependencyStructure(results: any[]): any {
+    const totalImports = results.reduce((sum, r) => sum + (r.importsCount || 0), 0);
+    const totalExports = results.reduce((sum, r) => sum + (r.exportsCount || 0), 0);
+    const filesWithImports = results.filter(r => (r.importsCount || 0) > 0).length;
+    const filesWithExports = results.filter(r => (r.exportsCount || 0) > 0).length;
+    
+    return {
+      totalImports,
+      totalExports,
+      averageImportsPerFile: filesWithImports ? Math.round(totalImports / filesWithImports) : 0,
+      averageExportsPerFile: filesWithExports ? Math.round(totalExports / filesWithExports) : 0,
+      interconnectionLevel: filesWithImports / results.length
+    };
+  }
+
+  // Utility methods
+  private isConfigFile(file: string): boolean {
+    const configPatterns = ['.json', '.yaml', '.yml', '.xml', '.ini', '.toml', '.config.', 'package.json', 'tsconfig.', 'webpack.', 'babel.'];
+    return configPatterns.some(pattern => file.includes(pattern));
+  }
+
+  private isTestFile(file: string): boolean {
+    const testPatterns = ['.test.', '.spec.', '__test__', '__spec__', '/test/', '/tests/', '/spec/'];
+    return testPatterns.some(pattern => file.includes(pattern));
+  }
+
+  private countFunctions(content: string): number {
+    // Simple function counting - can be enhanced
+    const functionPatterns = [
+      /function\s+\w+/g,
+      /const\s+\w+\s*=\s*\(/g,
+      /let\s+\w+\s*=\s*\(/g,
+      /\w+\s*:\s*function/g,
+      /\w+\s*=>\s*/g
     ];
     
-    let complexity = 1; // Base complexity
-    complexityPatterns.forEach(pattern => {
+    return functionPatterns.reduce((count, pattern) => {
       const matches = content.match(pattern);
-      if (matches) {
-        complexity += matches.length;
-      }
-    });
+      return count + (matches ? matches.length : 0);
+    }, 0);
+  }
+
+  private countImports(content: string): number {
+    const importPatterns = [
+      /^import\s+/gm,
+      /^const\s+.*=\s*require\(/gm,
+      /^from\s+.*import/gm
+    ];
     
-    return complexity;
+    return importPatterns.reduce((count, pattern) => {
+      const matches = content.match(pattern);
+      return count + (matches ? matches.length : 0);
+    }, 0);
+  }
+
+  private countExports(content: string): number {
+    const exportPatterns = [
+      /^export\s+/gm,
+      /^module\.exports/gm,
+      /^exports\./gm
+    ];
+    
+    return exportPatterns.reduce((count, pattern) => {
+      const matches = content.match(pattern);
+      return count + (matches ? matches.length : 0);
+    }, 0);
+  }
+
+  private calculateVariance(numbers: number[]): number {
+    if (numbers.length === 0) return 0;
+    const mean = numbers.reduce((sum, n) => sum + n, 0) / numbers.length;
+    const squaredDiffs = numbers.map(n => Math.pow(n - mean, 2));
+    return squaredDiffs.reduce((sum, diff) => sum + diff, 0) / numbers.length;
   }
 
   private generateCacheKey(files: string[], params: any): string {
