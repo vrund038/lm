@@ -129,14 +129,14 @@ export class TEMPLATE_UniversalPlugin extends BasePlugin implements IPromptPlugi
    * Default: Choose based on your plugin's primary use case
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
-    // Multi-file indicators
-    if (params.projectPath || params.files || params.maxDepth !== undefined) {
-      return 'multi-file';
-    }
-    
-    // Single-file indicators  
+    // Single-file indicators take priority (avoids default parameter issues)
     if (params.code || params.filePath) {
       return 'single-file';
+    }
+    
+    // Multi-file indicators
+    if (params.projectPath || params.files) {
+      return 'multi-file';
     }
     
     // TEMPLATE: Choose your default based on plugin purpose

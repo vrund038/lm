@@ -129,14 +129,14 @@ export class CodeQualityAnalyzer extends BasePlugin implements IPromptPlugin {
    * Default: Choose based on your plugin's primary use case
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
-    // Multi-file indicators
-    if (params.projectPath || params.files || params.maxDepth !== undefined) {
-      return 'multi-file';
-    }
-    
-    // Single-file indicators  
+    // Single-file indicators take priority
     if (params.code || params.filePath) {
       return 'single-file';
+    }
+    
+    // Multi-file indicators
+    if (params.projectPath || params.files) {
+      return 'multi-file';
     }
     
     // For code quality, default to single-file (analyze individual files)
