@@ -283,40 +283,32 @@ Your task is to analyze this single file for integration readiness, interface de
 ${code}
 \`\`\``;
 
-    const outputInstructions = `**PROVIDE COMPREHENSIVE SINGLE-FILE INTEGRATION ANALYSIS:**
+    const outputInstructions = `**PROVIDE CLEAN MARKDOWN INTEGRATION ANALYSIS:**
 
-## 1. Integration Readiness Assessment
-- **Interface Quality**: How well-designed are the exports/public methods?
-- **Dependency Management**: Are imports/dependencies properly structured?
-- **Contract Clarity**: Are method signatures, types, and return values clear?
-- **Error Handling**: Are errors properly typed and documented for consumers?
+# Single File Integration Analysis
 
-## 2. Potential Integration Issues
-For each potential issue:
-- **Type**: Interface Design, Dependency Coupling, Error Handling, etc.
-- **Severity**: Critical/High/Medium/Low
-- **Location**: Specific line numbers where relevant
-- **Description**: Clear explanation of the potential problem
-- **Impact**: How this could affect integrating components
-- **Prevention**: Specific code changes to improve integration
+## Integration Readiness: [Excellent/Good/Fair/Poor]
 
-## 3. Integration Strengths
-- **Good Patterns**: Well-implemented integration patterns already in use
-- **Defensive Programming**: Good practices that will help consuming code
-- **Interface Design**: Strong points in the current API design
+## Key Findings
+- **Interface Quality**: [Assessment of exports/public methods]
+- **Dependency Health**: [Import/dependency structure assessment]
+- **Contract Clarity**: [Method signatures and types assessment]
 
-## 4. Recommendations for Better Integration
-- **Interface Improvements**: How to make the public API more integration-friendly
-- **Type Safety**: Enhancements to improve compile-time integration validation
-- **Documentation**: What should be documented for consuming developers
-- **Testing**: Integration test suggestions for this component
+## Integration Issues Found
 
-## 5. Future Integration Considerations
-- **Scalability**: How will this integrate as the system grows?
-- **Versioning**: Considerations for API evolution without breaking changes
-- **Monitoring**: What should be logged/monitored for integration health?
+### Critical Issues
+- [Issue description with line numbers if applicable]
 
-**Output Format**: Use clear markdown with specific line numbers, code examples for fixes, and prioritized recommendations.`;
+### Recommendations  
+1. [Specific actionable recommendations]
+2. [Interface improvements needed]
+3. [Type safety enhancements]
+
+## Integration Strengths
+- [Good patterns already in use]
+- [Defensive programming practices]
+
+**Analysis Complete** - Focus on actionable insights, not raw code dumps.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -357,117 +349,68 @@ Your task is to perform deep cross-file integration analysis, identifying ALL co
 
 ${JSON.stringify(analysisResult, null, 2)}`;
 
-    const outputInstructions = `**PROVIDE COMPREHENSIVE MULTI-FILE INTEGRATION ANALYSIS:**
+    const outputInstructions = `**PROVIDE CLEAN MARKDOWN MULTI-FILE INTEGRATION ANALYSIS:**
 
-# Integration Analysis Report
+# Multi-File Integration Analysis Report
 
 ## Executive Summary
-- **Overall Integration Health**: Excellent/Good/Fair/Poor/Critical
-- **Critical Issues**: Count of issues requiring immediate attention
-- **Files with Problems**: Number of files with integration issues
-- **Risk Assessment**: Overall system integration risk level
+- **Overall Integration Health**: [Excellent/Good/Fair/Poor/Critical]
+- **Files Analyzed**: ${fileCount}
+- **Critical Issues**: [Count]
+- **Integration Risk**: [Low/Medium/High/Critical]
 
-## 1. Method Signature Compatibility Analysis
-### Cross-File Method Calls
-For each method call between files:
-- **Calling File → Called File**: Specific method invocations
-- **Signature Match**: Parameters, return types, error handling
-- **Compatibility Status**: ✅ Compatible / ⚠️ Warning / ❌ Incompatible
-- **Issues Found**: Specific parameter mismatches, type conflicts
-- **Fix Required**: Exact code changes needed with line numbers
+## Key Integration Issues Found
 
-### Interface Contract Violations
-- **Missing Implementations**: Required methods not implemented
-- **Type Mismatches**: Inconsistent data types across interfaces
-- **Error Handling Gaps**: Inconsistent error handling patterns
+### 🚨 Critical Issues (Fix Immediately)
+1. **[Issue Type]** in [filename.ts:123]
+   - **Problem**: [Brief description]
+   - **Impact**: [What breaks]
+   - **Fix**: [Specific solution]
 
-## 2. Import/Export Analysis
-### Unused Exports Detection
-- **File**: Which files have unused exports
-- **Unused Items**: Specific functions/classes/variables not imported elsewhere
-- **Impact**: Code bloat, maintenance burden
-- **Recommendation**: Safe removal or documentation of intended use
+### ⚠️ High Priority Issues
+1. **[Issue Type]** between [file1.ts] and [file2.ts]  
+   - **Problem**: [Description]
+   - **Fix**: [Solution]
 
-### Missing Imports
-- **File**: Files with missing dependencies
-- **Missing Items**: Required imports not present
-- **Expected Source**: Which file should provide the import
-- **Severity**: Critical (will cause runtime errors) vs Optional
+### 📋 Medium Priority Issues
+- [List of less critical but important issues]
 
-### Circular Dependencies
-- **Dependency Chains**: A → B → C → A patterns
-- **Files Involved**: Complete circular dependency paths
-- **Break Points**: Where to break the cycle with architectural changes
-- **Refactoring Strategy**: Specific steps to resolve
+## Method Compatibility Analysis
+- **Compatible Calls**: [Count] ✅
+- **Signature Mismatches**: [Count] ❌
+- **Missing Implementations**: [Count] ⚠️
 
-## 3. Data Flow Integration Issues
-### Type Compatibility Across Files
-- **Data Structures**: Inconsistent object shapes between files  
-- **Type Definitions**: Missing or conflicting interface definitions
-- **Serialization Issues**: JSON serialization/deserialization problems
-- **API Boundaries**: Data transformation issues at file interfaces
+## Import/Export Health
+- **Clean Dependencies**: [Count] ✅
+- **Unused Exports**: [Count] 🧹
+- **Missing Imports**: [Count] ❌
+- **Circular Dependencies**: [Count] 🔄
 
-### State Management Integration
-- **Shared State**: How files share and modify common data
-- **Race Conditions**: Potential concurrent access issues
-- **Data Synchronization**: Consistency across file boundaries
+## Architecture Assessment
+- **Design Patterns**: [Good patterns found]
+- **Anti-Patterns**: [Problematic patterns]
+- **Coupling**: [Tight/Loose assessment]
 
-## 4. Architectural Integration Patterns
-### Design Patterns Analysis
-- **Good Patterns**: Well-implemented integration patterns in use
-- **Anti-Patterns**: Problematic integration approaches detected
-- **Coupling Analysis**: Tight/loose coupling between modules
-- **Abstraction Issues**: Missing interfaces or over-abstraction
+## Priority Action Plan
 
-### Dependency Injection Analysis  
-- **DI Patterns**: How dependencies are injected between files
-- **Service Location**: Service locator patterns and issues
-- **Factory Patterns**: Factory implementations for cross-file object creation
+### Phase 1: Critical Fixes (Do First)
+1. [Fix critical integration breakages]
+2. [Resolve method signature mismatches]
 
-## 5. Critical Integration Issues (Priority Fixes)
-### High-Severity Issues
-For each critical issue:
-- **Issue Type**: Method Mismatch, Missing Import, Type Conflict, etc.
-- **Affected Files**: Specific files involved (with line numbers)
-- **Problem Description**: Exact nature of the integration problem
-- **Runtime Impact**: What will break at runtime
-- **Fix Steps**: Step-by-step resolution with code examples
-- **Testing Strategy**: How to verify the fix works
+### Phase 2: Improvements (Do Next)
+1. [Clean up unused exports]
+2. [Improve interface consistency]
 
-### Medium/Low Priority Issues
-- **Code Quality**: Integration improvements that enhance maintainability
-- **Performance**: Integration patterns that could be optimized
-- **Future Proofing**: Changes that will prevent future integration problems
+### Phase 3: Long-term (Do Later)  
+1. [Architectural improvements]
+2. [Enhanced error handling]
 
-## 6. Integration Testing Recommendations
-### Unit Test Integration Points
-- **Mock Strategies**: How to mock dependencies for testing
-- **Interface Testing**: Testing the contracts between files
-- **Error Path Testing**: Ensuring error handling works across files
+## Integration Testing Recommendations
+- [Specific integration tests to write]
+- [Mock strategies to use]
+- [Error scenarios to test]
 
-### Integration Test Scenarios
-- **Happy Path**: Complete workflows across multiple files
-- **Error Scenarios**: How failures propagate between files
-- **Edge Cases**: Boundary conditions in cross-file interactions
-
-## 7. Long-term Integration Strategy
-### Architectural Improvements
-- **Interface Standardization**: Consistent API patterns across files
-- **Error Handling Strategy**: Unified error handling across the system
-- **Type System Enhancement**: Better TypeScript integration
-- **Documentation Requirements**: What needs to be documented for future developers
-
-### Refactoring Roadmap
-- **Phase 1**: Critical fixes that prevent runtime errors
-- **Phase 2**: Architectural improvements for better maintainability  
-- **Phase 3**: Performance optimizations and advanced integration patterns
-
-**CRITICAL REQUIREMENTS:**
-- Include specific line numbers for ALL issues
-- Provide exact code examples showing problems AND solutions
-- Rate all issues by severity (Critical/High/Medium/Low)
-- Focus on actionable, implementable recommendations
-- Prioritize fixes that prevent runtime failures`;
+**Analysis Complete** - Focused on actionable insights, not data dumps.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -516,18 +459,28 @@ For each critical issue:
       contextLength
     );
     
-    // Aggregate results for integration analysis
+    // Aggregate results for integration analysis (focus on insights, not raw content)
     const aggregatedResult = {
       summary: `Integration analysis of ${files.length} files`,
-      files: fileAnalysisResults,
-      integrationData: {
+      integrationInsights: {
         fileCount: files.length,
         totalSize: fileAnalysisResults.reduce((sum: number, result: any) => sum + (result.size || 0), 0),
-        exports: this.extractExports(fileAnalysisResults),
-        imports: this.extractImports(fileAnalysisResults),
-        methods: this.extractMethods(fileAnalysisResults),
-        interfaces: this.extractInterfaces(fileAnalysisResults)
-      }
+        exportCount: this.countExports(fileAnalysisResults),
+        importCount: this.countImports(fileAnalysisResults),
+        methodCount: this.countMethods(fileAnalysisResults),
+        interfaceCount: this.countInterfaces(fileAnalysisResults),
+        integrationPatterns: this.identifyIntegrationPatterns(fileAnalysisResults),
+        potentialIssues: this.identifyPotentialIssues(fileAnalysisResults)
+      },
+      fileList: fileAnalysisResults.map(f => ({
+        fileName: f.fileName,
+        filePath: f.filePath,
+        size: f.size,
+        lines: f.lines,
+        hasExports: f.integrationInfo?.exports?.length > 0,
+        hasImports: f.integrationInfo?.imports?.length > 0,
+        methodCount: f.integrationInfo?.methods?.length || 0
+      }))
     };
     
     await this.analysisCache.cacheAnalysis(cacheKey, aggregatedResult, {
@@ -556,7 +509,7 @@ For each critical issue:
       lines: content.split('\n').length,
       extension: file.split('.').pop() || '',
       modified: stats.mtime,
-      content: content.length < 10000 ? content : content.substring(0, 10000) + '...[truncated]', // Include content for analysis
+      content: content.length < 2000 ? content : `[${content.length} characters] - Content available for analysis`, // Minimal content for context
       integrationInfo: {
         imports,
         exports,
@@ -564,6 +517,53 @@ For each critical issue:
         interfaces
       }
     };
+  }
+
+  private countExports(fileResults: any[]): number {
+    return fileResults.reduce((sum, file) => sum + (file.integrationInfo?.exports?.length || 0), 0);
+  }
+
+  private countImports(fileResults: any[]): number {
+    return fileResults.reduce((sum, file) => sum + (file.integrationInfo?.imports?.length || 0), 0);
+  }
+
+  private countMethods(fileResults: any[]): number {
+    return fileResults.reduce((sum, file) => sum + (file.integrationInfo?.methods?.length || 0), 0);
+  }
+
+  private countInterfaces(fileResults: any[]): number {
+    return fileResults.reduce((sum, file) => sum + (file.integrationInfo?.interfaces?.length || 0), 0);
+  }
+
+  private identifyIntegrationPatterns(fileResults: any[]): string[] {
+    const patterns = [];
+    // Simple pattern detection based on file analysis
+    if (fileResults.some(f => f.fileName?.includes('base-') || f.fileName?.includes('Base'))) {
+      patterns.push('Inheritance Pattern');
+    }
+    if (fileResults.some(f => f.fileName?.includes('interface') || f.fileName?.includes('Interface'))) {
+      patterns.push('Interface Segregation');
+    }
+    if (fileResults.some(f => f.fileName?.includes('factory') || f.fileName?.includes('Factory'))) {
+      patterns.push('Factory Pattern');
+    }
+    return patterns;
+  }
+
+  private identifyPotentialIssues(fileResults: any[]): string[] {
+    const issues = [];
+    // Simple issue detection
+    const largeFiles = fileResults.filter(f => f.size > 50000);
+    if (largeFiles.length > 0) {
+      issues.push(`Large files detected: ${largeFiles.length} files > 50KB`);
+    }
+    
+    const filesWithManyMethods = fileResults.filter(f => (f.integrationInfo?.methods?.length || 0) > 20);
+    if (filesWithManyMethods.length > 0) {
+      issues.push(`High method count: ${filesWithManyMethods.length} files with >20 methods`);
+    }
+    
+    return issues;
   }
 
   private extractExports(fileResults: any[]): any[] {
