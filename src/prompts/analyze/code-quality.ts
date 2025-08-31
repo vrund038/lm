@@ -1,5 +1,5 @@
 /**
- * Plugin Template - Modern v4.2 (Single Source of Truth)
+ * Plugin Template - Modern v4.3 (Improved)
  * 
  * Universal template that intelligently handles both single-file and multi-file analysis
  * Automatically detects analysis type based on provided parameters
@@ -21,12 +21,15 @@ import {
   MultiFileAnalysis
 } from '../../utils/plugin-utilities.js';
 import { getAnalysisCache } from '../../cache/index.js';
-import { basename } from 'path';
 
-export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugin {
-  name = 'analyze_project_structure';
+// Common Node.js modules - Use these instead of require()
+import { basename, dirname, extname, join, relative } from 'path';
+import { readFile, stat, readdir } from 'fs/promises';
+
+export class CodeQualityAnalyzer extends BasePlugin implements IPromptPlugin {
+  name = 'analyze_code_quality';
   category = 'analyze' as const;
-  description = 'Analyze complete project structure and architecture. Returns comprehensive architecture analysis with patterns, dependencies, and strategic recommendations.';
+  description = 'Analyze code quality including complexity, maintainability, and best practices adherence';
   
   // Universal parameter set - supports both single and multi-file scenarios
   parameters = {
@@ -45,7 +48,7 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
     // Multi-file parameters  
     projectPath: {
       type: 'string' as const,
-      description: 'Absolute path to project root',
+      description: 'Path to project root (for multi-file analysis)',
       required: false
     },
     files: {
@@ -56,7 +59,7 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
     },
     maxDepth: {
       type: 'number' as const,
-      description: 'Maximum directory depth to analyze (1-5)',
+      description: 'Maximum directory depth for multi-file discovery (1-5)',
       required: false,
       default: 3
     },
@@ -78,16 +81,9 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
     analysisType: {
       type: 'string' as const,
       description: 'Type of analysis to perform',
-      enum: ['architecture', 'patterns', 'comprehensive'],
+      enum: ['complexity', 'maintainability', 'comprehensive'],
       default: 'comprehensive',
       required: false
-    },
-    focusAreas: {
-      type: 'array' as const,
-      description: 'Areas to focus on: architecture, dependencies, complexity, patterns',
-      required: false,
-      default: [],
-      items: { type: 'string' as const }
     }
   };
 
@@ -119,13 +115,18 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
         }
         
       } catch (error: any) {
-        return ErrorHandler.createExecutionError('analyze_project_structure', error);
+        return ErrorHandler.createExecutionError('analyze_code_quality', error);
       }
     });
   }
 
   /**
    * Auto-detect whether this is single-file or multi-file analysis
+   * 
+   * DETECTION GUIDE:
+   * Single-file: code, filePath provided → analyze individual file
+   * Multi-file: projectPath, files, maxDepth provided → analyze project/multiple files
+   * Default: Choose based on your plugin's primary use case
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
     // Multi-file indicators
@@ -138,8 +139,8 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
       return 'single-file';
     }
     
-    // Default to multi-file for project structure analysis
-    return 'multi-file';
+    // For code quality, default to single-file (analyze individual files)
+    return 'single-file';
   }
 
   /**
@@ -154,7 +155,7 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
     }
     
     // Universal validations
-    ParameterValidator.validateEnum(params, 'analysisType', ['architecture', 'patterns', 'comprehensive']);
+    ParameterValidator.validateEnum(params, 'analysisType', ['complexity', 'maintainability', 'comprehensive']);
     ParameterValidator.validateEnum(params, 'analysisDepth', ['basic', 'detailed', 'comprehensive']);
   }
 
@@ -190,7 +191,7 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
         messages,
         model,
         contextLength,
-        'analyze_project_structure',
+        'analyze_code_quality',
         'single'
       );
     } else {
@@ -198,7 +199,7 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
         promptStages,
         model,
         contextLength,
-        'analyze_project_structure'
+        'analyze_code_quality'
       );
     }
   }
@@ -243,27 +244,26 @@ export class ProjectStructureAnalyzer extends BasePlugin implements IPromptPlugi
       messages,
       model,
       contextLength,
-      'analyze_project_structure',
+      'analyze_code_quality',
       'multifile'
     );
   }
 
   /**
-   * Single-file architectural analysis
+   * Single-file code quality analysis
    */
   private getSingleFilePromptStages(params: any): PromptStages {
-    const { code, language, analysisDepth, analysisType, focusAreas } = params;
+    const { code, language, analysisDepth, analysisType } = params;
     
-    const systemAndContext = `You are a senior software architect with expertise in code architecture, design patterns, and structural analysis.
+    const systemAndContext = `You are an expert code quality analyst specializing in ${analysisDepth} ${analysisType} analysis.
 
 Analysis Context:
 - Language: ${language}
 - Analysis Depth: ${analysisDepth}
 - Analysis Type: ${analysisType}
-- Focus Areas: ${focusAreas.length > 0 ? focusAreas.join(', ') : 'comprehensive'}
-- Mode: Single File Architecture Analysis
+- Mode: Single File Quality Analysis
 
-Your task is to analyze the architectural patterns, design quality, and structural organization of this individual file, providing actionable insights for improvement.`;
+Your task is to analyze code quality metrics including complexity, maintainability, readability, and adherence to best practices for this individual file.`;
 
     const dataPayload = `Code to analyze:
 
@@ -271,137 +271,93 @@ Your task is to analyze the architectural patterns, design quality, and structur
 ${code}
 \`\`\``;
 
-    const outputInstructions = `Provide your architectural analysis in the following structured format:
+    const outputInstructions = `Provide your code quality analysis in the following structured format:
 
-## File Architecture Analysis
+## Code Quality Analysis Report
 
-### Pattern Identification
-- **Primary Pattern**: [pattern name and description]
-- **Implementation Quality**: [score/10]
-- **Pattern Adherence**: [how well pattern is followed]
+### Quality Metrics
+- **Overall Quality Score**: [X/10]
+- **Complexity Score**: [X/10] 
+- **Maintainability Score**: [X/10]
+- **Readability Score**: [X/10]
 
-### Structural Assessment
-- **Organization**: [well-structured/moderate/needs improvement]
-- **Separation of Concerns**: [excellent/good/poor]
-- **Code Cohesion**: [high/medium/low]
+### Detailed Analysis
+- **Cyclomatic Complexity**: [assessment]
+- **Function Length**: [assessment]
+- **Variable Naming**: [assessment]
+- **Code Organization**: [assessment]
 
-### Design Quality
-- **SOLID Principles Compliance**: [score/10]
-- **Readability**: [score/10]
-- **Maintainability**: [score/10]
+### Best Practices Adherence
+- **SOLID Principles**: [score/10]
+- **DRY Principle**: [score/10]
+- **Error Handling**: [score/10]
 
-### Identified Issues
-- [List architectural issues with severity: critical/important/minor]
+### Issues Found
+- **Critical**: [list critical quality issues]
+- **Important**: [list important issues]
+- **Minor**: [list minor improvements]
 
 ### Recommendations
-1. **Critical**: [immediate architectural improvements needed]
-2. **Important**: [significant improvements to consider]
-3. **Suggested**: [nice-to-have improvements]
+1. **Priority 1**: [most important improvements]
+2. **Priority 2**: [secondary improvements]
+3. **Nice to Have**: [optional improvements]
 
-### Refactoring Opportunities
-- [Specific refactoring suggestions with rationale]
-
-**Overall Architecture Score**: [X/10]`;
+**Analysis Confidence**: [X]%`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
 
   /**
-   * Multi-file project architecture analysis
+   * Multi-file project quality analysis
    */
   private getMultiFilePromptStages(params: any): PromptStages {
-    const { analysisResult, analysisType, analysisDepth, fileCount, focusAreas, projectPath } = params;
+    const { analysisResult, analysisType, analysisDepth, fileCount } = params;
     
-    const systemAndContext = `You are a senior software architect with expertise in project architecture, system design, and enterprise patterns.
+    const systemAndContext = `You are an expert project code quality analyst specializing in ${analysisDepth} ${analysisType} analysis.
 
 Analysis Context:
-- Project: ${projectPath ? basename(projectPath) : 'Unknown'}
 - Analysis Type: ${analysisType}
 - Analysis Depth: ${analysisDepth}  
 - Files Analyzed: ${fileCount}
-- Focus Areas: ${focusAreas.length > 0 ? focusAreas.join(', ') : 'comprehensive'}
-- Mode: Complete Project Architecture Analysis
+- Mode: Project-wide Quality Analysis
 
-Your task is to provide comprehensive architectural analysis covering system design, patterns, dependencies, code organization, and strategic recommendations for the entire project.`;
+Your task is to provide comprehensive code quality assessment across the entire project, identifying patterns, consistency issues, and quality metrics.`;
 
-    const dataPayload = `Project architecture analysis results:
+    const dataPayload = `Project quality analysis results:
 
 ${JSON.stringify(analysisResult, null, 2)}`;
 
-    const outputInstructions = `Provide your comprehensive project architecture analysis in the following structured format:
+    const outputInstructions = `Provide your project-wide code quality analysis:
 
-## Executive Summary
-Brief overview of the project architecture and key findings
+## Project Quality Analysis Report
 
-## Architecture Analysis
-### System Design Pattern
-- **Primary Architecture**: [monolithic/microservices/layered/hexagonal/etc.]
-- **Implementation Quality**: [score/10]
-- **Pattern Consistency**: [excellent/good/poor]
+### Overall Project Quality
+- **Project Quality Score**: [X/10]
+- **Consistency Score**: [X/10]
+- **Maintainability Score**: [X/10]
 
-### Project Organization
-- **Structure Quality**: [score/10]
-- **Module Organization**: [logical/acceptable/chaotic]
-- **Dependency Management**: [excellent/good/poor]
+### Quality Distribution
+- **High Quality Files**: [count] ([percentage]%)
+- **Medium Quality Files**: [count] ([percentage]%)
+- **Low Quality Files**: [count] ([percentage]%)
 
-## Technology Stack Assessment
-### Languages & Frameworks
-- **Primary Languages**: [list with usage percentages]
-- **Frameworks**: [list major frameworks and versions]
-- **Technology Alignment**: [modern/acceptable/outdated]
+### Quality Patterns
+- **Consistent Patterns**: [list good patterns across files]
+- **Inconsistent Areas**: [list areas with quality variations]
+- **Quality Hotspots**: [files/areas needing attention]
 
-### Infrastructure & Tooling
-- **Build System**: [assessment]
-- **Testing Strategy**: [comprehensive/basic/minimal]
-- **DevOps Integration**: [mature/developing/absent]
+### Project-wide Issues
+- **Critical Issues**: [systemic problems affecting multiple files]
+- **Consistency Issues**: [style, naming, structure inconsistencies]
+- **Technical Debt**: [areas with accumulated issues]
 
-## Code Quality Indicators
-### Positive Patterns
-- [List observed good architectural practices]
+### Strategic Recommendations
+- **Immediate Actions**: [urgent quality improvements]
+- **Quality Standards**: [recommended coding standards to implement]
+- **Tooling**: [suggested tools for quality monitoring]
+- **Refactoring Priorities**: [which areas to refactor first]
 
-### Anti-patterns & Issues
-- [List architectural problems with severity: critical/important/minor]
-
-### Complexity Assessment
-- **Overall Complexity**: [low/medium/high/excessive]
-- **Complexity Hotspots**: [areas requiring attention]
-
-## Dependency Analysis
-### Architecture Dependencies
-- **Critical Dependencies**: [list key architectural dependencies]
-- **Coupling Assessment**: [loose/tight/mixed]
-- **Risk Factors**: [security, maintenance, vendor lock-in risks]
-
-## Strategic Recommendations
-### Critical (Address Immediately)
-1. [High priority architectural changes]
-
-### Important (Address Soon)  
-1. [Medium priority improvements]
-
-### Future Considerations
-1. [Long-term architectural evolution suggestions]
-
-## Refactoring Roadmap
-### Phase 1: Foundation
-- [Immediate structural improvements]
-
-### Phase 2: Enhancement
-- [Medium-term architectural upgrades]
-
-### Phase 3: Evolution
-- [Long-term architectural transformation]
-
-## Architecture Maturity Score
-**Overall Score**: [X/10]
-- **Design Patterns**: [X/10]
-- **Code Organization**: [X/10] 
-- **Dependency Management**: [X/10]
-- **Maintainability**: [X/10]
-- **Scalability**: [X/10]
-
-## Conclusion
-Summary of architectural state and recommended next steps for optimal project evolution.`;
+**Project Quality Maturity**: [X/10]`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -436,7 +392,7 @@ Summary of architectural state and recommended next steps for optimal project ev
     contextLength: number
   ): Promise<any> {
     const cacheKey = this.analysisCache.generateKey(
-      'analyze_project_structure', 
+      'analyze_code_quality', 
       params, 
       files
     );
@@ -450,19 +406,15 @@ Summary of architectural state and recommended next steps for optimal project ev
       contextLength
     );
     
-    // Enhanced aggregation for architectural analysis
+    // Aggregate results for quality analysis
     const aggregatedResult = {
-      summary: `Project architecture analysis of ${files.length} files`,
+      summary: `Code quality analysis of ${files.length} files`,
       findings: fileAnalysisResults,
-      architecture: {
+      qualityMetrics: {
         totalFiles: files.length,
-        totalSize: fileAnalysisResults.reduce((sum: number, result: any) => sum + (result.size || 0), 0),
-        totalLines: fileAnalysisResults.reduce((sum: number, result: any) => sum + (result.lines || 0), 0),
-        filesByType: this.groupFilesByType(fileAnalysisResults),
-        largestFiles: this.getLargestFiles(fileAnalysisResults),
-        directoryStructure: this.buildDirectoryStructure(files),
-        configurationFiles: await this.findConfigurationFiles(files),
-        dependencyIndicators: this.analyzeDependencyPatterns(fileAnalysisResults)
+        averageComplexity: this.calculateAverageComplexity(fileAnalysisResults),
+        qualityDistribution: this.analyzeQualityDistribution(fileAnalysisResults),
+        commonIssues: this.identifyCommonIssues(fileAnalysisResults)
       }
     };
     
@@ -478,111 +430,38 @@ Summary of architectural state and recommended next steps for optimal project ev
   private async analyzeIndividualFile(file: string, params: any, model: any): Promise<any> {
     const content = await import('fs/promises').then(fs => fs.readFile(file, 'utf-8'));
     const stats = await import('fs/promises').then(fs => fs.stat(file));
-    const lines = content.split('\n');
     
     return {
       filePath: file,
+      fileName: basename(file), // ✅ Use imported basename instead of require('path').basename
       size: content.length,
-      lines: lines.length,
-      extension: file.split('.').pop() || '',
-      isDirectory: stats.isDirectory(),
-      modified: stats.mtime,
-      // Simple pattern detection
-      hasImports: /^(import|require|from|#include)/m.test(content),
-      hasExports: /^(export|module\.exports|__all__)/m.test(content),
-      hasClasses: /^(class|interface|struct)/m.test(content),
-      hasFunctions: /^(function|def|func|public|private)/m.test(content),
-      complexity: this.estimateComplexity(content)
+      lines: content.split('\n').length,
+      extension: extname(file), // ✅ Use imported extname
+      relativePath: relative(params.projectPath || '', file), // ✅ Use imported relative
+      complexity: this.estimateComplexity(content),
+      qualityScore: this.estimateQualityScore(content)
     };
   }
 
   private getFileExtensions(analysisType: string): string[] {
+    // Updated extensions for code quality analysis
     const extensionMap: Record<string, string[]> = {
-      'architecture': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go', '.rs', '.cpp', '.h', '.vue', '.svelte'],
-      'patterns': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go', '.rs'],
-      'comprehensive': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go', '.rs', '.cpp', '.h', '.vue', '.svelte', '.json', '.yaml', '.yml', '.xml', '.md']
+      'complexity': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs'],
+      'maintainability': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php'], 
+      'comprehensive': ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php', '.rb', '.go']
     };
     
     return extensionMap[analysisType] || extensionMap.comprehensive;
   }
 
-  // Helper methods for enhanced project analysis
-  private groupFilesByType(results: any[]): Record<string, number> {
-    const grouped: Record<string, number> = {};
-    results.forEach(result => {
-      const ext = result.extension || 'no-extension';
-      grouped[ext] = (grouped[ext] || 0) + 1;
-    });
-    return grouped;
-  }
-
-  private getLargestFiles(results: any[]): any[] {
-    return results
-      .sort((a, b) => (b.size || 0) - (a.size || 0))
-      .slice(0, 10)
-      .map(file => ({
-        path: file.filePath,
-        size: file.size,
-        lines: file.lines
-      }));
-  }
-
-  private buildDirectoryStructure(files: string[]): any {
-    const structure: Record<string, any> = {};
-    
-    files.forEach(file => {
-      const parts = file.split('/');
-      let current = structure;
-      
-      parts.forEach((part, index) => {
-        if (!current[part]) {
-          current[part] = index === parts.length - 1 ? null : {};
-        }
-        if (current[part] !== null) {
-          current = current[part];
-        }
-      });
-    });
-    
-    return structure;
-  }
-
-  private async findConfigurationFiles(files: string[]): Promise<string[]> {
-    const configPatterns = [
-      'package.json', 'composer.json', 'pom.xml', 'build.gradle',
-      'requirements.txt', 'Gemfile', 'Cargo.toml', 'go.mod',
-      'tsconfig.json', 'webpack.config.js', '.eslintrc',
-      'docker-compose.yml', 'Dockerfile', '.env', 'README.md'
-    ];
-    
-    return files.filter(file => {
-      const fileName = basename(file);
-      return configPatterns.some(pattern => 
-        fileName === pattern || fileName.includes(pattern.replace('.*', ''))
-      );
-    });
-  }
-
-  private analyzeDependencyPatterns(results: any[]): any {
-    const patterns = {
-      hasModuleSystem: results.some(r => r.hasImports || r.hasExports),
-      hasClasses: results.filter(r => r.hasClasses).length,
-      hasFunctions: results.filter(r => r.hasFunctions).length,
-      averageComplexity: results.reduce((sum, r) => sum + (r.complexity || 0), 0) / results.length,
-      complexFiles: results.filter(r => (r.complexity || 0) > 10).map(r => r.filePath)
-    };
-    
-    return patterns;
-  }
-
+  // Quality analysis helper methods
   private estimateComplexity(content: string): number {
-    // Simple complexity estimation based on control structures
     const complexityPatterns = [
       /if\s*\(/g, /else/g, /while\s*\(/g, /for\s*\(/g, 
       /switch\s*\(/g, /case\s+/g, /catch\s*\(/g, /\?\s*:/g
     ];
     
-    let complexity = 1; // Base complexity
+    let complexity = 1;
     complexityPatterns.forEach(pattern => {
       const matches = content.match(pattern);
       if (matches) {
@@ -593,6 +472,52 @@ Summary of architectural state and recommended next steps for optimal project ev
     return complexity;
   }
 
+  private estimateQualityScore(content: string): number {
+    let score = 10; // Start with perfect score
+    
+    // Deduct points for quality issues
+    if (content.includes('console.log')) score -= 1; // Debug statements
+    if (content.includes('TODO') || content.includes('FIXME')) score -= 1; // Incomplete code
+    if (content.length > 1000 && !content.includes('\n\n')) score -= 1; // Lack of spacing
+    if (!/\/\*\*|\*\/|\/\//.test(content)) score -= 2; // No comments
+    
+    return Math.max(0, score);
+  }
+
+  private calculateAverageComplexity(results: any[]): number {
+    const totalComplexity = results.reduce((sum, result) => sum + (result.complexity || 0), 0);
+    return results.length > 0 ? totalComplexity / results.length : 0;
+  }
+
+  private analyzeQualityDistribution(results: any[]): any {
+    const distribution = { high: 0, medium: 0, low: 0 };
+    
+    results.forEach(result => {
+      const score = result.qualityScore || 0;
+      if (score >= 8) distribution.high++;
+      else if (score >= 6) distribution.medium++;
+      else distribution.low++;
+    });
+    
+    return distribution;
+  }
+
+  private identifyCommonIssues(results: any[]): string[] {
+    const issues: string[] = [];
+    
+    const highComplexityFiles = results.filter(r => (r.complexity || 0) > 10).length;
+    if (highComplexityFiles > results.length * 0.2) {
+      issues.push('High complexity in multiple files');
+    }
+    
+    const lowQualityFiles = results.filter(r => (r.qualityScore || 0) < 6).length;
+    if (lowQualityFiles > results.length * 0.1) {
+      issues.push('Quality issues across multiple files');
+    }
+    
+    return issues;
+  }
+
   private generateCacheKey(files: string[], params: any): string {
     const fileHash = files.join('|');
     const paramHash = JSON.stringify(params);
@@ -600,4 +525,4 @@ Summary of architectural state and recommended next steps for optimal project ev
   }
 }
 
-export default ProjectStructureAnalyzer;
+export default CodeQualityAnalyzer;

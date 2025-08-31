@@ -22,6 +22,10 @@ import {
 } from '../utils/plugin-utilities.js';
 import { getAnalysisCache } from '../cache/index.js';
 
+// Common Node.js modules - Use these instead of require()
+import { basename, dirname, extname, join, relative } from 'path';
+import { readFile, stat, readdir } from 'fs/promises';
+
 export class TEMPLATE_UniversalPlugin extends BasePlugin implements IPromptPlugin {
   name = 'TEMPLATE_function_name';
   category = 'analyze' as const; // TEMPLATE: Change to 'analyze' | 'generate' | 'multifile' | 'system' | 'custom'
@@ -118,6 +122,11 @@ export class TEMPLATE_UniversalPlugin extends BasePlugin implements IPromptPlugi
 
   /**
    * Auto-detect whether this is single-file or multi-file analysis
+   * 
+   * DETECTION GUIDE:
+   * Single-file: code, filePath provided → analyze individual file
+   * Multi-file: projectPath, files, maxDepth provided → analyze project/multiple files
+   * Default: Choose based on your plugin's primary use case
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
     // Multi-file indicators
@@ -130,7 +139,9 @@ export class TEMPLATE_UniversalPlugin extends BasePlugin implements IPromptPlugi
       return 'single-file';
     }
     
-    // Default to single-file if ambiguous
+    // TEMPLATE: Choose your default based on plugin purpose
+    // For file-focused plugins: return 'single-file'
+    // For project-focused plugins: return 'multi-file'
     return 'single-file';
   }
 
@@ -393,16 +404,27 @@ Provide your multi-file analysis in the following structured format:
 
   private async analyzeIndividualFile(file: string, params: any, model: any): Promise<any> {
     const content = await import('fs/promises').then(fs => fs.readFile(file, 'utf-8'));
+    const stats = await import('fs/promises').then(fs => fs.stat(file));
     
     return {
       filePath: file,
+      fileName: basename(file), // ✅ Use imported basename instead of require('path').basename
       size: content.length,
       lines: content.split('\n').length,
+      extension: extname(file), // ✅ Use imported extname
+      relativePath: relative(params.projectPath || '', file), // ✅ Use imported relative
       // TEMPLATE: Add your specific individual file analysis here
     };
   }
 
   private getFileExtensions(analysisType: string): string[] {
+    // TEMPLATE: Update these extensions to match your analysis needs
+    // Common extensions by category:
+    // Code: ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cs', '.php']
+    // Config: ['.json', '.yaml', '.yml', '.xml', '.toml', '.ini']
+    // Docs: ['.md', '.txt', '.rst', '.adoc']
+    // All: [...code, ...config, ...docs]
+    
     const extensionMap: Record<string, string[]> = {
       'TEMPLATE_type1': ['.js', '.ts', '.jsx', '.tsx'],
       'TEMPLATE_type2': ['.php', '.inc', '.module'], 
@@ -429,10 +451,14 @@ PLUGIN TEMPLATE USAGE:
    - TEMPLATE_function_name → Your MCP function name  
    - TEMPLATE_category → Your plugin category
    - TEMPLATE_type1, TEMPLATE_type2 → Your analysis types
-3. Implement getSingleFilePromptStages() for single-file logic
-4. Implement getMultiFilePromptStages() for multi-file logic  
-5. Update individual file analysis logic if needed
-6. Build and restart Claude
+3. Choose your default mode in detectAnalysisMode():
+   - File-focused plugins: return 'single-file' (e.g., code analysis, linting)
+   - Project-focused plugins: return 'multi-file' (e.g., architecture, counting)
+4. Implement getSingleFilePromptStages() for single-file logic
+5. Implement getMultiFilePromptStages() for multi-file logic  
+6. Update individual file analysis logic if needed
+7. Use provided Node.js imports (path, fs/promises) instead of require()
+8. Build and restart Claude
 
 AUTOMATIC DETECTION:
 ✅ Single-file: When code/filePath provided
@@ -454,4 +480,11 @@ UTILITIES PROVIDED:
 ✅ ResponseProcessor - Token calculation and execution
 ✅ ParameterValidator - Common validation patterns
 ✅ ErrorHandler - Standardized error responses
+✅ Common Node.js imports - path, fs/promises (use these instead of require)
+
+COMMON MISTAKES TO AVOID:
+❌ Don't use require() - use the provided ES module imports
+❌ Don't hardcode single/multi-file - let detection handle it
+❌ Don't duplicate template architecture - only replace designated areas
+❌ Don't create custom utilities - use the provided ones
 */
