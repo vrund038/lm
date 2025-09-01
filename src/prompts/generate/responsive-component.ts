@@ -86,6 +86,11 @@ export class ResponsiveComponentGenerator extends BasePlugin implements IPromptP
       type: 'string' as const,
       description: 'Directory to save the component project (e.g., "C:\\dev\\my-project"). If not provided, user will be prompted to specify location.',
       required: false
+    },
+    context: {
+      type: 'object' as const,
+      description: 'Rich context object with brand information, design references, content, colors, typography, and technical requirements',
+      required: false
     }
   };
 
@@ -195,7 +200,7 @@ export class ResponsiveComponentGenerator extends BasePlugin implements IPromptP
    * Generate component creation prompt stages
    */
   private getComponentGenerationStages(params: any): PromptStages {
-    const { name, type, framework, designSystem, responsive, accessible, animations, darkMode } = params;
+    const { name, type, framework, designSystem, responsive, accessible, animations, darkMode, context } = params;
     
     const systemAndContext = `You are an expert frontend developer and UI/UX engineer with 15+ years of experience creating production-ready, accessible web components.
 
@@ -216,6 +221,8 @@ export class ResponsiveComponentGenerator extends BasePlugin implements IPromptP
 - Accessibility: ${accessible ? 'Full WCAG 2.1 AA compliance with semantic markup' : 'Basic accessibility'}
 - Animations: ${animations ? 'Performance-optimized CSS animations and transitions' : 'Static component without animations'}
 - Dark Mode: ${darkMode ? 'System preference detection with CSS custom properties' : 'Single theme implementation'}
+
+${context ? this.buildContextSection(context) : ''}
 
 **QUALITY STANDARDS:**
 You must create enterprise-grade components that are production-ready, maintainable, and follow industry best practices. Focus on creating components that developers will be excited to use and proud to ship.`;
@@ -255,7 +262,9 @@ ${responsive ? `
 - Touch-friendly interaction targets (minimum 44px)
 - Optimized for common breakpoints: 320px, 768px, 1024px, 1440px
 - Container queries where beneficial
-` : '- Fixed-width design optimized for desktop'}`;
+` : '- Fixed-width design optimized for desktop'}
+
+${context ? this.buildContextRequirements(context) : ''}`;
 
     const outputInstructions = `**GENERATE COMPLETE COMPONENT PACKAGE WITH STRUCTURED SECTIONS:**
 
@@ -883,6 +892,145 @@ MIT License - feel free to use in your projects!
     return basePackage;
   }
   
+  /**
+   * Build rich context section from provided context object
+   */
+  private buildContextSection(context: any): string {
+    let contextSection = '\n**PROJECT CONTEXT & BRAND REQUIREMENTS:**\n';
+    
+    // Project information
+    if (context.project) {
+      contextSection += `- Project: ${context.project}\n`;
+    }
+    if (context.reference) {
+      contextSection += `- Design Reference: ${context.reference}\n`;
+    }
+    if (context.target_audience) {
+      contextSection += `- Target Audience: ${context.target_audience}\n`;
+    }
+    if (context.brand_positioning) {
+      contextSection += `- Brand Position: ${context.brand_positioning}\n`;
+    }
+    
+    // Brand colors
+    if (context.brand_colors) {
+      contextSection += '\n**BRAND COLORS:**\n';
+      Object.entries(context.brand_colors).forEach(([key, value]) => {
+        contextSection += `- ${key}: ${value}\n`;
+      });
+    }
+    
+    // Typography
+    if (context.typography) {
+      contextSection += '\n**TYPOGRAPHY:**\n';
+      Object.entries(context.typography).forEach(([key, value]) => {
+        contextSection += `- ${key}: ${value}\n`;
+      });
+    }
+    
+    // Hero content
+    if (context.hero_content) {
+      contextSection += '\n**HERO SECTION CONTENT:**\n';
+      Object.entries(context.hero_content).forEach(([key, value]) => {
+        contextSection += `- ${key}: ${value}\n`;
+      });
+    }
+    
+    // Navigation
+    if (context.navigation) {
+      contextSection += '\n**NAVIGATION:**\n';
+      contextSection += `- Brand: ${context.navigation.brand}\n`;
+      contextSection += `- Greeting: ${context.navigation.greeting}\n`;
+      if (context.navigation.links) {
+        contextSection += `- Links: ${context.navigation.links.join(', ')}\n`;
+      }
+    }
+    
+    // Stats data
+    if (context.stats_data && Array.isArray(context.stats_data)) {
+      contextSection += '\n**STATISTICS TO SHOWCASE:**\n';
+      context.stats_data.forEach((stat: any, index: number) => {
+        contextSection += `${index + 1}. ${stat.number} - ${stat.label} (${stat.context})\n`;
+      });
+    }
+    
+    // Key features
+    if (context.key_features && Array.isArray(context.key_features)) {
+      contextSection += '\n**KEY FEATURES TO HIGHLIGHT:**\n';
+      context.key_features.forEach((feature: any, index: number) => {
+        contextSection += `${index + 1}. **${feature.title}**: ${feature.description}\n`;
+      });
+    }
+    
+    // Design reference HTML
+    if (context.design_reference_html) {
+      contextSection += '\n**DESIGN REFERENCE HTML:**\n';
+      contextSection += `Reference structure to inspire layout and styling:\n${context.design_reference_html}\n`;
+    }
+    
+    // Technical requirements
+    if (context.technical_requirements) {
+      contextSection += '\n**TECHNICAL REQUIREMENTS:**\n';
+      Object.entries(context.technical_requirements).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          contextSection += `- ${key}: ${value.join(', ')}\n`;
+        } else {
+          contextSection += `- ${key}: ${value}\n`;
+        }
+      });
+    }
+    
+    contextSection += '\n**CONTEXT INTEGRATION REQUIREMENT:**\nYou MUST incorporate ALL the provided context information into the component design. Use the brand colors, typography, hero content, navigation structure, statistics, and key features exactly as specified. This is not optional context - it is required content that must appear in the final component.\n';
+    
+    return contextSection;
+  }
+
+  /**
+   * Build context-specific implementation requirements
+   */
+  private buildContextRequirements(context: any): string {
+    let requirements = '\n**CONTEXT-SPECIFIC IMPLEMENTATION REQUIREMENTS:**\n';
+    
+    if (context.brand_colors) {
+      requirements += '- Implement exact brand colors using CSS custom properties\n';
+      requirements += '- Ensure proper color contrast ratios for accessibility\n';
+    }
+    
+    if (context.hero_content) {
+      requirements += '- Create prominent hero section with provided headline and description\n';
+      requirements += '- Style CTAs according to brand guidelines\n';
+    }
+    
+    if (context.stats_data) {
+      requirements += '- Design statistics section showcasing provided data points\n';
+      requirements += '- Make statistics visually impactful and easy to scan\n';
+    }
+    
+    if (context.key_features) {
+      requirements += '- Create feature section highlighting provided benefits\n';
+      requirements += '- Use icons or visual elements to enhance feature presentation\n';
+    }
+    
+    if (context.navigation) {
+      requirements += '- Implement navigation with provided brand name and links\n';
+      requirements += '- Include brand greeting element in appropriate location\n';
+    }
+    
+    if (context.design_reference_html) {
+      requirements += '- Use design reference as structural and styling inspiration\n';
+      requirements += '- Adapt reference patterns to fit provided content\n';
+    }
+    
+    if (context.technical_requirements) {
+      requirements += '- Meet all specified technical requirements\n';
+      requirements += '- Optimize for provided breakpoints and performance targets\n';
+    }
+    
+    requirements += '\n**CONTENT PRIORITY:**\nAll provided content (headlines, descriptions, statistics, features) must be prominently featured. This is a real project with specific content requirements, not a generic template.\n';
+    
+    return requirements;
+  }
+
   /**
    * Get appropriate file extension for the framework
    */
