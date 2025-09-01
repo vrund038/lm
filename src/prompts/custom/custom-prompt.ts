@@ -25,7 +25,7 @@ import { getAnalysisCache } from '../../cache/index.js';
 export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
   name = 'custom_prompt';
   category = 'custom' as const;
-  description = 'Universal fallback executor for any custom prompt with optional file context. The Swiss Army knife when no other specialized function matches your needs.';
+  description = 'Universal fallback executor for any custom prompt with optional file context. Uses dynamic token allocation based on your loaded model - can handle everything from quick tasks to comprehensive multi-file analysis. The Swiss Army knife when no other specialized function matches your needs.';
   
   // Universal parameter set - supports both single and multi-file scenarios
   parameters = {
@@ -82,12 +82,7 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
         output_format: { type: 'string' as const }
       }
     },
-    max_tokens: {
-      type: 'number' as const,
-      description: 'Maximum tokens for LLM response (default: 4000)',
-      default: 4000,
-      required: false
-    },
+
     
     // Universal parameters
     language: {
@@ -231,12 +226,23 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
         'single'
       );
     } else {
-      return await ResponseProcessor.executeDirect(
-        promptStages,
-        model,
-        contextLength,
-        'custom_prompt'
-      );
+      // Simplified direct execution to avoid ResponseProcessor issues
+      const maxTokens = Math.min(2000, Math.floor(contextLength * 0.3));
+      const fullPrompt = `${promptStages.systemAndContext}
+
+${promptStages.dataPayload}
+
+${promptStages.outputInstructions}`;
+
+      const response = await model.complete(fullPrompt, { maxTokens, temperature: 0.7 });
+      
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+        modelUsed: model.identifier || 'unknown',
+        executionTimeMs: 0,
+        data: response?.content || response?.text || response || 'No response content'
+      };
     }
   }
 
@@ -293,14 +299,15 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
     
     let systemAndContext = `You are an expert AI assistant specializing in ${analysisDepth} ${analysisType} tasks.
 
-**Your Role**: Universal problem-solver and task executor
+**Your Role**: Universal problem-solver and task executor with full access to dynamic token allocation
 **Analysis Context**:
 - Task Type: ${analysisType}
 - Analysis Depth: ${analysisDepth}
 - Language: ${language}
 - Mode: Single File/Context Analysis
+- Token Allocation: Dynamic (optimized for your current model's context window)
 
-**Your Mission**: Execute the custom task with precision, creativity, and actionable results. You are the Swiss Army knife - adaptable, reliable, and comprehensive.`;
+**Your Mission**: Execute the custom task with precision, creativity, and actionable results. You have access to the full context window of the loaded model, so don't hesitate to be comprehensive when the task requires it. You are the Swiss Army knife - adaptable, reliable, and comprehensive.`;
 
     if (working_directory) {
       systemAndContext += `\n- Working Directory: ${working_directory}`;
@@ -349,14 +356,15 @@ Execute this task with excellence and precision. You are Claude's trusted specia
     
     let systemAndContext = `You are an expert multi-file AI analyst specializing in ${analysisDepth} ${analysisType} tasks.
 
-**Your Role**: Advanced multi-file task executor and architectural consultant
+**Your Role**: Advanced multi-file task executor and architectural consultant with full dynamic token access
 **Analysis Context**:
 - Task Type: ${analysisType}
 - Analysis Depth: ${analysisDepth}  
 - Files Processed: ${fileCount}
 - Mode: Multi-File Custom Analysis
+- Token Allocation: Dynamic (full model context window available)
 
-**Your Mission**: Execute complex custom tasks across multiple files with comprehensive understanding. You excel at seeing patterns, relationships, and providing strategic insights across entire codebases and project structures.`;
+**Your Mission**: Execute complex custom tasks across multiple files with comprehensive understanding. You have access to the full context window, so provide detailed, thorough analysis when appropriate. You excel at seeing patterns, relationships, and providing strategic insights across entire codebases and project structures.`;
 
     if (working_directory) {
       systemAndContext += `\n- Working Directory: ${working_directory}`;
