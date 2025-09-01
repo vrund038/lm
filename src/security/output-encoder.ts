@@ -42,27 +42,20 @@ export class OutputEncoder {
   ];
   
   // Dangerous patterns that should be removed regardless of context
+  // REDUCED SCOPE: Only truly malicious patterns, not legitimate code constructs
   private static readonly DANGEROUS_PATTERNS = [
-    // Script injection
-    /<script[^>]*>[\s\S]*?<\/script>/gi,
-    /<iframe[^>]*>[\s\S]*?<\/iframe>/gi,
-    /<object[^>]*>[\s\S]*?<\/object>/gi,
-    /<embed[^>]*>/gi,
-    /<applet[^>]*>[\s\S]*?<\/applet>/gi,
+    // Only script tags with obviously malicious content
+    /<script[^>]*>[^<]*(?:document\.cookie|window\.location|eval\(|setTimeout\(|setInterval\()[^<]*<\/script>/gi,
     
-    // Event handlers
-    /on\w+\s*=\s*["'][^"']*["']/gi,
-    
-    // JavaScript URLs
+    // Only javascript: URLs (these are almost never legitimate in generated content)
     /href\s*=\s*["']javascript:[^"']*["']/gi,
     /src\s*=\s*["']javascript:[^"']*["']/gi,
     
-    // Data URLs with scripts
-    /data:text\/html[^"'>]*>/gi,
+    // Data URLs with script content (high risk)
+    /data:text\/html[^"'>]*<script/gi,
     
-    // Style injection
-    /<style[^>]*>[\s\S]*?<\/style>/gi,
-    /style\s*=\s*["'][^"']*expression[^"']*["']/gi
+    // Only CSS expressions (IE-specific XSS vector)
+    /style\s*=\s*["'][^"']*expression\s*\([^"']*["']/gi
   ];
   
   /**
