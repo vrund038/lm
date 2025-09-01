@@ -18,7 +18,8 @@ import {
   ResponseProcessor, 
   ParameterValidator, 
   ErrorHandler,
-  MultiFileAnalysis
+  MultiFileAnalysis,
+  TokenCalculator
 } from '../../utils/plugin-utilities.js';
 import { getAnalysisCache } from '../../cache/index.js';
 
@@ -226,8 +227,17 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
         'single'
       );
     } else {
-      // Simplified direct execution to avoid ResponseProcessor issues
-      const maxTokens = Math.min(2000, Math.floor(contextLength * 0.3));
+      // Use proper dynamic token calculation for custom prompts
+      const maxTokens = TokenCalculator.calculateForDirect(
+        promptStages,
+        contextLength,
+        {
+          minTokens: 2000,           // Minimum for code generation
+          maxTokens: Math.floor(contextLength * 0.7), // Generous for custom tasks
+          bufferTokens: 1000         // Safety buffer
+        }
+      );
+      
       const fullPrompt = `${promptStages.systemAndContext}
 
 ${promptStages.dataPayload}
