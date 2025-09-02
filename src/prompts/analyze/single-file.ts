@@ -154,16 +154,21 @@ export class CodeStructureAnalyzer extends BasePlugin implements IPromptPlugin {
 
   /**
    * Auto-detect whether this is single-file or multi-file analysis
+   * 
+   * DETECTION GUIDE:
+   * Single-file: code, filePath provided → analyze individual file
+   * Multi-file: projectPath, files provided → analyze project/multiple files
+   * Default: single-file (this plugin's primary use case)
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
-    // Multi-file indicators take priority when explicitly requesting directory analysis
-    if (params.projectPath || params.files || (params.maxDepth !== undefined && params.maxDepth > 0)) {
-      return 'multi-file';
-    }
-    
-    // Single-file indicators
+    // Single-file indicators take priority (avoids default parameter issues)
     if (params.code || params.filePath) {
       return 'single-file';
+    }
+    
+    // Multi-file indicators
+    if (params.projectPath || params.files) {
+      return 'multi-file';
     }
     
     // Default to single-file for code analysis

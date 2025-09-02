@@ -133,14 +133,14 @@ export class PatternFinderPlugin extends BasePlugin implements IPromptPlugin {
    * Auto-detect whether this is single-file or multi-file analysis
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
-    // Multi-file indicators
-    if (params.projectPath || params.files || params.maxDepth !== undefined) {
-      return 'multi-file';
-    }
-    
-    // Single-file indicators  
+    // Single-file indicators take priority (avoids default parameter issues)
     if (params.code || params.filePath) {
       return 'single-file';
+    }
+    
+    // Multi-file indicators
+    if (params.projectPath || params.files) {
+      return 'multi-file';
     }
     
     // Default to multi-file for pattern finding (usually project-wide)

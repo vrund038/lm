@@ -351,6 +351,8 @@ export class SecurityService {
     switch (pluginCategory) {
       case 'generate':
         return 'code';
+      case 'custom':
+        return 'code';  // Custom prompts often generate code/HTML/CSS
       case 'analyze':
       case 'multifile':
       case 'system':

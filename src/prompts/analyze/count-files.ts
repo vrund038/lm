@@ -262,26 +262,25 @@ Your task is to analyze the provided file content and provide insights about its
 ${code}
 \`\`\``;
 
-    const outputInstructions = `Provide your single-file analysis in markdown format:
+    const outputInstructions = `Provide your single-file analysis in the following JSON format:
 
-# File Analysis Report
-
-## Summary
-Brief overview of this file
-
-## File Characteristics
-- **File Type**: [type]
-- **Lines of Code**: [count]
-- **File Size**: [approximate size]
-- **Language**: ${language}
-
-## Structure Analysis
-[Analysis of file structure, functions, classes, etc.]
-
-## Recommendations
-- [file-specific recommendations]
-
-**Analysis Confidence**: 85%`;
+{
+  "summary": "Brief overview of this file",
+  "fileCharacteristics": {
+    "fileType": "type",
+    "linesOfCode": 0,
+    "fileSize": "approximate size",
+    "language": "${language}"
+  },
+  "structure": {
+    "functions": ["function1", "function2"],
+    "classes": ["class1", "class2"],
+    "imports": ["import1", "import2"],
+    "exports": ["export1", "export2"]
+  },
+  "recommendations": ["file-specific recommendation 1", "file-specific recommendation 2"],
+  "confidence": 0.85
+}`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -306,41 +305,34 @@ Your task is to create a comprehensive markdown directory tree structure showing
 
 ${JSON.stringify(analysisResult, null, 2)}`;
 
-    const outputInstructions = `Provide your directory structure analysis in the following markdown format:
+    const outputInstructions = `Provide your directory structure analysis in the following JSON format:
 
-# Directory Structure Report
-
-## Summary
-Overall directory analysis summary (total files: ${fileCount})
-
-## Directory Tree
-\`\`\`
-📁 project-root/
-├── 📁 src/ (X files)
-│   ├── 📁 components/ (Y files)
-│   │   ├── 📄 Component1.js
-│   │   └── 📄 Component2.ts
-│   └── 📄 index.js
-├── 📁 tests/ (Z files)
-│   └── 📄 test.spec.js
-└── 📄 README.md
-\`\`\`
-
-## Statistics
-- **Total Files**: ${fileCount}
-- **Total Directories**: [count]
-- **File Types**: 
-  - JavaScript: [count]
-  - TypeScript: [count]
-  - Markdown: [count]
-  - Other: [count]
-
-## Largest Files
-1. [filename] - [size]
-2. [filename] - [size]
-
-## Recommendations
-- [project-wide structure recommendations]`;
+{
+  "summary": "Overall directory analysis summary (total files: ${fileCount})",
+  "directoryTree": {
+    "structure": "Markdown representation of the directory tree",
+    "totalFiles": ${fileCount},
+    "totalDirectories": 0
+  },
+  "statistics": {
+    "totalFiles": ${fileCount},
+    "totalDirectories": 0,
+    "fileTypes": {
+      "javascript": 0,
+      "typescript": 0,
+      "markdown": 0,
+      "other": 0
+    }
+  },
+  "largestFiles": [
+    {
+      "filename": "filename",
+      "size": "size description"
+    }
+  ],
+  "recommendations": ["project-wide structure recommendation 1", "recommendation 2"],
+  "confidence": 0.90
+}`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }

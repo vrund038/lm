@@ -1,0 +1,29 @@
+/**
+ * Enhanced Static Site Generator - Inspired by Houtini Prompt Excellence
+ * 
+ * Combines the proven responsive component generator foundation with the brilliant 
+ * contextual approach from the Houtini homepage prompt
+ */
+
+import { BasePlugin } from '../../plugins/base-plugin.js';
+import { IPromptPlugin } from '../shared/types.js';
+import { ThreeStagePromptManager } from '../../core/ThreeStagePromptManager.js';
+import { PromptStages } from '../../types/prompt-stages.js';
+import { withSecurity } from '../../security/integration-helpers.js';
+import { readFileContent } from '../shared/helpers.js';
+import { 
+  ModelSetup, 
+  ResponseProcessor, 
+  ParameterValidator, 
+  ErrorHandler,
+  MultiFileAnalysis
+} from '../../utils/plugin-utilities.js';
+import { getAnalysisCache } from '../../cache/index.js';
+
+// Common Node.js modules
+import { basename, dirname, extname, join, relative } from 'path';
+import { readFile, stat, readdir } from 'fs/promises';
+
+export class EnhancedStaticSiteGenerator extends BasePlugin implements IPromptPlugin {
+  name = 'generate_enhanced_static_site';
+  

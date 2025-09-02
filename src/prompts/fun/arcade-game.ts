@@ -164,14 +164,14 @@ export class ArcadeGameGenerator extends BasePlugin implements IPromptPlugin {
    * Multi-game mode used for generating game collections or enhancing existing projects
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
-    // Multi-file indicators (game collections, project enhancement)
-    if (params.projectPath || params.files || params.maxDepth !== undefined) {
-      return 'multi-file';
-    }
-    
-    // Single-file indicators (enhancing existing game)
+    // Single-file indicators take priority (avoids default parameter issues)
     if (params.code || params.filePath) {
       return 'single-file';
+    }
+    
+    // Multi-file indicators (game collections, project enhancement)
+    if (params.projectPath || params.files) {
+      return 'multi-file';
     }
     
     // Default to single-file for arcade game generation (game-focused)

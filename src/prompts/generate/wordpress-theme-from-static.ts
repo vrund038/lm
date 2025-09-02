@@ -192,17 +192,17 @@ export class WordPressThemeFromStaticGenerator extends BasePlugin implements IPr
    * Auto-detect whether this is single-page or multi-page/directory conversion
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
+    // Single-file indicators: single URL, HTML content, or single file path
+    if (params.url || params.code || params.filePath) {
+      return 'single-file';
+    }
+    
     // Multi-file indicators: multiple URLs, directory paths, or file arrays
     if (params.urls && params.urls.length > 1) {
       return 'multi-file';
     }
     if (params.projectPath || params.files) {
       return 'multi-file';
-    }
-    
-    // Single-file indicators: single URL, HTML content, or single file path
-    if (params.url || params.code || params.filePath) {
-      return 'single-file';
     }
     
     // Default to single-file for simple conversions

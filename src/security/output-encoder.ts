@@ -174,14 +174,16 @@ export class OutputEncoder {
    * Encode for code context
    */
   private static encodeForCode(text: string): string {
-    // Remove potentially dangerous code patterns while preserving readability
+    // For code context, we're less aggressive - only comment out truly dangerous functions
+    // This preserves HTML/CSS/legitimate code while preventing execution of dangerous JS
     let encoded = text;
     
-    // Comment out eval and similar dangerous functions
+    // Only comment out dangerous eval-like functions, not CSS properties or HTML attributes
     encoded = encoded.replace(/\beval\s*\(/gi, '/* eval */ (');
-    encoded = encoded.replace(/\bFunction\s*\(/gi, '/* Function */ (');
-    encoded = encoded.replace(/\bsetTimeout\s*\(/gi, '/* setTimeout */ (');
-    encoded = encoded.replace(/\bsetInterval\s*\(/gi, '/* setInterval */ (');
+    encoded = encoded.replace(/\bnew\s+Function\s*\(/gi, '/* new Function */ (');
+    
+    // Leave setTimeout/setInterval alone as they're common in legitimate code
+    // Leave HTML/CSS content untouched
     
     return encoded;
   }

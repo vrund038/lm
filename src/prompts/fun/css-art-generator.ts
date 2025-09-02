@@ -170,14 +170,14 @@ export class CSSArtGenerator extends BasePlugin implements IPromptPlugin {
    * Auto-detect whether this is single-art or multi-art generation
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
-    // Multi-file indicators (art collections, project enhancement)
-    if (params.projectPath || params.files || params.maxDepth !== undefined) {
-      return 'multi-file';
-    }
-    
-    // Single-file indicators (enhancing existing art)
+    // Single-file indicators take priority (avoids default parameter issues)
     if (params.code || params.filePath) {
       return 'single-file';
+    }
+    
+    // Multi-file indicators (art collections, project enhancement)
+    if (params.projectPath || params.files) {
+      return 'multi-file';
     }
     
     // Default to single-file for CSS art generation (art-focused)

@@ -171,14 +171,14 @@ export class RefactoringAnalyzer extends BasePlugin implements IPromptPlugin {
    * For refactoring: Single-file is primary use case, multi-file for project-wide patterns
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
-    // Multi-file indicators take priority when explicitly provided
-    if (params.projectPath || params.files || params.maxDepth !== undefined) {
-      return 'multi-file';
-    }
-    
-    // Single-file indicators
+    // Single-file indicators take priority (avoids default parameter issues)
     if (params.code || params.filePath) {
       return 'single-file';
+    }
+    
+    // Multi-file indicators
+    if (params.projectPath || params.files) {
+      return 'multi-file';
     }
     
     // Default to single-file for refactoring (most common use case)
