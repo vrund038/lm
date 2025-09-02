@@ -156,14 +156,14 @@ export class CodeStructureAnalyzer extends BasePlugin implements IPromptPlugin {
    * Auto-detect whether this is single-file or multi-file analysis
    */
   private detectAnalysisMode(params: any): 'single-file' | 'multi-file' {
-    // Single-file indicators take priority (primary use case)
-    if (params.code || params.filePath) {
-      return 'single-file';
+    // Multi-file indicators take priority when explicitly requesting directory analysis
+    if (params.projectPath || params.files || (params.maxDepth !== undefined && params.maxDepth > 0)) {
+      return 'multi-file';
     }
     
-    // Multi-file indicators
-    if (params.projectPath || params.files) {
-      return 'multi-file';
+    // Single-file indicators
+    if (params.code || params.filePath) {
+      return 'single-file';
     }
     
     // Default to single-file for code analysis
@@ -689,11 +689,11 @@ ${JSON.stringify(analysisResult, null, 2)}`;
 
   private getFileExtensions(analysisType: string): string[] {
     const extensionMap: Record<string, string[]> = {
-      'structure': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java', '.cs', '.rb'],
-      'quality': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java', '.cs', '.rb'],
-      'security': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java', '.cs'],
-      'performance': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java'],
-      'comprehensive': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java', '.cs', '.rb', '.go', '.cpp', '.c', '.h']
+      'structure': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java', '.cs', '.rb', '.html', '.css', '.scss', '.sass', '.less'],
+      'quality': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java', '.cs', '.rb', '.html', '.css', '.scss', '.sass', '.less', '.json', '.yml', '.yaml'],
+      'security': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java', '.cs', '.html'],
+      'performance': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java', '.html', '.css', '.scss', '.sass'],
+      'comprehensive': ['.js', '.ts', '.jsx', '.tsx', '.py', '.php', '.java', '.cs', '.rb', '.go', '.cpp', '.c', '.h', '.html', '.css', '.scss', '.sass', '.less', '.json', '.yml', '.yaml', '.md', '.txt', '.xml']
     };
     
     return extensionMap[analysisType] || extensionMap.comprehensive;

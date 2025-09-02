@@ -44,7 +44,9 @@ export const securityConfig = {
     allowedExtensions: [
       '.csv', '.json', '.txt', '.js', '.ts', '.py', 
       '.md', '.log', '.jsx', '.tsx', '.java', '.c', 
-      '.cpp', '.rs', '.go', '.php', '.rb', '.swift'
+      '.cpp', '.rs', '.go', '.php', '.rb', '.swift',
+      '.html', '.css', '.scss', '.sass', '.less',
+      '.xml', '.yml', '.yaml', '.toml', '.ini'
     ]
   },
 
