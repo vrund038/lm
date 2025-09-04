@@ -1,3 +1,7 @@
+# CRITICAL: Protect proprietary templates from being committed
+src/templates/
+src/templates/plugin-template.ts
+
 # Dependencies
 node_modules/
 
@@ -42,7 +46,6 @@ DEVELOPER_HANDOVER.md
 PLUGIN_DEVELOPMENT_GUIDE.md
 
 # Template files (proprietary)
-src/templates/
 RELEASE_NOTES_v*.md
 IMPLEMENTATION_*.md
 UPGRADE_SUMMARY.md
@@ -97,10 +100,6 @@ dist/enhanced-index.js
 dist/enhanced-index.d.ts
 dist/enhanced-index.js.map
 dist/enhanced-index.d.ts.map
-dist/enhanced-index-integration.js
-dist/enhanced-index-integration.d.ts
-dist/enhanced-index-integration.js.map
-dist/enhanced-index-integration.d.ts.map
 dist/enhanced-integration-example.js
 dist/enhanced-integration-example.d.ts
 dist/enhanced-integration-example.js.map
