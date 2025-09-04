@@ -1,5 +1,5 @@
 /**
- * Configuration for Local LLM MCP Server v4.2
+ * Configuration for Houtini LM MCP Server v1.0
  * Modern plugin architecture - prompts are handled by individual plugins
  */
 
@@ -24,7 +24,7 @@ export const config: Config = {
   security: {
     enableSanitisation: true,
     enableInjectionDetection: true,
-    enableOutputEncoding: true,
+    enableOutputEncoding: false, // FIXED: Prevents double JSON escaping
     injectionThreshold: 0.5, // 0-1 scale for detection sensitivity
     allowedDirectories: process.env.LLM_MCP_ALLOWED_DIRS?.split(',') || ['C:\\MCP', 'C:\\DEV'],
     maxInputSize: {

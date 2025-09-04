@@ -262,25 +262,41 @@ Your task is to analyze the provided file content and provide insights about its
 ${code}
 \`\`\``;
 
-    const outputInstructions = `Provide your single-file analysis in the following JSON format:
+    const outputInstructions = `Provide a comprehensive analysis of this individual file:
 
-{
-  "summary": "Brief overview of this file",
-  "fileCharacteristics": {
-    "fileType": "type",
-    "linesOfCode": 0,
-    "fileSize": "approximate size",
-    "language": "${language}"
-  },
-  "structure": {
-    "functions": ["function1", "function2"],
-    "classes": ["class1", "class2"],
-    "imports": ["import1", "import2"],
-    "exports": ["export1", "export2"]
-  },
-  "recommendations": ["file-specific recommendation 1", "file-specific recommendation 2"],
-  "confidence": 0.85
-}`;
+**File Overview:**
+- Brief summary of what this file contains and its purpose  
+- File type and primary language
+- Approximate file size and lines of code
+- Role within the project structure
+
+**File Characteristics:**
+- **File Type**: Primary classification (component, utility, configuration, etc.)
+- **Lines of Code**: Estimated line count
+- **File Size**: Approximate size description  
+- **Language**: Programming language and any frameworks used
+- **Complexity**: Assessment of file complexity (low/medium/high)
+
+**Code Structure Analysis:**
+- **Functions**: List of key functions and their purposes
+- **Classes**: Any classes defined and their roles
+- **Imports**: External dependencies and modules used
+- **Exports**: What this file makes available to other modules
+- **Constants & Variables**: Key configuration or data definitions
+
+**File-Specific Recommendations:**
+- Suggestions for improving this specific file
+- Code quality improvements
+- Structure or organization enhancements  
+- Performance or maintainability considerations
+
+**Context Within Project:**
+- How this file fits into the overall project architecture
+- Dependencies on other files
+- Files that depend on this one
+- Potential impact of changes to this file
+
+Focus on providing actionable insights specific to this individual file while considering its role in the broader project context.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -305,34 +321,52 @@ Your task is to create a comprehensive markdown directory tree structure showing
 
 ${JSON.stringify(analysisResult, null, 2)}`;
 
-    const outputInstructions = `Provide your directory structure analysis in the following JSON format:
+    const outputInstructions = `Create a comprehensive directory structure analysis and markdown tree representation:
 
-{
-  "summary": "Overall directory analysis summary (total files: ${fileCount})",
-  "directoryTree": {
-    "structure": "Markdown representation of the directory tree",
-    "totalFiles": ${fileCount},
-    "totalDirectories": 0
-  },
-  "statistics": {
-    "totalFiles": ${fileCount},
-    "totalDirectories": 0,
-    "fileTypes": {
-      "javascript": 0,
-      "typescript": 0,
-      "markdown": 0,
-      "other": 0
-    }
-  },
-  "largestFiles": [
-    {
-      "filename": "filename",
-      "size": "size description"
-    }
-  ],
-  "recommendations": ["project-wide structure recommendation 1", "recommendation 2"],
-  "confidence": 0.90
-}`;
+**PROJECT OVERVIEW:**
+- **Total Files Analyzed**: ${fileCount} files
+- **Project Summary**: Brief description of the project's structure and organization
+- **Overall Assessment**: How well-organized and structured the project appears to be
+
+**DIRECTORY TREE STRUCTURE:**
+Create a detailed markdown representation of the directory tree showing:
+- All directories and subdirectories with proper indentation
+- File counts per directory
+- File types and extensions
+- Total file and directory counts
+- Key organizational patterns
+
+**STATISTICAL ANALYSIS:**
+- **File Type Distribution**: Breakdown by programming languages and file types
+- **Directory Size Analysis**: Which directories contain the most files
+- **Largest Files**: Notable large files and their purposes
+- **File Organization Patterns**: How files are grouped and organized
+
+**STRUCTURAL INSIGHTS:**
+- **Architecture Patterns**: What architectural patterns are evident from the structure
+- **Separation of Concerns**: How well different types of files are organized
+- **Project Type**: Assessment of what type of project this appears to be
+- **Development Stage**: Whether structure suggests early development, mature project, etc.
+
+**PROJECT ORGANIZATION RECOMMENDATIONS:**
+- **Structure Improvements**: Suggestions for better file organization
+- **Missing Directories**: Standard directories that might be beneficial
+- **File Naming**: Assessment of file naming conventions
+- **Refactoring Opportunities**: Structural improvements that could help maintainability
+
+**TECHNICAL ANALYSIS:**
+- **Build System**: Evidence of build tools, configuration files, package managers
+- **Development Workflow**: Testing, documentation, deployment file presence
+- **Dependencies**: Package files, lock files, dependency management
+- **Configuration**: Environment files, settings, configuration patterns
+
+**MAINTENANCE & SCALABILITY:**
+- **Code Organization**: How well the structure will scale with project growth
+- **Team Collaboration**: Structure conducive to multiple developers
+- **Documentation**: Presence and organization of documentation files
+- **Testing**: Test file organization and coverage structure
+
+Present this analysis in a clear, hierarchical format that helps developers understand both the current structure and opportunities for improvement.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }

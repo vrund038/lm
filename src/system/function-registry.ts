@@ -20,7 +20,7 @@ export interface FunctionInfo {
 }
 
 /**
- * Discover all available Local LLM functions by scanning prompt directories
+ * Discover all available Houtini LM functions by scanning prompt directories
  */
 export async function discoverAvailableFunctions(): Promise<FunctionInfo[]> {
   const functions: FunctionInfo[] = [];
@@ -151,11 +151,11 @@ function generateExampleUsage(functionName: string, supportedModes: string[]): {
   const examples: any = {};
   
   if (supportedModes.includes('single-file')) {
-    examples.singleFile = `local-llm:${functionName} filePath="C:/project/src/file.ts"`;
+    examples.singleFile = `houtini-lm:${functionName} filePath="C:/project/src/file.ts"`;
   }
   
   if (supportedModes.includes('multi-file')) {
-    examples.multiFile = `local-llm:${functionName} projectPath="C:/project/src"`;
+    examples.multiFile = `houtini-lm:${functionName} projectPath="C:/project/src"`;
   }
   
   return examples;

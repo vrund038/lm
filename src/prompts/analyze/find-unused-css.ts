@@ -190,7 +190,7 @@ export class FindUnusedCSSAnalyzer extends BasePlugin implements IPromptPlugin {
   }
 
   /**
-   * Execute URL analysis: Puppeteer -> CSS Parser -> Local LLM
+   * Execute URL analysis: Puppeteer -> CSS Parser -> Houtini LM
    */
   private async executeURLAnalysis(params: any, model: any, contextLength: number) {
     // Step 1: Extract data from URL using Puppeteer
@@ -199,7 +199,7 @@ export class FindUnusedCSSAnalyzer extends BasePlugin implements IPromptPlugin {
     // Step 2: Process CSS with our utility
     const processedCSSData = this.processCSSData(urlData);
     
-    // Step 3: Generate prompt stages for Local LLM
+    // Step 3: Generate prompt stages for Houtini LM
     const promptStages = this.getURLAnalysisPromptStages({
       ...params,
       urlData: processedCSSData
@@ -235,7 +235,7 @@ export class FindUnusedCSSAnalyzer extends BasePlugin implements IPromptPlugin {
   }
 
   /**
-   * Execute single-file analysis: File -> CSS Parser -> Local LLM
+   * Execute single-file analysis: File -> CSS Parser -> Houtini LM
    */
   private async executeSingleFileAnalysis(params: any, model: any, contextLength: number) {
     // Step 1: Process CSS input
@@ -601,39 +601,44 @@ ${JSON.stringify(urlData.usedRules.slice(0, 10), null, 2)}
 
 Note: Analysis based on current page state. Dynamic content and JavaScript interactions may affect actual usage.`;
 
-    const outputInstructions = `Provide your URL CSS analysis in the following structured JSON format:
+    const outputInstructions = `Provide comprehensive CSS usage analysis with the following structure:
 
-{
-  "summary": "Executive summary of CSS usage and optimization opportunities",
-  "unusedAnalysis": {
-    "totalUnused": number,
-    "percentage": number,
-    "categories": {
-      "safeToRemove": ["selectors that are definitely unused"],
-      "requiresInvestigation": ["selectors that might be used by JS or dynamic content"],
-      "frameworkRelated": ["selectors from detected frameworks"]
-    }
-  },
-  "performanceImpact": {
-    "estimatedSavings": "Estimated file size reduction",
-    "loadTimeImpact": "Expected performance improvement",
-    "coreWebVitalsImpact": "Impact on Core Web Vitals scores"
-  },
-  "recommendations": [
-    {
-      "action": "Specific optimization action",
-      "impact": "high|medium|low",
-      "effort": "low|medium|high", 
-      "description": "Detailed explanation and implementation guidance"
-    }
-  ],
-  "frameworkInsights": {
-    "detectedFrameworks": ["list of frameworks"],
-    "frameworkSpecificAdvice": "Advice for optimizing framework CSS"
-  },
-  "warnings": ["Important considerations before making changes"],
-  "confidence": 0.85
-}`;
+## Executive Summary
+Provide an executive summary of CSS usage and optimization opportunities found during the analysis.
+
+## Unused CSS Analysis
+- **Total Unused Rules**: Count and percentage of unused CSS rules
+- **Categories**:
+  - **Safe to Remove**: Selectors that are definitely unused and can be safely removed
+  - **Requires Investigation**: Selectors that might be used by JavaScript or dynamic content
+  - **Framework Related**: Selectors from detected frameworks that may be conditionally used
+
+## Performance Impact Assessment
+- **Estimated Savings**: Projected file size reduction from removing unused CSS
+- **Load Time Impact**: Expected performance improvement in page loading
+- **Core Web Vitals Impact**: How optimizations will affect CLS, LCP, and FID scores
+
+## Optimization Recommendations
+For each recommendation, provide:
+- **Action**: Specific optimization action to take
+- **Impact Level**: High, medium, or low impact on performance
+- **Implementation Effort**: Low, medium, or high effort required
+- **Description**: Detailed explanation and implementation guidance
+
+## Framework-Specific Insights
+- **Detected Frameworks**: List any CSS frameworks identified (Bootstrap, Tailwind, etc.)
+- **Framework Advice**: Specific guidance for optimizing framework-related CSS
+
+## Important Warnings
+List any critical considerations or warnings before making changes, especially regarding:
+- Dynamic content that might use CSS classes at runtime
+- Third-party integrations that may depend on specific CSS
+- Mobile-specific or conditional styling
+
+## Confidence Assessment
+Provide your confidence level in the analysis and any limitations of the static analysis approach.
+
+**Focus on actionable recommendations that safely improve CSS performance without breaking functionality.**`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -687,39 +692,42 @@ Unused Selectors:
 ${JSON.stringify(processedData.unusedSelectors, null, 2)}
 ` : ''}`;
 
-    const outputInstructions = `Provide your CSS file analysis in the following structured JSON format:
+    const outputInstructions = `Provide comprehensive CSS file analysis with the following structure:
 
-{
-  "summary": "Overview of CSS file structure and quality",
-  "fileAnalysis": {
-    "structure": "Assessment of CSS organization and architecture",
-    "complexity": "Code complexity and maintainability evaluation",
-    "frameworks": ["detected frameworks and their usage patterns"]
-  },
-  ${processedData.hasHTML ? `"usageAnalysis": {
-    "unusedSelectors": number,
-    "usagePatterns": "Analysis of selector usage patterns",
-    "potentialSavings": "Estimated optimization potential"
-  },` : ''}
-  "qualityIssues": [
-    {
-      "type": "Issue category",
-      "severity": "high|medium|low",
-      "description": "Detailed issue description",
-      "selectors": ["affected selectors"],
-      "recommendation": "How to fix this issue"
-    }
-  ],
-  "optimizationOpportunities": [
-    {
-      "opportunity": "Specific optimization suggestion",
-      "benefit": "Expected improvement",
-      "implementation": "How to implement this optimization"
-    }
-  ],
-  "recommendations": ["Priority recommendations for improvement"],
-  "confidence": 0.85
-}`;
+**File Overview and Assessment**
+Provide a comprehensive overview of CSS file structure, quality assessment, and organizational patterns identified during analysis.
+
+**CSS File Structure Analysis**
+- Detailed evaluation of CSS organization, architecture patterns, and structural quality
+- Comprehensive assessment of code complexity, maintainability, and overall architectural approach
+- Framework detection results with analysis of any detected frameworks and their usage patterns throughout the file
+
+${processedData.hasHTML ? `**CSS Usage Pattern Analysis**
+- Detailed analysis of unused selectors with count, categorization, and optimization potential assessment
+- Comprehensive evaluation of how selectors are used throughout the HTML with usage pattern insights
+- Estimated potential savings from cleanup operations including file size reduction and performance impact
+
+` : ''}**Code Quality Issues and Findings**
+For each issue identified during analysis:
+- Clear categorization of the problem type with detailed classification
+- Severity level assessment ranging from high impact to low priority issues
+- Comprehensive detailed description explaining the nature and implications of each issue
+- Specific affected selectors or CSS rules involved in the problematic patterns
+- Step-by-step recommendation and implementation guidance for addressing each issue
+
+**CSS Optimization Opportunities**
+For each optimization suggestion discovered:
+- Specific area for improvement with clear identification and scope
+- Expected benefit analysis including what improvements can be realistically achieved
+- Detailed implementation guide explaining exactly how to implement each optimization safely
+
+**Priority Implementation Recommendations**
+Comprehensive list of the most important recommendations for improving the CSS, carefully ordered by priority, implementation impact, and development effort required.
+
+**Analysis Confidence and Limitations**
+Professional assessment of confidence level in the analysis with clear explanation of any limitations, assumptions, or constraints in the assessment approach.
+
+Focus on providing actionable insights that improve CSS maintainability, performance optimization, and overall code quality while ensuring recommendations are practical and implementable.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -759,33 +767,37 @@ Analysis Methodology:
 
 ${JSON.stringify(analysisResult, null, 2)}`;
 
-    const outputInstructions = `Provide your multi-file CSS analysis in the following structured JSON format:
+    const outputInstructions = `Provide comprehensive multi-file CSS analysis with the following structure:
 
-{
-  "summary": "Overall project CSS analysis and optimization potential",
-  "projectAnalysis": {
-    "architecture": "Assessment of project CSS organization",
-    "totalSize": "Combined CSS file sizes",
-    "frameworks": ["detected frameworks across project"],
-    "duplicatePatterns": "Analysis of duplicate or redundant CSS across files"
-  },
-  "crossFileFindings": [
-    {
-      "type": "optimization|redundancy|architecture",
-      "severity": "high|medium|low",
-      "description": "Cross-file issue description",
-      "affectedFiles": ["file1.css", "file2.css"],
-      "recommendation": "How to optimize across files"
-    }
-  ],
-  "optimizationStrategy": {
-    "priorityOrder": ["recommended optimization sequence"],
-    "estimatedSavings": "Project-wide optimization potential",
-    "buildProcessRecommendations": "Suggestions for build optimization"
-  },
-  "recommendations": ["Priority project-wide recommendations"],
-  "confidence": 0.85
-}`;
+## Overall Summary
+Provide overall project CSS analysis and optimization potential across all analyzed files.
+
+## Project Analysis
+- **Architecture Assessment**: Evaluation of project CSS organization and structure
+- **Total Size Impact**: Combined CSS file sizes and their impact
+- **Framework Detection**: List detected frameworks used across the project
+- **Duplicate Pattern Analysis**: Identification of duplicate or redundant CSS across files
+
+## Cross-File Findings
+For each cross-file issue identified:
+- **Issue Type**: optimization, redundancy, or architecture concern  
+- **Severity Level**: High, medium, or low impact
+- **Description**: Clear explanation of the cross-file issue
+- **Affected Files**: Specific CSS files involved in the issue
+- **Recommendation**: How to optimize or resolve across files
+
+## Optimization Strategy
+- **Priority Order**: Recommended optimization sequence for maximum impact
+- **Estimated Savings**: Project-wide optimization potential and expected benefits
+- **Build Process Recommendations**: Suggestions for build-time optimizations
+
+## Priority Recommendations
+List the most important project-wide recommendations for CSS optimization and cleanup.
+
+## Confidence Assessment
+Provide confidence level in the cross-file analysis and note any limitations.
+
+**Focus on actionable insights that improve CSS architecture, reduce duplication, and optimize the entire project's CSS performance.**`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }

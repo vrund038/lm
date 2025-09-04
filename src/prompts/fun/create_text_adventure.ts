@@ -1,5 +1,5 @@
 /**
- * Text Adventure Generator - Fun Plugin for Local LLM MCP
+ * Text Adventure Generator - Fun Plugin for Houtini LM MCP
  * 
  * Creates complete interactive text adventure games with branching storylines,
  * inventory systems, character stats, and multiple endings.

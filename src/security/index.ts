@@ -1,7 +1,7 @@
 /**
  * Security Module - Unified Entry Point
  * 
- * Provides comprehensive I/O sanitisation for the Local LLM MCP
+ * Provides comprehensive I/O sanitisation for the Houtini LM MCP
  */
 
 export { 

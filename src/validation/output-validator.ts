@@ -1,5 +1,5 @@
 /**
- * Output Validation System for Local LLM MCP
+ * Output Validation System for Houtini LM MCP
  * Centralized validation and formatting for all function outputs
  * Based on Functional Specification v4.0
  */

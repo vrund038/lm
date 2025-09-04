@@ -1,7 +1,7 @@
 {
-  "name": "local-llm-mcp",
-  "version": "4.2.0",
-  "description": "Private MCP server for offloading tasks to local LLMs via LM Studio SDK - with multi-file analysis and automatic cache population",
+  "name": "@houtini/lm",
+  "version": "1.0.0",
+  "description": "Local LM MCP server - unlimited AI-assisted development without API costs",
   "main": "dist/index.js",
   "type": "module",
   "private": true,
@@ -20,21 +20,27 @@
     "check:processes": "node diagnostics/check-claude-processes.mjs"
   },
   "keywords": [
+    "houtini",
+    "local-lm",
     "mcp",
     "model-context-protocol",
-    "llm",
-    "local-llm",
+    "claude-mcp",
     "lm-studio",
-    "claude",
-    "ai",
-    "assistant",
-    "context-preservation"
+    "ai-development",
+    "code-generation",
+    "unlimited-tokens",
+    "context-preservation",
+    "local-ai"
   ],
   "author": "Richard Baxter <richard@richardbaxter.co> (https://richardbaxter.co)",
   "license": "MIT",
+  "homepage": "https://houtini.ai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/richardbaxterseo/local-llm-mcp.git"
+    "url": "git+https://github.com/houtini-ai/lm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/houtini-ai/lm/issues"
   },
   "dependencies": {
     "@lmstudio/sdk": "^1.5.0",

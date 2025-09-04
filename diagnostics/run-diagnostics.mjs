@@ -109,9 +109,9 @@ async function runDiagnostics() {
       const configContent = readFileSync(claudeConfigPath, 'utf8');
       const config = JSON.parse(configContent);
       
-      if (config.mcpServers && config.mcpServers['local-llm']) {
-        checkResult(true, 'local-llm server found in configuration');
-        const serverConfig = config.mcpServers['local-llm'];
+      if (config.mcpServers && config.mcpServers['houtini-lm']) {
+        checkResult(true, 'houtini-lm server found in configuration');
+        const serverConfig = config.mcpServers['houtini-lm'];
         
         console.log(`   Command: ${serverConfig.command}`);
         console.log(`   Args: ${JSON.stringify(serverConfig.args)}`);
@@ -127,8 +127,8 @@ async function runDiagnostics() {
         results.claude.installMethod = serverConfig.command === 'npx' ? 'npm' : 'local';
       } else {
         allPassed = false;
-        checkResult(false, 'local-llm server not found in configuration');
-        console.log('   → Please add local-llm to your Claude configuration');
+        checkResult(false, 'houtini-lm server not found in configuration');
+        console.log('   → Please add houtini-lm to your Claude configuration');
         results.claude.serverConfigured = false;
       }
     } catch (error) {

@@ -329,65 +329,80 @@ ${code}
 
 Your analysis must be thorough, actionable, and prioritized by business risk. Focus on real vulnerabilities that could be exploited, not theoretical concerns.
 
-## Required Report Structure:
+**EXECUTIVE SUMMARY:**
+Begin with an overall assessment including:
+- **Overall Risk Level**: Critical, High, Medium, or Low
+- **Total Vulnerabilities Found**: Count by severity (critical, high, medium, low)
+- **Most Critical Issue**: Brief description of the most severe vulnerability
+- **OWASP Compliance Status**: How well the code follows OWASP Top 10 guidelines
+- **Business Impact**: What these vulnerabilities mean for the organization
 
-### 1. Executive Summary
-\`\`\`json
-{
-  "overallRisk": "CRITICAL|HIGH|MEDIUM|LOW",
-  "totalVulnerabilities": {
-    "critical": 0,
-    "high": 0, 
-    "medium": 0,
-    "low": 0
-  },
-  "mostCriticalIssue": "Brief description of most severe vulnerability",
-  "complianceStatus": "OWASP Top 10 compliance assessment"
-}
-\`\`\`
+**DETAILED VULNERABILITY ASSESSMENT:**
+For EACH vulnerability found, provide a comprehensive analysis:
 
-### 2. Detailed Vulnerability Assessment
-For EACH vulnerability found, provide:
+**Vulnerability Analysis Format:**
+- **Vulnerability Name & Type**: Clear, descriptive name of the security issue
+- **Severity Level**: CRITICAL, HIGH, MEDIUM, or LOW with justification
+- **OWASP Category**: Reference to OWASP Top 10 category if applicable (A01-A10)
+- **Location Details**: Specific line numbers, functions, or code sections affected
+- **Vulnerable Code**: Show the exact problematic code snippet
+- **Attack Vector**: Detailed explanation of how an attacker would exploit this
+- **Impact Assessment**: What happens if successfully exploited (data loss, access, etc.)
+- **Proof of Concept**: Example exploit code or attack payload demonstrating the vulnerability
+- **Fix Implementation**: Specific code changes needed with secure implementation examples
+- **Prevention Strategy**: Long-term approaches to prevent similar issues
 
-**Vulnerability #1: [Type]**
-- **Severity**: CRITICAL|HIGH|MEDIUM|LOW
-- **OWASP Category**: A01-A10 (if applicable)  
-- **Location**: Line number(s)
-- **Vulnerable Code**: \`exact code snippet\`
-- **Attack Vector**: How an attacker would exploit this
-- **Impact**: What happens if successfully exploited
-- **Proof of Concept**: Example exploit code/payload
-- **Fix**: Specific code changes with secure implementation
-- **Prevention**: Long-term strategy to prevent similar issues
+**SECURITY STRENGTHS ASSESSMENT:**
+Highlight positive security practices found:
+- **Good Practices Identified**: Security measures already implemented correctly
+- **Framework Security Features**: Built-in security features being used appropriately  
+- **Defense in Depth**: Multiple security layers and their effectiveness
+- **Code Quality**: Security-aware coding practices being followed
 
-### 3. Security Strengths
-- **Good Practices Identified**: What security measures are already in place
-- **Framework Security Features**: Security features being used correctly
-- **Defense in Depth**: Multiple security layers present
+**RISK-PRIORITIZED ACTION PLAN:**
+Organize remediation by urgency and impact:
 
-### 4. Risk-Prioritized Action Plan
-**IMMEDIATE (Fix within 24 hours):**
-- [Critical and high severity items]
+**IMMEDIATE ACTIONS** (Fix within 24 hours):
+- Critical and high severity vulnerabilities that pose immediate risk
+- Specific steps for emergency patching
 
-**SHORT TERM (Fix within 1 week):**
-- [Medium severity items]
+**SHORT-TERM IMPROVEMENTS** (Fix within 1 week):
+- Medium severity issues and important security enhancements
+- Implementation timeline and resource requirements
 
-**LONG TERM (Address in next sprint):**
-- [Low severity and architectural improvements]
+**LONG-TERM ENHANCEMENTS** (Address in next development cycle):
+- Low severity items and architectural security improvements
+- Strategic security initiatives and process improvements
 
-### 5. Secure Code Examples
-Provide working code examples showing:
-- **Input Validation**: How to properly validate user input
-- **Output Encoding**: How to prevent XSS attacks
-- **Authentication**: Secure authentication patterns
-- **Database Queries**: Parameterized queries to prevent SQL injection
+**SECURE CODE EXAMPLES:**
+Provide practical, working code examples demonstrating:
+- **Input Validation**: Proper techniques for validating and sanitizing user input
+- **Output Encoding**: Methods to prevent XSS and injection attacks
+- **Authentication Patterns**: Secure authentication and session management
+- **Database Security**: Parameterized queries and database access controls
+- **Error Handling**: Secure error handling that doesn't leak information
+- **Access Controls**: Proper authorization and privilege checking
+
+**IMPLEMENTATION GUIDANCE:**
+- **Priority Matrix**: Risk vs. effort assessment for each recommendation
+- **Dependencies**: Issues that must be fixed together or in sequence
+- **Testing Strategy**: How to verify fixes without breaking functionality
+- **Monitoring**: What to monitor after implementing security fixes
+
+**COMPLIANCE & STANDARDS:**
+- **Industry Standards**: Alignment with relevant security standards
+- **Regulatory Requirements**: Compliance with applicable regulations
+- **Best Practices**: Industry best practices being followed or needed
 
 **CRITICAL REQUIREMENTS:**
-- Every vulnerability MUST include precise line numbers
-- Every fix MUST include working code examples
-- Focus on exploitable vulnerabilities, not code style
-- Prioritize by actual business risk and likelihood of exploitation
-- Include specific attack scenarios that demonstrate the vulnerability`;
+- Every vulnerability MUST include precise line numbers where possible
+- Every fix MUST include working, tested code examples
+- Focus on exploitable vulnerabilities that pose real business risk
+- Prioritize recommendations by likelihood and impact of exploitation
+- Include specific attack scenarios that clearly demonstrate each vulnerability
+- Provide actionable steps that development teams can implement immediately
+
+Be comprehensive but practical - focus on security issues that matter most to the business and can be realistically addressed by the development team.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -444,52 +459,43 @@ ${JSON.stringify(analysisResult, null, 2)}`;
 
 Your analysis must identify systemic vulnerabilities, attack chains spanning multiple files, and architectural security flaws. Focus on risks that could lead to complete system compromise.
 
-## Required Comprehensive Report Structure:
+**ENTERPRISE-GRADE MULTI-FILE SECURITY ASSESSMENT:**
 
-### 1. Executive Summary
-\`\`\`json
-{
-  "overallSecurityPosture": "CRITICAL|HIGH|MEDIUM|LOW",
-  "businessRiskRating": "EXTREME|HIGH|MODERATE|LOW", 
-  "totalFindings": {
-    "systemicVulnerabilities": 0,
-    "crossFileIssues": 0,
-    "configurationFlaws": 0,
-    "architecturalWeaknesses": 0
-  },
-  "criticalAttackChains": ["Description of most dangerous attack paths"],
-  "complianceGaps": ["OWASP A01", "OWASP A02"],
-  "businessImpact": "Potential impact on business operations and data"
-}
-\`\`\`
+**EXECUTIVE SUMMARY:**
+- **Overall Security Posture**: Critical, High, Medium, or Low assessment
+- **Business Risk Rating**: Extreme, High, Moderate, or Low business impact
+- **Total Security Findings**: Count of systemic vulnerabilities, cross-file issues, configuration flaws, and architectural weaknesses  
+- **Critical Attack Chains**: Description of the most dangerous attack paths that span multiple files
+- **Compliance Gaps**: OWASP Top 10 or other compliance issues identified
+- **Business Impact**: Potential impact on business operations, data, and reputation
 
-### 2. Cross-File Attack Chain Analysis
-**For each attack chain spanning multiple files:**
+**CROSS-FILE ATTACK CHAIN ANALYSIS:**
+For each attack chain that spans multiple files, provide:
 
-**Attack Chain #1: [Attack Type]**
-- **Severity**: CRITICAL|HIGH|MEDIUM|LOW
-- **Attack Path**: File A → File B → File C → Compromise
-- **Entry Point**: Specific file and function where attack begins
-- **Exploitation Flow**: Step-by-step attack progression
-- **Files Involved**: List all files in the attack chain
-- **Business Impact**: What business function gets compromised
-- **Complete Exploit**: Full working proof-of-concept
-- **Systemic Fix**: Architectural changes needed across all files
-- **Detection Strategy**: How to monitor for this attack pattern
+**Attack Chain Analysis Format:**
+- **Attack Chain Name & Severity**: Descriptive name and Critical/High/Medium/Low rating
+- **Attack Path Flow**: File A → File B → File C → Complete System Compromise
+- **Entry Point Details**: Specific file, function, and line where the attack begins  
+- **Exploitation Flow**: Step-by-step progression of how the attack moves through files
+- **Files Involved**: Complete list of all files that participate in this attack chain
+- **Business Function Impact**: What critical business function gets compromised
+- **Complete Exploit Scenario**: Full working proof-of-concept demonstrating the attack
+- **Systemic Fix Strategy**: Architectural changes needed across all involved files
+- **Detection & Monitoring**: How to monitor for this attack pattern in production
 
-### 3. Data Flow Security Analysis
-- **User Input Entry Points**: All places user data enters the system
-- **Data Processing Chain**: How user data flows through components  
-- **Validation Gaps**: Where input validation is missing or insufficient
-- **Output Vulnerabilities**: Where unencoded data reaches outputs
-- **Data Leakage Risks**: Where sensitive data could be exposed
+**DATA FLOW SECURITY ANALYSIS:**
+- **User Input Entry Points**: Comprehensive mapping of all places user data enters the system
+- **Data Processing Chain**: How user data flows through components and transformations
+- **Validation Gaps**: Where input validation is missing, insufficient, or inconsistently applied
+- **Output Vulnerabilities**: Where unencoded data reaches outputs and could cause XSS/injection
+- **Data Leakage Risks**: Where sensitive data could be inadvertently exposed or logged
 
-### 4. Authentication & Authorization Architecture Review
-- **Authentication Flow Analysis**: Complete auth workflow security
-- **Session Management**: Session creation, validation, and termination
-- **Authorization Consistency**: Access control across all components
-- **Privilege Escalation Risks**: Both horizontal and vertical privilege issues
-- **Account Management**: User creation, deletion, and role management security
+**AUTHENTICATION & AUTHORIZATION ARCHITECTURE REVIEW:**
+- **Authentication Flow Analysis**: Complete auth workflow security across all components
+- **Session Management**: Session creation, validation, termination, and storage security
+- **Authorization Consistency**: Access control implementation across all system components  
+- **Privilege Escalation Risks**: Both horizontal and vertical privilege escalation opportunities
+- **Account Management**: User creation, deletion, role management, and password security
 
 ### 5. Configuration Security Assessment  
 - **Security Misconfigurations**: Dangerous default settings and configurations

@@ -1,5 +1,5 @@
 /**
- * Local LLM MCP Server - Plugin Architecture v4.0
+ * Houtini LM MCP Server - Plugin Architecture v1.0
  * Complete plugin-based replacement of legacy switch-case system
  */
 
@@ -21,7 +21,7 @@ import { PluginLoader, PluginRegistry } from './plugins/index.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-class LocalLLMServer {
+class HoutiniLMServer {
   private server: Server;
   private lmStudioClient: LMStudioClient;
   private pluginLoader: PluginLoader;
@@ -30,8 +30,8 @@ class LocalLLMServer {
   constructor() {
     this.server = new Server(
       {
-        name: 'local-llm-server',
-        version: '4.0.0-plugin-architecture',
+        name: 'houtini-lm',
+        version: '1.0.0',
       },
       {
         capabilities: {
@@ -268,7 +268,7 @@ class LocalLLMServer {
 }
 
 // Start the server
-const server = new LocalLLMServer();
+const server = new HoutiniLMServer();
 server.start().catch((error) => {
   // Silent error handling - only exit on critical startup failure
   process.exit(1);

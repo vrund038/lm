@@ -1,5 +1,5 @@
 /**
- * Specific Response Schemas for Local LLM MCP Functions
+ * Specific Response Schemas for Houtini LM MCP Functions
  * Based on Functional Specification v4.0 - Exact TypeScript interfaces
  */
 

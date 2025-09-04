@@ -1,13 +1,13 @@
-# Local LLM MCP Server v4.3
+# Houtini LM MCP Server v1.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
-[![Functions](https://img.shields.io/badge/Functions-Complete-brightgreen)](https://github.com/richardbaxterseo/local-llm-mcp)
-[![Architecture](https://img.shields.io/badge/Architecture-Plugin%20Based-blue)](https://github.com/richardbaxterseo/local-llm-mcp)
+[![Functions](https://img.shields.io/badge/Functions-Complete-brightgreen)](https://github.com/houtini-ai/lm)
+[![Architecture](https://img.shields.io/badge/Architecture-Plugin%20Based-blue)](https://github.com/houtini-ai/lm)
 
-**⚠️ PRIVATE REPOSITORY - NOT FOR PUBLIC DISTRIBUTION**
+**Local AI processing for unlimited development without API costs**
 
-A sophisticated MCP (Model Context Protocol) server that enables Claude to offload routine tasks to local LLMs running in LM Studio, preserving Claude's context window for strategic work. Features modern plugin architecture with comprehensive security integration and dynamic context window management.
+A sophisticated MCP (Model Context Protocol) server that enables Claude to offload routine tasks to local LLMs running in LM Studio. Save 90% on API costs whilst preserving Claude's context window for strategic work.
 
 ## 🎯 Core Purpose
 

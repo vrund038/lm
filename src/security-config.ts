@@ -1,7 +1,7 @@
 import { resolve, normalize } from 'path';
 
 /**
- * Security configuration for Local LLM MCP
+ * Security configuration for Houtini LM MCP
  * 
  * These settings control file access permissions and security policies.
  * Can be overridden via environment variables.

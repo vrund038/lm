@@ -43,11 +43,11 @@ export class PathResolverPlugin extends BasePlugin implements IPromptPlugin {
           result.suggestions = {
             recommendedParameter: pathAnalysis.suggestedParameter,
             exampleUsage: pathAnalysis.type === 'directory' 
-              ? `local-llm:count_files projectPath="${secureParams.path}"`
-              : `local-llm:analyze_single_file filePath="${secureParams.path}"`,
+              ? `houtini-lm:count_files projectPath="${secureParams.path}"`
+              : `houtini-lm:analyze_single_file filePath="${secureParams.path}"`,
             alternativeUsage: pathAnalysis.type === 'directory'
-              ? `local-llm:security_audit projectPath="${secureParams.path}"`
-              : `local-llm:generate_unit_tests filePath="${secureParams.path}"`
+              ? `houtini-lm:security_audit projectPath="${secureParams.path}"`
+              : `houtini-lm:generate_unit_tests filePath="${secureParams.path}"`
           };
         }
 

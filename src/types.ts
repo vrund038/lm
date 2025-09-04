@@ -1,5 +1,5 @@
 /**
- * Core Types for Local LLM MCP Server v4.2
+ * Core Types for Houtini LM MCP Server v1.0
  * Modern plugin architecture - no legacy prompt handling
  */
 

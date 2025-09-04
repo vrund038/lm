@@ -1,5 +1,5 @@
 /**
- * Function Registry Plugin - Discover and list all available Local LLM functions
+ * Function Registry Plugin - Discover and list all available Houtini LM functions
  * Helps users explore capabilities and understand function usage patterns
  */
 
@@ -11,7 +11,7 @@ import { discoverAvailableFunctions, getFunctionCategories } from './function-re
 export class FunctionRegistryPlugin extends BasePlugin implements IPromptPlugin {
   name = 'list_functions';
   category = 'system' as const;
-  description = 'List all available Local LLM functions with usage information';
+  description = 'List all available Houtini LM functions with usage information';
   
   parameters = {
     category: {
@@ -68,7 +68,7 @@ export class FunctionRegistryPlugin extends BasePlugin implements IPromptPlugin 
           result.tips = {
             singleFile: "Use 'filePath' parameter for individual file analysis",
             multiFile: "Use 'projectPath' parameter for directory/project analysis",
-            pathResolution: "Use 'local-llm:resolve_path' to check if a path is file or directory",
+            pathResolution: "Use 'houtini-lm:resolve_path' to check if a path is file or directory",
             modeInfo: "Functions support 'single-file', 'multi-file', or both modes"
           };
         }

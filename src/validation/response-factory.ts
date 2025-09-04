@@ -1,5 +1,5 @@
 /**
- * Response Factory for Local LLM MCP Functions
+ * Response Factory for Houtini LM MCP Functions
  * Makes it incredibly easy to create correctly formatted responses
  * Usage: ResponseFactory.createAnalyzeSingleFileResponse(data, modelId)
  */

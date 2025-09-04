@@ -271,38 +271,41 @@ Your task is to analyze code quality metrics including complexity, maintainabili
 ${code}
 \`\`\``;
 
-    const outputInstructions = `Provide your code quality analysis in the following structured format:
+    const outputInstructions = `Provide comprehensive code quality analysis including:
 
-## Code Quality Analysis Report
+**Quality Assessment Overview**
+- Overall quality evaluation with numerical scoring out of 10
+- Complexity assessment focusing on cyclomatic complexity and maintainability  
+- Readability evaluation covering naming conventions, code organization, and clarity
+- Maintainability score considering future modification ease
 
-### Quality Metrics
-- **Overall Quality Score**: [X/10]
-- **Complexity Score**: [X/10] 
-- **Maintainability Score**: [X/10]
-- **Readability Score**: [X/10]
+**Detailed Quality Analysis**
+- Cyclomatic complexity assessment with specific complexity hotspots
+- Function and method length analysis identifying overly complex functions
+- Variable naming consistency and clarity evaluation
+- Code organization patterns and structural assessment
+- Documentation quality and inline comment effectiveness
 
-### Detailed Analysis
-- **Cyclomatic Complexity**: [assessment]
-- **Function Length**: [assessment]
-- **Variable Naming**: [assessment]
-- **Code Organization**: [assessment]
+**Best Practices Adherence Evaluation**
+- SOLID principles compliance with specific examples and scoring
+- DRY principle adherence identifying code duplication patterns
+- Error handling consistency and robustness assessment
+- Language-specific best practices and idiom usage
+- Performance considerations and optimization opportunities
 
-### Best Practices Adherence
-- **SOLID Principles**: [score/10]
-- **DRY Principle**: [score/10]
-- **Error Handling**: [score/10]
+**Quality Issues and Recommendations**
+- Critical quality issues requiring immediate attention with specific line references
+- Important improvements for maintainability and readability enhancement
+- Minor refinements and polish opportunities for code excellence
+- Prioritized recommendation list focusing on highest impact improvements first
 
-### Issues Found
-- **Critical**: [list critical quality issues]
-- **Important**: [list important issues]
-- **Minor**: [list minor improvements]
+**Implementation Guidance**
+- Specific actionable steps for addressing identified quality issues
+- Code refactoring suggestions with examples where applicable
+- Long-term quality improvement strategies and practices
+- Confidence assessment of the analysis accuracy and completeness
 
-### Recommendations
-1. **Priority 1**: [most important improvements]
-2. **Priority 2**: [secondary improvements]
-3. **Nice to Have**: [optional improvements]
-
-**Analysis Confidence**: [X]%`;
+Focus on providing actionable insights that developers can implement immediately to improve code quality, maintainability, and team productivity.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -327,37 +330,44 @@ Your task is to provide comprehensive code quality assessment across the entire 
 
 ${JSON.stringify(analysisResult, null, 2)}`;
 
-    const outputInstructions = `Provide your project-wide code quality analysis:
+    const outputInstructions = `Provide comprehensive project-wide code quality analysis including:
 
-## Project Quality Analysis Report
+**Project Quality Overview**
+- Overall project quality assessment with numerical scoring and quality maturity evaluation
+- Quality consistency analysis across the entire codebase identifying patterns and variations
+- Project maintainability assessment focusing on long-term sustainability and evolution capability
 
-### Overall Project Quality
-- **Project Quality Score**: [X/10]
-- **Consistency Score**: [X/10]
-- **Maintainability Score**: [X/10]
+**Quality Distribution Analysis**
+- Quality variance across files identifying high-performing and problematic areas
+- Consistency patterns in coding standards, naming conventions, and structural approaches
+- Quality hotspots requiring immediate attention and areas of excellence to replicate
 
-### Quality Distribution
-- **High Quality Files**: [count] ([percentage]%)
-- **Medium Quality Files**: [count] ([percentage]%)
-- **Low Quality Files**: [count] ([percentage]%)
+**Cross-File Quality Patterns**
+- Consistent quality patterns and practices implemented well across multiple files
+- Inconsistent areas showing quality variations that impact team productivity
+- Systematic quality issues affecting multiple components or architectural layers
+- Code quality trends and evolution patterns throughout the project structure
 
-### Quality Patterns
-- **Consistent Patterns**: [list good patterns across files]
-- **Inconsistent Areas**: [list areas with quality variations]
-- **Quality Hotspots**: [files/areas needing attention]
+**Strategic Quality Issues**
+- Critical systemic problems affecting multiple files requiring architectural attention
+- Quality consistency issues creating maintenance burden and reducing team velocity  
+- Technical debt accumulation patterns and their impact on project sustainability
+- Cross-cutting concerns and quality patterns that span multiple modules or components
 
-### Project-wide Issues
-- **Critical Issues**: [systemic problems affecting multiple files]
-- **Consistency Issues**: [style, naming, structure inconsistencies]
-- **Technical Debt**: [areas with accumulated issues]
+**Project Quality Recommendations**
+- Immediate action items for addressing urgent quality problems across the project
+- Quality standards and coding guidelines recommendations for team adoption
+- Tooling and automation suggestions for maintaining consistent quality levels
+- Refactoring prioritization strategy focusing on highest impact quality improvements
+- Long-term quality improvement roadmap and architectural evolution guidance
 
-### Strategic Recommendations
-- **Immediate Actions**: [urgent quality improvements]
-- **Quality Standards**: [recommended coding standards to implement]
-- **Tooling**: [suggested tools for quality monitoring]
-- **Refactoring Priorities**: [which areas to refactor first]
+**Implementation Strategy**
+- Phase-based approach to implementing quality improvements across the project
+- Team adoption strategies for quality standards and best practices
+- Measurement and monitoring approaches for tracking quality improvements over time
+- Project quality maturity assessment and growth pathway recommendations
 
-**Project Quality Maturity**: [X/10]`;
+Focus on providing strategic, actionable insights that improve overall project quality, team productivity, and long-term maintainability across the entire codebase.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }

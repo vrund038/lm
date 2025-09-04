@@ -337,37 +337,34 @@ ${extractedQueries.length > 0 ?
 
 ${filePath ? `\n**File Path:** ${filePath}` : ''}`;
 
-    const outputInstructions = `**PROVIDE COMPREHENSIVE DATABASE QUERY ANALYSIS AS JSON:**
+    const outputInstructions = `**PROVIDE COMPREHENSIVE DATABASE QUERY ANALYSIS:**
 
-{
-  "summary": "2-3 sentence overview of database usage, query patterns, and main security/performance concerns",
-  
-  "queryAnalysis": {
-    "totalQueries": ${extractedQueries.length},
-    "queryTypes": ["SELECT", "INSERT", "UPDATE", "DELETE"],
-    "complexQueries": ["complex query 1", "complex query 2"],
-    "dynamicQueries": ["dynamic query 1", "dynamic query 2"]
-  },
-  
-  "securityFindings": [
-    {
-      "type": "sql_injection|prepared_statements|input_validation",
-      "severity": "critical|high|medium|low",
-      "query": "vulnerable query snippet",
-      "line": 42,
-      "vulnerability": "Detailed description of security issue",
-      "exploit": "How this could be exploited",
-      "fix": "Specific fix with code example",
-      "example": "Secure code implementation"
-    }
-  ],
-  
-  "performanceFindings": [
-    {
-      "type": "n_plus_one|missing_index|inefficient_query|excessive_joins",
-      "severity": "critical|high|medium|low", 
-      "query": "problematic query",
-      "line": 55,
+## Executive Summary
+Provide a 2-3 sentence overview of database usage, query patterns, and main security/performance concerns found in this file.
+
+## Query Analysis Overview
+- **Total Queries Found**: Count of database queries identified in the code
+- **Query Types**: Breakdown of query types (SELECT, INSERT, UPDATE, DELETE, etc.)
+- **Complex Queries**: Identification of complex queries that need attention
+- **Dynamic Queries**: Queries built dynamically at runtime
+
+## Security Analysis
+For each security finding:
+- **Vulnerability Type**: SQL injection, prepared statements, input validation, etc.
+- **Severity Level**: Critical, high, medium, or low priority
+- **Vulnerable Query**: The specific problematic query
+- **Location**: Line number and context
+- **Security Risk**: Detailed description of the security issue
+- **Exploit Scenario**: How this vulnerability could be exploited
+- **Fix Recommendation**: Specific fix with secure code example
+- **Implementation**: Example of secure implementation
+
+## Performance Analysis  
+For each performance issue:
+- **Performance Problem**: N+1 queries, missing indexes, inefficient queries, excessive joins
+- **Impact Level**: Critical, high, medium, or low performance impact
+- **Problematic Query**: The query causing performance issues
+- **Location**: Line number and context
       "issue": "Detailed performance issue description",
       "impact": "Performance impact (queries/second, memory usage)",
       "optimization": "Specific optimization strategy",
@@ -469,49 +466,44 @@ ${JSON.stringify(analysisResult, null, 2)}`;
 
     const outputInstructions = `**PROVIDE PROJECT-WIDE DATABASE ANALYSIS:**
 
-{
-  "summary": "Overall database usage patterns and key architectural findings across the project",
-  
-  "architecture": {
-    "queryPatterns": ["pattern 1", "pattern 2"],
-    "dataAccessLayers": ["layer 1", "layer 2"],
-    "transactionBoundaries": ["boundary pattern 1", "boundary pattern 2"],
-    "consistencyApproach": "eventual|strong|mixed"
-  },
-  
-  "crossFileFindings": [
-    {
-      "type": "query_duplication|transaction_issues|n_plus_one_pattern|security_pattern",
-      "severity": "critical|high|medium|low",
-      "title": "Cross-file database issue",
-      "description": "Detailed description of the system-wide issue",
-      "affectedFiles": ["file1.php", "file2.php", "file3.php"],
-      "impact": "Performance/security impact across the system",
-      "recommendation": "System-wide fix strategy"
-    }
-  ],
-  
-  "performanceArchitecture": {
-    "queryDistribution": "How queries are distributed across files",
-    "bottleneckPatterns": ["bottleneck 1", "bottleneck 2"],
-    "cachingStrategy": "current caching approach",
-    "optimizationOpportunities": ["opportunity 1", "opportunity 2"]
-  },
-  
-  "securityArchitecture": {
-    "inputValidationPatterns": "consistent|inconsistent|missing",
-    "preparedStatementUsage": "high|medium|low",
-    "privilegePatterns": ["pattern 1", "pattern 2"],
-    "riskAreas": ["high risk area 1", "high risk area 2"]
-  },
-  
-  "systemWideRecommendations": {
-    "architecture": ["database architecture improvement 1", "improvement 2"],
-    "performance": ["system performance optimization 1", "optimization 2"],
-    "security": ["security enhancement 1", "enhancement 2"],
-    "maintainability": ["maintainability improvement 1", "improvement 2"]
-  }
-}`;
+## Executive Summary
+Overall assessment of database usage patterns, architecture quality, and system-wide security/performance concerns across the project.
+
+## Database Architecture Analysis
+- **Query Patterns**: Common patterns used throughout the project
+- **Data Access Layers**: How database access is organized across files
+- **Transaction Boundaries**: Transaction management patterns across the system
+- **Consistency Approach**: Eventual, strong, or mixed consistency patterns
+
+## Cross-File Analysis
+For each system-wide issue identified:
+- **Issue Type**: Query duplication, transaction issues, N+1 patterns, security patterns
+- **Severity Impact**: Critical, high, medium, or low system impact  
+- **Issue Title**: Descriptive name for the cross-file issue
+- **Description**: Detailed explanation of the system-wide problem
+- **Affected Files**: List of files involved in this issue
+- **System Impact**: How this affects overall performance/security
+- **Resolution Strategy**: System-wide fix approach
+
+## Performance Architecture
+- **Query Distribution**: How database queries are distributed across the codebase
+- **Bottleneck Patterns**: Common performance bottlenecks across files
+- **Caching Strategy**: Current approach to database result caching
+- **Optimization Opportunities**: System-wide performance improvements
+
+## Security Architecture  
+- **Input Validation Patterns**: Consistency of input validation (consistent/inconsistent/missing)
+- **Prepared Statement Usage**: Overall usage of prepared statements (high/medium/low)
+- **Privilege Patterns**: Common privilege and access control patterns
+- **High Risk Areas**: Areas requiring immediate security attention
+
+## System-Wide Recommendations
+- **Architecture Improvements**: Database architecture enhancements
+- **Performance Optimizations**: System-wide performance improvements
+- **Security Enhancements**: Security strengthening recommendations
+- **Maintainability Improvements**: Long-term maintenance considerations
+
+Focus on actionable recommendations that improve overall database architecture, performance, and security across the entire project.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }

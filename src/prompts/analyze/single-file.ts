@@ -330,81 +330,68 @@ ${code}
 
 ${filePath ? `\n**File Path:** ${filePath}` : ''}`;
 
-    const outputInstructions = `**PROVIDE YOUR ANALYSIS AS A STRUCTURED JSON RESPONSE:**
+    const outputInstructions = `Provide a comprehensive code analysis covering all aspects of the ${language} code:
 
-{
-  "summary": "2-3 sentence overview of the code's purpose, overall quality, and main areas for improvement",
-  
-  "structure": {
-    "architecture": "Brief description of the code's architectural approach",
-    "classes": ["ClassName1", "ClassName2"],
-    "functions": ["functionName1", "functionName2"], 
-    "imports": ["module1", "module2"],
-    "exports": ["export1", "export2"],
-    "dependencies": ["dependency1", "dependency2"],
-    "patterns": ["design pattern 1", "design pattern 2"]
-  },
-  
-  "metrics": {
-    "linesOfCode": 150,
-    "cyclomaticComplexity": "estimated complexity level",
-    "maintainabilityScore": "high|medium|low",
-    "testability": "high|medium|low",
-    "reusability": "high|medium|low"
-  },
-  
-  "findings": [
-    {
-      "type": "issue|improvement|security|performance",
-      "severity": "critical|high|medium|low", 
-      "title": "Brief issue title",
-      "description": "Detailed explanation of the finding",
-      "line": 42,
-      "codeSnippet": "relevant code excerpt",
-      "recommendation": "Specific action to take",
-      "example": "Code example showing the fix (if applicable)"
-    }
-  ],
-  
-  "security": {
-    "vulnerabilities": ["vulnerability1", "vulnerability2"],
-    "riskLevel": "critical|high|medium|low|none",
-    "recommendations": ["security recommendation 1", "security recommendation 2"]
-  },
-  
-  "performance": {
-    "bottlenecks": ["bottleneck1", "bottleneck2"],
-    "optimizations": ["optimization1", "optimization2"],
-    "estimatedImpact": "high|medium|low"
-  },
-  
-  "recommendations": {
-    "immediate": ["urgent fix 1", "urgent fix 2"],
-    "shortTerm": ["improvement 1", "improvement 2"],
-    "longTerm": ["architectural improvement 1", "architectural improvement 2"]
-  },
-  
-  "codeExamples": {
-    "before": "// Current problematic code",
-    "after": "// Improved version",
-    "explanation": "Why this improvement helps"
-  },
-  
-  "bestPractices": [
-    "Best practice 1 being followed",
-    "Best practice 2 that should be adopted"
-  ],
-  
-  "confidence": 0.95
-}
+**Code Overview & Purpose:**
+Provide a 2-3 sentence summary of what this code does, its overall quality level, and the main areas that need attention.
 
-**CRITICAL REQUIREMENTS:**
-- Be specific with line numbers when possible
-- Provide actionable recommendations with concrete examples
-- Focus on the most impactful improvements first
-- Consider the project context and framework conventions
-- Balance criticism with recognition of good practices
-- Ensure all suggestions are implementable and practical`;
+**Structural Analysis:**
+- **Architecture**: Describe the code's architectural approach and organization
+- **Components**: List key classes, functions, modules, and their roles
+- **Dependencies**: Identify imports, exports, and external dependencies
+- **Design Patterns**: Note any design patterns or architectural patterns used
+
+**Quality Assessment:**
+- **Lines of Code**: Estimate total lines and assess if appropriate for functionality
+- **Complexity**: Evaluate cyclomatic complexity (low/medium/high) and maintainability
+- **Code Quality**: Rate maintainability, testability, and reusability (high/medium/low)
+- **Standards Adherence**: How well it follows ${language} and ${framework} best practices
+
+**Issues & Findings:**
+For each issue found, provide:
+- **Type**: issue, improvement, security concern, or performance problem
+- **Severity**: critical, high, medium, or low priority
+- **Location**: Specific line numbers where possible
+- **Description**: Clear explanation of the problem
+- **Impact**: How this affects the code's functionality or quality
+- **Recommendation**: Specific steps to fix or improve
+- **Code Example**: Show before/after code where helpful
+
+**Security Assessment:**
+- **Vulnerability Analysis**: Identify potential security issues
+- **Risk Level**: Overall security risk (critical/high/medium/low/none)  
+- **Security Recommendations**: Specific security improvements needed
+- **Best Practices**: Security practices being followed or missing
+
+**Performance Analysis:**
+- **Bottlenecks**: Identify performance issues or inefficiencies
+- **Optimization Opportunities**: Suggest specific performance improvements
+- **Impact Assessment**: Estimate the performance impact of suggested changes
+
+**Actionable Recommendations:**
+Organize suggestions by priority:
+- **Immediate Actions**: Critical fixes needed right away
+- **Short-term Improvements**: Quality enhancements for next iteration
+- **Long-term Enhancements**: Architectural or major structural improvements
+
+**Code Examples:**
+Where applicable, provide before/after code examples showing:
+- Current problematic code
+- Improved version with fix applied
+- Clear explanation of why the improvement helps
+
+**Best Practices Assessment:**
+- Highlight coding practices being done well
+- Identify areas where ${language}/${framework} best practices should be adopted
+- Consider ${projectType} specific requirements and conventions
+
+**Implementation Guidance:**
+- Prioritize recommendations by impact and effort required
+- Provide specific, actionable steps that can be implemented immediately
+- Consider the existing codebase context and constraints
+- Balance perfectionism with practical improvement steps
+
+Focus on being constructive, specific, and actionable. Include line numbers where possible, and ensure all recommendations are implementable within the project's context.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -439,51 +426,47 @@ You excel at identifying cross-file patterns, architectural issues, and system-w
 
 ${JSON.stringify(analysisResult, null, 2)}`;
 
-    const outputInstructions = `**PROVIDE YOUR PROJECT-WIDE ANALYSIS:**
+    const outputInstructions = `**PROVIDE PROJECT-WIDE ANALYSIS:**
 
-{
-  "summary": "Overall architectural assessment and key findings across the project",
-  
-  "architecture": {
-    "patterns": ["architectural pattern 1", "architectural pattern 2"],
-    "violations": ["violation 1", "violation 2"],
-    "strengths": ["strength 1", "strength 2"],
-    "weaknesses": ["weakness 1", "weakness 2"]
-  },
-  
-  "crossFileFindings": [
-    {
-      "type": "duplication|coupling|inconsistency|security|performance",
-      "severity": "critical|high|medium|low",
-      "title": "Cross-file issue title",
-      "description": "Detailed description of the cross-file issue",
-      "affectedFiles": ["file1.js", "file2.js", "file3.js"],
-      "impact": "How this affects the overall system",
-      "recommendation": "Specific steps to resolve across files"
-    }
-  ],
-  
-  "dependencies": {
-    "coupling": "high|medium|low",
-    "circular": ["circular dependency 1", "circular dependency 2"],
-    "unused": ["unused dependency 1", "unused dependency 2"],
-    "recommendations": ["dependency improvement 1", "dependency improvement 2"]
-  },
-  
-  "consistency": {
-    "namingConventions": "consistent|inconsistent|mixed",
-    "codeStyle": "consistent|inconsistent|mixed", 
-    "patterns": "consistent|inconsistent|mixed",
-    "improvements": ["consistency improvement 1", "consistency improvement 2"]
-  },
-  
-  "systemWideRecommendations": {
-    "architecture": ["architectural improvement 1", "architectural improvement 2"],
-    "refactoring": ["refactoring opportunity 1", "refactoring opportunity 2"],
-    "tooling": ["tooling recommendation 1", "tooling recommendation 2"],
-    "standards": ["standard to adopt 1", "standard to adopt 2"]
-  }
-}`;
+## Executive Summary
+Overall architectural assessment and key findings across the entire project.
+
+## Architecture Analysis
+- **Architectural Patterns**: Patterns identified across the codebase
+- **Architecture Violations**: Areas where architectural principles are violated
+- **Architectural Strengths**: What the project does well architecturally  
+- **Architectural Weaknesses**: Areas needing architectural improvement
+
+## Cross-File Analysis
+For each cross-file issue identified:
+- **Issue Type**: Duplication, coupling, inconsistency, security, or performance
+- **Severity Level**: Critical, high, medium, or low impact
+- **Issue Title**: Descriptive name for the cross-file issue
+- **Description**: Detailed explanation of the cross-file problem
+- **Affected Files**: List of files involved in this issue
+- **System Impact**: How this affects the overall system
+- **Resolution Strategy**: Specific steps to resolve across files
+
+## Dependency Analysis
+- **Coupling Assessment**: Overall coupling level (high/medium/low)
+- **Circular Dependencies**: Any circular dependency issues found
+- **Unused Dependencies**: Dependencies that can be removed
+- **Dependency Recommendations**: Improvements to dependency management
+
+## Code Consistency Analysis
+- **Naming Conventions**: Consistency assessment (consistent/inconsistent/mixed)
+- **Code Style**: Style consistency across files (consistent/inconsistent/mixed)
+- **Pattern Usage**: Pattern consistency across the codebase
+- **Consistency Improvements**: Recommendations for better consistency
+
+## System-Wide Recommendations
+- **Architectural Improvements**: High-level architectural enhancements needed for better system design
+- **Refactoring Opportunities**: Major refactoring opportunities across files to improve maintainability
+- **Development Standards**: Coding standards and best practices that should be adopted project-wide
+- **Tooling Recommendations**: Development tools and automation that would benefit the project
+- **Quality Improvements**: Long-term quality enhancement strategies for sustainable development
+
+Focus on providing strategic, actionable insights that improve overall project quality, team productivity, and long-term maintainability across the entire codebase.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }

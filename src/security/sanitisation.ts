@@ -1,6 +1,6 @@
 /**
  * Sanitisation I/O Helper Module
- * Provides comprehensive input/output sanitisation for the Local LLM MCP
+ * Provides comprehensive input/output sanitisation for the Houtini LM MCP
  * 
  * Architecture Integration:
  * - Input: Sanitise user parameters before plugin execution

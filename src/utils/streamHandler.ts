@@ -1,4 +1,4 @@
-// Fixed streaming response handler for Local LLM MCP
+// Fixed streaming response handler for Houtini LM MCP
 // This fixes the [object Object] issue when streaming from LM Studio
 
 export async function handleLLMResponse(prediction: AsyncIterable<any>): Promise<string> {

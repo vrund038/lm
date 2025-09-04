@@ -284,43 +284,39 @@ Analyze this file's role in the broader architecture. Don't just describe what i
 ${code}
 \`\`\``;
 
-    const outputInstructions = `Provide your architectural analysis in the following strategic format:
+    const outputInstructions = `Provide comprehensive architectural analysis of this file covering:
 
-{
-  "executiveSummary": {
-    "fileRole": "What role does this file play in the overall architecture?",
-    "architecturalPattern": "What pattern does this file implement or support?",
-    "businessCriticality": "How critical is this file to business operations?"
-  },
-  "structuralAnalysis": {
-    "responsibilities": ["Primary responsibilities of this file"],
-    "dependencies": {
-      "imports": ["Key dependencies this file relies on"],
-      "exports": ["What this file provides to other parts of the system"],
-      "coupling": "tight|loose|moderate - with explanation"
-    },
-    "designPatterns": ["Identified design patterns used"],
-    "codeOrganization": "How well is the code structured internally?"
-  },
-  "architecturalInsights": {
-    "strengthsAndOpportunities": ["What this file does well architecturally"],
-    "technicalDebt": ["Areas where technical debt is accumulating"],
-    "scalabilityConsiderations": ["How will this file behave as the system grows?"],
-    "maintainabilityScore": "1-10 with explanation"
-  },
-  "strategicRecommendations": [
-    {
-      "priority": "high|medium|low",
-      "recommendation": "Specific actionable recommendation",
-      "rationale": "Why this matters for the business/team",
-      "effort": "low|medium|high",
-      "impact": "Business or technical impact of implementing this"
-    }
-  ],
-  "confidence": 0.85
-}
+**Executive Summary:**
+- **File Role**: What role does this file play in the overall architecture?
+- **Architectural Pattern**: What pattern does this file implement or support?
+- **Business Criticality**: How critical is this file to business operations?
 
-**REMEMBER:** Focus on strategic architectural insights that help developers make better decisions, not just code review comments.`;
+**Structural Analysis:**
+- **Primary Responsibilities**: List the main responsibilities of this file
+- **Dependencies**: 
+  - Key imports and what this file relies on
+  - What this file exports and provides to other parts
+  - Coupling assessment (tight/loose/moderate) with explanation
+- **Design Patterns**: Identify any design patterns used in this file
+- **Code Organization**: Assessment of how well the code is structured internally
+
+**Architectural Insights:**
+- **Strengths & Opportunities**: What this file does well architecturally
+- **Technical Debt**: Areas where technical debt is accumulating
+- **Scalability Considerations**: How will this file behave as the system grows?
+- **Maintainability Score**: Rate 1-10 with detailed explanation
+
+**Strategic Recommendations:**
+For each recommendation, provide:
+- **Priority**: High/medium/low priority level
+- **Recommendation**: Specific actionable recommendation
+- **Rationale**: Why this matters for the business/team
+- **Effort**: Low/medium/high implementation effort
+- **Impact**: Business or technical impact of implementing this
+
+**Confidence Assessment:** Your confidence level in this analysis
+
+Focus on strategic architectural insights that help developers make better decisions, not just code review comments.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -356,88 +352,73 @@ Provide a comprehensive architectural assessment that helps the development team
 
 ${JSON.stringify(analysisResult, null, 2)}`;
 
-    const outputInstructions = `Provide your comprehensive project architecture analysis in this executive-ready format:
+    const outputInstructions = `Provide comprehensive project architecture analysis covering:
 
-{
-  "executiveSummary": {
-    "overallArchitecturalHealth": "excellent|good|concerning|poor - with 2-sentence explanation",
-    "primaryStrengths": ["Top 3 architectural strengths"],
-    "criticalConcerns": ["Top 3 areas requiring immediate attention"],
-    "recommendedFocus": "What should the team prioritize next?"
-  },
-  "architecturalOverview": {
-    "detectedPatterns": [
-      {
-        "pattern": "Pattern name (e.g., MVC, Microservices, Layered)",
-        "implementation": "well-implemented|partially-implemented|poorly-implemented",
-        "impact": "How this affects the system"
-      }
-    ],
-    "systemComplexity": {
-      "level": "low|moderate|high|excessive",
-      "justification": "Why this complexity level exists",
-      "manageable": true/false
-    },
-    "codeOrganization": {
-      "directoryStructure": "well-organized|adequate|chaotic",
-      "separationOfConcerns": "clear|mixed|tangled",
-      "consistencyScore": "1-10 with explanation"
-    }
-  },
-  "dependencyAnalysis": {
-    "externalDependencies": {
-      "count": ${fileCount},
-      "riskLevel": "low|medium|high",
-      "outdatedDependencies": ["List of concerning dependencies"],
-      "recommendations": ["Dependency management recommendations"]
-    },
-    "internalCoupling": {
-      "level": "loose|moderate|tight",
-      "problematicAreas": ["Files or modules with coupling issues"],
-      "refactoringOpportunities": ["Specific decoupling suggestions"]
-    }
-  },
-  "qualityAndMaintainability": {
-    "codeQualityScore": "1-10 with explanation",
-    "technicalDebtAreas": [
-      {
-        "area": "Specific area of technical debt",
-        "severity": "low|medium|high|critical",
-        "businessImpact": "How this affects business operations",
-        "remediation": "Specific steps to address"
-      }
-    ],
-    "testability": "How easy is this codebase to test?",
-    "documentation": "Current state of documentation"
-  },
-  "scalabilityAndPerformance": {
-    "currentScalability": "How well will this system scale?",
-    "performanceBottlenecks": ["Identified or potential performance issues"],
-    "resourceUtilization": "Efficient or concerning resource usage patterns",
-    "scalingRecommendations": ["Specific recommendations for growth"]
-  },
-  "strategicRecommendations": [
-    {
-      "category": "architecture|dependencies|quality|performance|team",
-      "priority": "critical|high|medium|low",
-      "recommendation": "Specific actionable recommendation",
-      "businessJustification": "Why this matters for business success",
-      "technicalJustification": "Technical reasoning",
-      "estimatedEffort": "hours|days|weeks|months",
-      "expectedImpact": "Measurable impact on team or system",
-      "prerequisites": ["What needs to happen first"],
-      "riskOfNotImplementing": "What happens if this is ignored"
-    }
-  ],
-  "nextSteps": {
-    "immediate": ["Actions to take this week"],
-    "shortTerm": ["Actions for next 1-3 months"],
-    "longTerm": ["Strategic initiatives for 6+ months"],
-    "teamCapabilityNeeds": ["Skills or knowledge the team should develop"]
-  }
-}
+**Executive Summary:**
+- **Overall Architectural Health**: Assess as excellent/good/concerning/poor with 2-sentence explanation
+- **Primary Strengths**: Top 3 architectural strengths of this project
+- **Critical Concerns**: Top 3 areas requiring immediate attention
+- **Recommended Focus**: What should the team prioritize next?
 
-**CRITICAL:** Focus on recommendations that help the team ship better software faster. Every suggestion should clearly explain both the technical benefit and business value.`;
+**Architectural Overview:**
+- **Detected Patterns**: For each pattern found:
+  - Pattern name (e.g., MVC, Microservices, Layered)
+  - Implementation quality (well/partially/poorly implemented)
+  - Impact on the system
+- **System Complexity**: 
+  - Complexity level (low/moderate/high/excessive)
+  - Justification for this complexity level
+  - Whether the complexity is manageable
+- **Code Organization**: 
+  - Directory structure assessment (well-organized/adequate/chaotic)
+  - Separation of concerns (clear/mixed/tangled)  
+  - Consistency score (1-10 with explanation)
+
+**Dependency Analysis:**
+- **External Dependencies**: 
+  - Count and risk level assessment (low/medium/high)
+  - List of concerning outdated dependencies
+  - Dependency management recommendations
+- **Internal Coupling**: 
+  - Coupling level (loose/moderate/tight)
+  - Files or modules with coupling issues
+  - Specific decoupling suggestions
+
+**Quality and Maintainability:**
+- **Code Quality Score**: Rate 1-10 with detailed explanation
+- **Technical Debt Areas**: For each area:
+  - Specific area of technical debt
+  - Severity (low/medium/high/critical)
+  - Business impact explanation
+  - Specific remediation steps
+- **Testability**: Assessment of how easy this codebase is to test
+- **Documentation**: Current state of project documentation
+
+**Scalability and Performance:**
+- **Current Scalability**: Assessment of how well this system will scale
+- **Performance Bottlenecks**: Identified or potential performance issues
+- **Resource Utilization**: Efficient or concerning resource usage patterns
+- **Scaling Recommendations**: Specific recommendations for growth
+
+**Strategic Recommendations:**
+For each recommendation, provide:
+- **Category**: architecture/dependencies/quality/performance/team
+- **Priority**: critical/high/medium/low
+- **Recommendation**: Specific actionable recommendation
+- **Business Justification**: Why this matters for business success
+- **Technical Justification**: Technical reasoning
+- **Estimated Effort**: hours/days/weeks/months
+- **Expected Impact**: Measurable impact on team or system
+- **Prerequisites**: What needs to happen first
+- **Risk of Not Implementing**: What happens if this is ignored
+
+**Next Steps:**
+- **Immediate Actions**: Actions to take this week
+- **Short-term Actions**: Actions for next 1-3 months
+- **Long-term Initiatives**: Strategic initiatives for 6+ months
+- **Team Capability Needs**: Skills or knowledge the team should develop
+
+Focus on recommendations that help the team ship better software faster. Every suggestion should clearly explain both the technical benefit and business value.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }

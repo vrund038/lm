@@ -5,8 +5,24 @@
  * Automatically detects analysis type based on provided parameters
  * 
  * Copy this template for creating any new plugin - it adapts to your needs
+ * 
+ * ⚠️  CRITICAL: OUTPUT INSTRUCTIONS MUST USE NATURAL LANGUAGE, NOT JSON SCHEMAS! ⚠️
+ * 
+ * The ResponseFactory automatically handles all JSON formatting. If you put JSON schemas
+ * in outputInstructions, you'll get double-processing and escaped content. Always use 
+ * natural language instructions that describe WHAT you want, not HOW to format it.
+ * 
+ * ✅ GOOD: "Provide a comprehensive analysis including structure, quality metrics..."
+ * ❌ BAD:  '{ "summary": "...", "structure": {...} }' (causes escaping issues)
  */
 
+// TEMPLATE: Update these import paths based on where you place your plugin:
+// For analyze/ plugins: use '../../plugins/', '../shared/', '../../core/', etc.
+// For generate/ plugins: use '../../plugins/', '../shared/', '../../core/', etc.  
+// For system/ plugins: use '../../plugins/', '../shared/', '../../core/', etc.
+// For custom/ plugins: use '../../plugins/', '../shared/', '../../core/', etc.
+// For fun/ plugins: use '../../plugins/', '../shared/', '../../core/', etc.
+// THESE ARE TEMPLATE INSTRUCTIONS - The actual imports below are correct for this template file
 import { BasePlugin } from '../plugins/base-plugin.js';
 import { IPromptPlugin } from '../prompts/shared/types.js';
 import { ThreeStagePromptManager } from '../core/ThreeStagePromptManager.js';
@@ -277,16 +293,36 @@ ${code}
 
     const outputInstructions = `TEMPLATE: Define your specific single-file output format here.
 
-Provide your single-file analysis in the following structured format:
+**IMPORTANT: Use natural language instructions, NOT JSON schemas!**
+The ResponseFactory will handle all JSON formatting automatically.
 
-{
-  "summary": "Brief overview of this file",
-  "analysis": {
-    // TEMPLATE: Your specific single-file analysis structure
-  },
-  "recommendations": ["file-specific recommendations"],
-  "confidence": 0.85
-}`;
+Example single-file analysis format:
+
+**File Overview:**
+Provide a brief summary of what this file does and its overall quality.
+
+**Structural Analysis:**  
+- **Components**: List key classes, functions, and their purposes
+- **Dependencies**: Identify imports, exports, and external dependencies
+- **Architecture**: Describe the code's architectural approach
+
+**Quality Assessment:**
+- **Code Quality**: Rate maintainability, testability, and reusability
+- **Complexity**: Evaluate cyclomatic complexity and readability
+- **Standards**: Adherence to language and framework best practices
+
+**Issues & Recommendations:**
+For each finding, provide:
+- **Type**: Issue category (improvement, security, performance, etc.)  
+- **Severity**: Priority level (critical, high, medium, low)
+- **Description**: Clear explanation of the problem or opportunity
+- **Location**: Specific line numbers where applicable
+- **Solution**: Actionable steps to address the issue
+
+**Implementation Guidance:**
+Organize recommendations by priority and provide specific, actionable steps that developers can implement immediately.
+
+Focus on being constructive, specific, and actionable while maintaining professional quality suitable for production use.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -315,24 +351,37 @@ ${JSON.stringify(analysisResult, null, 2)}`;
 
     const outputInstructions = `TEMPLATE: Define your specific multi-file output format here.
 
-Provide your multi-file analysis in the following structured format:
+**IMPORTANT: Use natural language instructions, NOT JSON schemas!** 
+The ResponseFactory will handle all JSON formatting automatically.
 
-{
-  "summary": "Overall project analysis summary",
-  "crossFileFindings": [
-    {
-      "type": "TEMPLATE_finding_type",
-      "severity": "high|medium|low",
-      "description": "Cross-file issue description", 
-      "affectedFiles": ["file1.js", "file2.js"],
-      "recommendation": "How to fix this across files"
-    }
-  ],
-  "architecture": {
-    "patterns": ["pattern1", "pattern2"]
-  },
-  "recommendations": ["project-wide recommendations"]
-}`;
+Example multi-file analysis format:
+
+**Project Overview:**
+Provide a comprehensive summary of the project architecture and organization across all ${fileCount} analyzed files.
+
+**Cross-File Analysis:**
+- **Architecture Patterns**: Identify architectural patterns and their implementation
+- **Dependencies**: Map inter-file dependencies and coupling issues
+- **Consistency**: Assess coding style, naming conventions, and pattern consistency
+- **Duplication**: Identify code duplication and reuse opportunities
+
+**System-Wide Findings:**
+For each cross-file issue, provide:
+- **Issue Type**: Architecture, coupling, duplication, inconsistency, etc.
+- **Severity**: Impact on system maintainability and scalability
+- **Affected Files**: Specific files involved in the issue
+- **System Impact**: How this affects overall architecture
+- **Resolution Strategy**: Multi-file refactoring or improvement approach
+
+**Architectural Recommendations:**
+- **Immediate Actions**: Critical architectural fixes needed across files
+- **Structural Improvements**: Medium-term refactoring opportunities  
+- **Long-term Enhancements**: Strategic architectural evolution suggestions
+
+**Implementation Roadmap:**
+Provide a prioritized plan for implementing cross-file improvements, considering dependencies between changes and minimizing disruption to existing functionality.
+
+Focus on systemic issues that affect multiple files and provide architectural insights that individual file analysis cannot reveal.`;
 
     return { systemAndContext, dataPayload, outputInstructions };
   }
@@ -460,6 +509,14 @@ PLUGIN TEMPLATE USAGE:
 7. Use provided Node.js imports (path, fs/promises) instead of require()
 8. Build and restart Claude
 
+⚠️  CRITICAL RULE: OUTPUT INSTRUCTIONS MUST BE NATURAL LANGUAGE ONLY! ⚠️
+
+✅ DO: Use comprehensive natural language instructions describing what analysis to provide
+❌ DON'T: Put JSON schemas in outputInstructions (causes double-processing & escaping)
+
+The ResponseFactory automatically converts natural language responses to clean JSON.
+If you specify JSON format in prompts, you get garbled, escaped content.
+
 AUTOMATIC DETECTION:
 ✅ Single-file: When code/filePath provided
 ✅ Multi-file: When projectPath/files/maxDepth provided  
@@ -474,12 +531,14 @@ BENEFITS:
 ✅ Less maintenance - fix bugs once
 ✅ Flexible parameters - supports all use cases
 ✅ Code reuse - shared validation, processing, error handling
+✅ Clean JSON responses - ResponseFactory handles all formatting
 
 UTILITIES PROVIDED:
 ✅ ModelSetup - Model loading and context detection  
 ✅ ResponseProcessor - Token calculation and execution
 ✅ ParameterValidator - Common validation patterns
 ✅ ErrorHandler - Standardized error responses
+✅ ResponseFactory - Universal JSON formatting (don't duplicate this!)
 ✅ Common Node.js imports - path, fs/promises (use these instead of require)
 
 COMMON MISTAKES TO AVOID:
@@ -487,4 +546,5 @@ COMMON MISTAKES TO AVOID:
 ❌ Don't hardcode single/multi-file - let detection handle it
 ❌ Don't duplicate template architecture - only replace designated areas
 ❌ Don't create custom utilities - use the provided ones
+❌ DON'T PUT JSON SCHEMAS IN OUTPUT INSTRUCTIONS - use natural language only!
 */
