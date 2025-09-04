@@ -37,10 +37,10 @@
   "homepage": "https://houtini.ai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/houtini-ai/houtini-lm.git"
+    "url": "git+https://github.com/houtini-ai/lm.git"
   },
   "bugs": {
-    "url": "https://github.com/houtini-ai/houtini-lm/issues"
+    "url": "https://github.com/houtini-ai/lm/issues"
   },
   "dependencies": {
     "@lmstudio/sdk": "^1.5.0",
