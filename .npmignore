@@ -1,0 +1,55 @@
+# Source files (dist/ contains compiled version)
+src/
+tests/
+diagnostics/
+scripts/
+
+# Development files
+.env*
+*.log
+.vscode/
+.idea/
+tsconfig.json
+jest.config.js
+.eslintrc.*
+add-shebang.js
+
+# Git and GitHub development files
+.git/
+.github/
+.gitignore
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage and test outputs
+coverage/
+.nyc_output/
+
+# Documentation source (keep README.md and CHANGELOG.md)
+docs/
+examples/
+*.md
+!README.md
+!CHANGELOG.md
+
+# Build artifacts
+*.tgz
+*.tar.gz
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+temp/
+tmp/

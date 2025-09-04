@@ -2,8 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
-[![Functions](https://img.shields.io/badge/Functions-Complete-brightgreen)](https://github.com/houtini-ai/lm)
-[![Architecture](https://img.shields.io/badge/Architecture-Plugin%20Based-blue)](https://github.com/houtini-ai/lm)
+[![Functions](https://img.shields.io/badge/Functions-Complete-brightgreen)](https://github.com/houtini-ai/houtini-lm)
+[![Architecture](https://img.shields.io/badge/Architecture-Plugin%20Based-blue)](https://github.com/houtini-ai/houtini-lm)
 
 **Local AI processing for unlimited development without API costs**
 
