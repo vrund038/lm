@@ -1,363 +1,203 @@
-# Houtini LM MCP Server v1.0
+# Houtini LM - Local AI Development Assistant
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
-[![Functions](https://img.shields.io/badge/Functions-Complete-brightgreen)](https://github.com/houtini-ai/lm)
-[![Architecture](https://img.shields.io/badge/Architecture-Plugin%20Based-blue)](https://github.com/houtini-ai/lm)
+**Version**: 1.0.0  
+**Your unlimited AI companion for code analysis, generation, and creativity**
 
-**Local AI processing for unlimited development without API costs**
+Transform your development workflow with expert-level code analysis, professional documentation generation, and creative project scaffolding - all running locally without API costs.
 
-A sophisticated MCP (Model Context Protocol) server that enables Claude to offload routine tasks to local LLMs running in LM Studio. Preserve Claude's context window for strategic work whilst handling detailed analysis locally.
+## What This Does
 
-## 🎯 Core Purpose
+Houtini LM **saves your Claude context window** by handling detailed analysis tasks locally whilst Claude focuses on strategy and complex problem-solving. Think of it as your intelligent coding assistant that never runs out of tokens.
 
-**Context Window Preservation**: Offload deterministic, routine tasks to local LLM while preserving Claude's context for strategic analysis and decision-making.
+**Perfect for:**
+- 🔍 **Code analysis** - Deep insights into quality, security, and architecture
+- 📝 **Documentation generation** - Professional docs from code analysis
+- 🏗️ **Project scaffolding** - Complete applications, themes, and components
+- 🎮 **Creative projects** - Games, CSS art, and interactive experiences
+- 🛡️ **Security audits** - OWASP compliance and vulnerability detection
 
-**Plugin Architecture**: Modern plugin-based system with security integration  
-**Dynamic Context Management**: Automatic chunking for large operations  
-**Security First**: Comprehensive security wrapper for all operations
+## Quick Start Prompt Guide
 
-## 🚀 What's New in v4.3
+Once installed, simply use natural language prompts with Claude:
 
-### 🔗 Chained Analysis Workflows
-- **WordPress Plugin Auditor**: Chains structure, dependencies, security, database, and quality analysis
-- **WordPress Theme Auditor**: Comprehensive theme audit including accessibility, SEO, and performance
-- **Intelligent Step Sequencing**: Results from earlier steps inform later analysis
-- **Professional Caching**: Each step caches results for performance optimization
-
-### 📊 Enhanced Analysis Coverage
-- **Code Quality Analysis**: Comprehensive maintainability, complexity, and best practices assessment
-- **Database Query Analysis**: SQL injection detection, performance optimization recommendations
-- **Dependency Analysis**: Circular dependency detection, unused import identification
-- **Directory Structure Analysis**: Markdown tree visualization with file/folder statistics
-
-### 🎯 Template-Based Development
-- **Universal Plugin Template**: Single template supporting both single-file and multi-file analysis
-- **Automatic Mode Detection**: Intelligent switching between analysis modes based on parameters
-- **Centralized Utilities**: Shared patterns for model setup, response processing, and error handling
-- **Professional Cache System**: TTL-based caching with statistics and memory management
-
-### 🔒 Security Integration (v4.2)
-- **Universal Security Wrapper**: All plugins now use `withSecurity` for automatic security validation
-- **Foreign Prompt Prevention**: Advanced sanitization prevents injection attacks
-- **Path Validation**: Comprehensive file path security with `validateAndNormalizePath`
-- **Output Encoding**: Secure output encoding for different contexts
-
-### ⚡ Response Management
-- **ResponseFactory**: Consistent, spec-compliant responses across all functions
-- **Smart Parsing**: Automatic parsing of LLM responses into structured formats
-- **Error Handling**: Comprehensive error responses with detailed context
-- **Performance Tracking**: Execution time tracking for all operations
-
-### 📊 Context Window Management
-- **ThreeStagePromptManager**: Intelligent prompt chunking for large operations
-- **Dynamic Context Detection**: Automatic context window size detection from LM Studio
-- **File Chunking Strategies**: Smart file processing for large datasets
-- **Token Estimation**: Accurate token counting for optimal performance
-
-### 🛠 Modern LM Studio Integration
-- **Latest SDK**: Full integration with LM Studio SDK v2.x
-- **Streaming Responses**: Efficient streaming for real-time processing
-- **Model Management**: Automatic model detection and context limit handling
-- **Health Monitoring**: Comprehensive health checks with detailed diagnostics
-
-## 🔧 Available Functions
-
-### Analysis Functions
-- **`analyze_single_file`**: Comprehensive code structure, quality, security, and performance analysis
-- **`analyze_project_structure`**: Project architecture analysis with dependency mapping
-- **`analyze_code_quality`**: Code quality assessment with maintainability metrics
-- **`analyze_dependencies`**: Dependency analysis including circular references and unused imports
-- **`analyze_database_queries`**: Database query performance and security analysis
-- **`analyze_wordpress_security`**: WordPress-specific security audit with OWASP compliance
-- **`analyze_n8n_workflow`**: n8n workflow optimization and best practices
-- **`count_files`**: Directory structure analysis with markdown tree visualization
-
-### WordPress-Specific Auditing
-- **`audit_wordpress_plugin`**: Comprehensive WordPress plugin audit chaining multiple analysis steps
-- **`audit_wordpress_theme`**: Complete WordPress theme audit for security, performance, accessibility, and SEO
-
-### Generation Functions
-- **`generate_unit_tests`**: Test suite generation with framework-specific patterns
-- **`generate_documentation`**: Documentation generation for different audiences
-- **`suggest_refactoring`**: Intelligent refactoring suggestions
-- **`generate_wordpress_plugin`**: Complete WordPress plugin structure generator
-- **`convert_to_typescript`**: JavaScript to TypeScript conversion with type annotations
-- **`generate_responsive_component`**: Modern, accessible UI component generation
-
-### Multi-File Functions
-- **`compare_integration`**: Cross-file integration analysis
-- **`trace_execution_path`**: Code execution path tracing
-- **`find_pattern_usage`**: Pattern search across projects
-- **`diff_method_signatures`**: Method signature comparison
-- **`find_unused_files`**: Advanced unused file detection
-- **`generate_project_documentation`**: Comprehensive project documentation generation
-- **`security_audit`**: Project-wide security analysis with cross-file vulnerability detection
-
-### System Functions
-- **`health_check`**: LM Studio connection and model status
-- **`clear_analysis_cache`**: Cache management
-- **`get_cache_statistics`**: Cache performance metrics
-
-### Fun & Creative Functions 🎮🎨
-- **`arcade_game`**: Generate complete playable 2D arcade games using HTML5 Canvas with player controls, enemies, and game mechanics
-- **`create_text_adventure`**: Create complete interactive text adventure games with branching storylines, inventory systems, and multiple endings
-- **`css_art_generator`**: Create pure CSS drawings, animations, and interactive art with no images required - just clever CSS techniques
-
-### Custom Functions
-- **`custom_prompt`**: Direct LLM access for flexible tasks
-
-## 📋 Installation
-
-### Prerequisites
-1. **LM Studio** - Download from [lmstudio.ai](https://lmstudio.ai)
-2. **Node.js 18+** - Required for the MCP server
-3. **Claude Desktop** - With MCP support enabled
-
-### Quick Setup
-```bash
-# Navigate to your MCP directory
-cd C:\MCP\local-llm-mcp
-
-# Install dependencies
-npm install
-
-# Build the project
-npm run build
-
-# IMPORTANT: Restart Claude Desktop after building
+```
+Use houtini-lm to analyse the code quality in C:/my-project/src/UserAuth.js
 ```
 
-### Claude Desktop Configuration
-Add to your `claude_desktop_config.json`:
+```
+Generate comprehensive unit tests using houtini-lm for my React component at C:/components/Dashboard.jsx
+```
+
+```
+Use houtini-lm to create a WordPress plugin called "Event Manager" with custom post types and admin interface
+```
+
+```
+Audit the security of my WordPress theme using houtini-lm at C:/themes/my-theme
+```
+
+```
+Create a CSS art generator project using houtini-lm with space theme and neon colours
+```
+
+```
+Use houtini-lm to convert my JavaScript file to TypeScript with strict mode enabled
+```
+
+```
+Generate responsive HTML components using houtini-lm for a pricing card with dark mode support
+```
+
+## Prerequisites
+
+**Essential Requirements:**
+
+1. **LM Studio** - Download from [lmstudio.ai](https://lmstudio.ai)
+   - Must be running at `ws://127.0.0.1:1234`
+   - Model loaded and ready (13B+ parameters recommended)
+
+2. **Desktop Commander MCP** - Essential for file operations
+   - Repository: [DesktopCommanderMCP](https://github.com/wonderwhy-er/DesktopCommanderMCP)
+   - Required for reading files and writing generated code
+
+3. **Node.js 24.6.0 or later** - For MCP server functionality
+   - Download from [nodejs.org](https://nodejs.org)
+
+4. **Claude Desktop** - For the best experience
+   - Download from [claude.ai/download](https://claude.ai/download)
+
+## Installation
+
+### 1. Install Dependencies
+
+```bash
+# Clone the repository
+git clone https://github.com/houtini-ai/lm.git
+cd lm
+
+# Install Node.js dependencies
+npm install
+```
+
+### 2. Configure Claude Desktop
+
+Add to your Claude Desktop configuration file:
+
+**Windows**: `%APPDATA%/Claude/claude_desktop_config.json`  
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
 ```json
 {
   "mcpServers": {
-    "local-llm": {
+    "houtini-lm": {
       "command": "node",
-      "args": ["C:\\MCP\\local-llm-mcp\\dist\\index.js"],
+      "args": ["path/to/houtini-lm/index.js"],
       "env": {
-        "LM_STUDIO_URL": "ws://127.0.0.1:1234",
-        "LLM_MCP_ALLOWED_DIRS": "C:\\MCP,C:\\Dev,C:\\Projects"
+        "LLM_MCP_ALLOWED_DIRS": "C:/your-projects,C:/dev,C:/websites"
       }
     }
   }
 }
 ```
 
-## 💬 Friendly Usage Examples
+### 3. Start LM Studio
 
-Here are natural ways to use Houtini LM in your conversations with Claude:
+1. Launch LM Studio
+2. Load a model (13B+ parameters recommended for best results)
+3. Start the server at `ws://127.0.0.1:1234`
+4. Verify the model is ready and responding
 
-### Code Analysis
-"Use houtini-lm MCP to audit the code quality in this folder"
-"Can you analyze the security of my WordPress plugin using local-llm?"
-"Please use the local MCP to check for unused files in my project"
+### 4. Verify Installation
 
-### WordPress Development  
-"Use local-llm to run a complete audit on my WordPress theme"
-"Can you generate a WordPress plugin for contact management using the MCP?"
-"Please analyze my WordPress code for security issues with the local server"
-
-### Project Analysis
-"Use houtini-lm to analyze the structure of my React project"
-"Can you check my database queries for security issues using local-llm?"
-"Please use the MCP to trace the execution path through my authentication system"
-
-### Code Generation
-"Generate unit tests for this file using the local MCP server"
-"Can you convert this JavaScript to TypeScript using local-llm?"
-"Please create responsive components using the houtini-lm functions"
-
-### Creative Projects
-"Use local-llm to create a space shooter game for my portfolio"
-"Can you generate some CSS art using the MCP creative functions?"
-"Please create an interactive text adventure using houtini-lm"
-
-## 🏗 Architecture Overview
+Restart Claude Desktop, then test with:
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  Claude Desktop │────▶│  MCP Server      │────▶│   LM Studio     │
-│  (MCP Client)   │◀────│  (Plugin System) │◀────│   (Local LLM)   │
-└─────────────────┘     └──────────────────┘     └─────────────────┘
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │   Plugin Registry   │
-                    └─────────────────────┘
-                               │
-        ┌──────────────┬───────┴────────┬──────────────┐
-        ▼              ▼                ▼              ▼
-   [Analyze]      [Generate]      [Multifile]     [Custom]
-    Plugins        Plugins         Plugins        Plugins
-        │              │                │              │
-        ▼              ▼                ▼              ▼
-  [Security]    [Response]      [3-Stage]      [Dynamic]
-   Wrapper       Factory        Prompts       Context
+Use houtini-lm health check to verify everything is working
 ```
 
-### Key Components
+## Available Functions
 
-- **Security Layer**: `withSecurity` wrapper for all operations
-- **Response Factory**: Consistent response formatting
-- **3-Stage Prompt Manager**: Context window management
-- **Plugin System**: Modular, extensible architecture
-- **Cache Management**: Intelligent caching system
+### 🔍 Analysis Functions (17 functions)
+- **`analyze_single_file`** - Deep code analysis and quality assessment
+- **`count_files`** - Project structure with beautiful markdown trees
+- **`find_unused_files`** - Dead code detection with risk assessment
+- **`security_audit`** - OWASP compliance and vulnerability scanning
+- **`analyze_dependencies`** - Circular dependencies and unused imports
+- And 12 more specialized analysis tools...
 
-## 🚀 Performance Benefits
+### 🛠️ Generation Functions (10 functions)
+- **`generate_unit_tests`** - Comprehensive test suites with framework patterns
+- **`generate_documentation`** - Professional docs from code analysis
+- **`convert_to_typescript`** - JavaScript to TypeScript with type safety
+- **`generate_wordpress_plugin`** - Complete WordPress plugin creation
+- **`generate_responsive_component`** - Accessible HTML/CSS components
+- And 5 more generation tools...
 
-### Chained Analysis Benefits
+### 🎮 Creative Functions (3 functions)
+- **`css_art_generator`** - Pure CSS art and animations
+- **`arcade_game`** - Complete playable HTML5 games
+- **`create_text_adventure`** - Interactive fiction with branching stories
 
-- **Comprehensive Coverage**: Single command executes 5-8 analysis steps
-- **Context Preservation**: Each step builds on previous results for deeper insights  
-- **Professional Caching**: Repeated audits skip completed steps for massive speed improvements
-- **Intelligent Synthesis**: Expert-level synthesis of all analysis results into actionable reports
+### ⚙️ System Functions (5 functions)
+- **`health_check`** - Verify LM Studio connection
+- **`list_functions`** - Discover all available functions
+- **`resolve_path`** - Path analysis and suggestions
+- And 2 more system utilities...
 
-### Performance Features
+## Documentation
 
-- **Dynamic Context Detection**: Automatic context window size detection
-- **Intelligent Chunking**: File-level chunking for large operations
-- **Streaming Processing**: Real-time response handling
-- **Cache Optimization**: Smart caching for repeated operations
+**Complete guides available:**
+- [Analysis Functions Guide](docs/analysis-functions-md.md) - All 17 analysis tools
+- [Generation Functions Guide](docs/generation-functions-md.md) - All 10 creation tools  
+- [Creative Functions Guide](docs/creative-functions-md.md) - Games and art tools
+- [System Functions Guide](docs/system-functions-md.md) - Utilities and diagnostics
+- [Complete User Guide](docs/user-guide-md.md) - Comprehensive usage manual
 
-## 🛡 Security Features
+## Recommended Setup
 
-### Comprehensive Protection
+**For Professional Development:**
+- **CPU**: 8-core or better (for local LLM processing)
+- **RAM**: 32GB (24GB for model, 8GB for development)
+- **Storage**: SSD with 100GB+ free space
+- **Model**: Qwen2.5-Coder-14B-Instruct or similar
 
-- **Path Validation**: All file paths validated through `validateAndNormalizePath`
-- **Directory Restrictions**: Access limited to configured allowed directories
-- **Input Sanitization**: Advanced prompt injection prevention
-- **Output Encoding**: Context-aware output encoding
-- **Execution Sandboxing**: Isolated execution environment
+**Performance Tips:**
+- Use 13B+ parameter models for professional-quality results
+- Configure `LLM_MCP_ALLOWED_DIRS` to include your project directories
+- Install Desktop Commander MCP for complete file operation support
+- Keep LM Studio running and model loaded for instant responses
 
-### Security Configuration
+## Version History
 
-```json
-{
-  "LLM_MCP_ALLOWED_DIRS": "C:\\MCP,C:\\Projects,C:\\Dev",
-  "SECURITY_LOG_LEVEL": "info",
-  "ENABLE_SECURITY_MONITORING": "true"
-}
-```
+### Version 1.0.0 (Current)
+- ✅ Complete function library (35+ functions)
+- ✅ Professional documentation system
+- ✅ WordPress-specific tools and auditing
+- ✅ Creative project generators
+- ✅ Comprehensive security analysis
+- ✅ TypeScript conversion and test generation
+- ✅ Cross-file integration analysis
 
-## 🔧 Development
+## License
 
-### Build Process
+**MIT License** - Use this project freely for personal and commercial projects. See [LICENSE](LICENSE) for details.
 
-```bash
-# Development workflow
-npm run build        # Build TypeScript
-                     # CRITICAL: Restart Claude after building
+## Contributing
 
-# Testing
-npm test            # Run unit tests
-npm run test:watch  # Watch mode for development
-```
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
+- Code standards and patterns
+- Testing requirements
+- Documentation updates
+- Issue reporting
 
-## 🐛 Troubleshooting
+## Support
 
-### Common Issues
-
-1. **"No model loaded in LM Studio"**
-   - Ensure LM Studio is running with a loaded model
-   - Check WebSocket connection at `ws://localhost:1234`
-
-2. **Security violations**
-   - All file paths must be within `LLM_MCP_ALLOWED_DIRS`
-   - Use absolute paths for reliability
-   - Check file permissions
-
-3. **Plugin not registering**
-   - Ensure TypeScript is built: `npm run build`
-   - Restart Claude Desktop after building
-   - Check for import errors in console
-
-4. **Context window exceeded**
-   - Functions automatically handle chunking
-   - Large files are processed in chunks
-   - Consider breaking operations into smaller tasks
-
-### Debug Mode
-
-Enable detailed logging:
-```bash
-# Set debug environment variable
-set DEBUG=local-llm:*
-
-# Or in Claude config
-"env": {
-  "DEBUG": "local-llm:*",
-  "LM_STUDIO_URL": "ws://127.0.0.1:1234"
-}
-```
-
-## 📚 Documentation
-
-Complete guides for each function category:
-
-- **[Analysis Functions Guide](https://github.com/houtini-ai/docs/blob/main/analysis-functions.md)** - Comprehensive guide to all analysis functions with examples and use cases
-- **[Generation Functions Guide](https://github.com/houtini-ai/docs/blob/main/generation-functions.md)** - Complete guide to code and content generation functions  
-- **[Creative Functions Guide](https://github.com/houtini-ai/docs/blob/main/creative-functions.md)** - Guide to games, art, and interactive content creation
-- **[System Functions Guide](https://github.com/houtini-ai/docs/blob/main/system-functions.md)** - Health checks, diagnostics, and system management
-- **[Complete User Guide](https://github.com/houtini-ai/docs/blob/main/user-guide.md)** - Comprehensive user guide with workflows and best practices
-
-## 📊 System Requirements
-
-### Minimum Requirements
-- **Node.js**: 18.0.0 or higher
-- **RAM**: 8GB (16GB recommended)
-- **Storage**: 2GB for server + model storage
-- **OS**: Windows 10/11, macOS, or Linux
-
-### Recommended Setup
-- **CPU**: Modern multi-core processor (Intel i7/AMD Ryzen 7 or better)
-- **RAM**: 32GB or more for optimal performance with large models
-- **GPU**: 12GB+ VRAM recommended (RTX 4070 Ti/RTX 4080 or better)
-- **Storage**: NVMe SSD for model storage and fast loading
-- **Model**: 7B-13B parameter models for optimal speed/quality balance
-- **Network**: Stable connection for model downloads (models range 4-26GB)
-
-## 🔄 Version History
-
-### v4.3 (Current) - Chained Analysis & Template Architecture  
-- WordPress plugin and theme comprehensive auditors
-- Universal plugin template with automatic mode detection
-- Enhanced analysis coverage (dependencies, database queries, code quality)
-- Directory structure visualization with `count_files`
-- Professional cache system with TTL and statistics
-
-### v4.2 - Modern Security Integration
-- Universal security wrapper (`withSecurity`)
-- ResponseFactory for consistent outputs
-- ThreeStagePromptManager for context management
-- Dynamic context window detection
-- Foreign prompt execution prevention
-
-### v4.1 - Enhanced Plugin System
-- Improved plugin architecture
-- Better error handling
-- Performance optimizations
-
-### v4.0 - Multi-File Analysis
-- Multi-file analysis capabilities
-- Auto-cache population
-- Enhanced security audit
-
-## 📄 License
-
-MIT License - See [LICENSE](LICENSE) file for details.
-
-## 🤝 Support
-
-For issues or questions:
-1. Check the troubleshooting section above
-2. Review the complete documentation guides
-3. Contact the repository maintainer
+- **Issues**: [GitHub Issues](https://github.com/houtini-ai/lm/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/houtini-ai/lm/discussions)
+- **Documentation**: Complete guides in the `docs/` directory
 
 ---
 
-**Version**: 4.3.0  
-**Architecture**: Universal Template with Chained Analysis  
-**Last Updated**: January 2025  
-**Status**: Active Development
+**Ready to supercharge your development workflow?** Install Houtini LM and start building amazing things with unlimited local AI assistance.
+
+*Built for developers who think clearly but can't afford to think expensively.*
