@@ -40,6 +40,9 @@ test-v3-quick.mjs
 # Development/handover documentation
 DEVELOPER_HANDOVER.md
 PLUGIN_DEVELOPMENT_GUIDE.md
+
+# Template files (proprietary)
+src/templates/
 RELEASE_NOTES_v*.md
 IMPLEMENTATION_*.md
 UPGRADE_SUMMARY.md
