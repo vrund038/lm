@@ -7,13 +7,12 @@
 
 **Local AI processing for unlimited development without API costs**
 
-A sophisticated MCP (Model Context Protocol) server that enables Claude to offload routine tasks to local LLMs running in LM Studio. Save 90% on API costs whilst preserving Claude's context window for strategic work.
+A sophisticated MCP (Model Context Protocol) server that enables Claude to offload routine tasks to local LLMs running in LM Studio. Preserve Claude's context window for strategic work whilst handling detailed analysis locally.
 
 ## 🎯 Core Purpose
 
 **Context Window Preservation**: Offload deterministic, routine tasks to local LLM while preserving Claude's context for strategic analysis and decision-making.
 
-**Token Savings**: 50-95% context preservation across all operations  
 **Plugin Architecture**: Modern plugin-based system with security integration  
 **Dynamic Context Management**: Automatic chunking for large operations  
 **Security First**: Comprehensive security wrapper for all operations
@@ -146,127 +145,34 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-## 💡 Usage Examples
+## 💬 Friendly Usage Examples
 
-### WordPress-Specific Analysis Chains
-```javascript
-// Complete WordPress plugin audit with chained analysis
-audit_wordpress_plugin({
-  projectPath: "C:\\wp-content\\plugins\\my-plugin",
-  auditType: "full-audit",
-  includeSteps: ["structure", "dependencies", "security", "database", "quality"]
-})
+Here are natural ways to use Houtini LM in your conversations with Claude:
 
-// WordPress theme comprehensive audit
-audit_wordpress_theme({
-  projectPath: "C:\\wp-content\\themes\\my-theme",
-  auditType: "full-audit",
-  themeType: "classic",
-  includeSteps: ["structure", "security", "performance", "accessibility", "seo", "quality"]
-})
-```
+### Code Analysis
+"Use houtini-lm MCP to audit the code quality in this folder"
+"Can you analyze the security of my WordPress plugin using local-llm?"
+"Please use the local MCP to check for unused files in my project"
 
-### Advanced Code Analysis
-```javascript
-// Multi-layered code quality assessment
-analyze_single_file({
-  filePath: "src/complex-component.js",
-  analysisType: "comprehensive",
-  context: {
-    projectType: "react-component",
-    framework: "React",
-    standards: ["ESLint", "Prettier", "WCAG 2.1"]
-  }
-})
+### WordPress Development  
+"Use local-llm to run a complete audit on my WordPress theme"
+"Can you generate a WordPress plugin for contact management using the MCP?"
+"Please analyze my WordPress code for security issues with the local server"
 
-// Project-wide dependency analysis
-analyze_dependencies({
-  projectPath: "C:\\MyProject",
-  analysisType: "comprehensive",
-  includePackageJson: true,
-  focusAreas: ["circular", "unused", "coupling"]
-})
-```
+### Project Analysis
+"Use houtini-lm to analyze the structure of my React project"
+"Can you check my database queries for security issues using local-llm?"
+"Please use the MCP to trace the execution path through my authentication system"
 
-### Context-Aware Code Generation
-```javascript
-// Generate tests with framework-specific patterns
-generate_unit_tests({
-  filePath: "src/auth.js",
-  testFramework: "jest",
-  coverageTarget: "comprehensive",
-  context: {
-    projectType: "node-api",
-    testStyle: "bdd",
-    includeEdgeCases: true
-  }
-})
-```
+### Code Generation
+"Generate unit tests for this file using the local MCP server"
+"Can you convert this JavaScript to TypeScript using local-llm?"
+"Please create responsive components using the houtini-lm functions"
 
-### Multi-File Analysis
-```javascript
-// Find patterns across entire project
-find_pattern_usage({
-  projectPath: "C:\\MyProject",
-  patterns: ["async function", "TODO:", "FIXME:"],
-  includeContext: 3
-})
-
-// Compare integration between files
-compare_integration({
-  files: ["src/auth.js", "src/middleware.js", "src/routes.js"],
-  analysisType: "integration",
-  focus: ["method_compatibility", "data_flow"]
-})
-```
-
-### Custom Analysis Tasks
-```javascript
-// Direct LLM access for specialized tasks
-custom_prompt({
-  prompt: "Analyze this API for GraphQL migration opportunities",
-  files: ["src/api/rest-endpoints.js", "src/schemas/models.js"],
-  context: {
-    task_type: "migration_analysis",
-    output_format: "structured_report",
-    requirements: ["backward_compatibility", "performance"]
-  },
-  max_tokens: 4000
-})
-```
-
-### Fun & Creative Generation 🎮🎨
-```javascript
-// Generate complete playable arcade game
-arcade_game({
-  gameType: "shooter",
-  theme: "space",
-  difficulty: "medium",
-  features: ["score", "lives", "powerups", "sound"],
-  complexity: "advanced",
-  controls: "hybrid"
-})
-
-// Create stunning CSS art
-css_art_generator({
-  artType: "abstract",
-  theme: "space",
-  colorScheme: "neon", 
-  complexity: "advanced",
-  animationStyle: "smooth",
-  projectPath: "C:\\dev\\css-art",
-  techniques: ["gradients", "shadows", "transforms", "pseudo-elements"]
-})
-
-// Interactive text adventure
-create_text_adventure({
-  theme: "fantasy",
-  complexity: "intermediate",
-  features: ["inventory", "stats", "save_game", "multiple_endings"],
-  playerClass: "mage",
-  length: "medium"
-})
-```
+### Creative Projects
+"Use local-llm to create a space shooter game for my portfolio"
+"Can you generate some CSS art using the MCP creative functions?"
+"Please create an interactive text adventure using houtini-lm"
 
 ## 🏗 Architecture Overview
 
@@ -299,18 +205,7 @@ create_text_adventure({
 - **Plugin System**: Modular, extensible architecture
 - **Cache Management**: Intelligent caching system
 
-## 🚀 Performance & Token Savings
-
-### Real-World Examples
-
-| Task | Without Local LLM | With Local LLM | Savings |
-|------|-------------------|----------------|---------|
-| WordPress plugin audit | 75,000 tokens | 3,750 tokens | 95% |
-| 100-file analysis | 50,000 tokens | 2,500 tokens | 95% |
-| Dependency analysis | 15,000 tokens | 750 tokens | 95% |
-| Security audit | 10,000 tokens | 500 tokens | 95% |
-| Unit test generation | 5,000 tokens | 250 tokens | 95% |
-| Code refactoring | 8,000 tokens | 400 tokens | 95% |
+## 🚀 Performance Benefits
 
 ### Chained Analysis Benefits
 
@@ -347,38 +242,6 @@ create_text_adventure({
 ```
 
 ## 🔧 Development
-
-### Plugin Development
-
-See [PLUGIN_DEVELOPMENT_GUIDE.md](PLUGIN_DEVELOPMENT_GUIDE.md) for comprehensive development documentation.
-
-### Modern Development Patterns
-
-```typescript
-// Modern plugin structure with security integration
-export class MyPlugin extends BasePlugin implements IPromptPlugin {
-  async execute(params: any, llmClient: any) {
-    return await withSecurity(this, params, llmClient, async (secureParams) => {
-      // Plugin logic with automatic security validation
-      const models = await llmClient.llm.listLoaded();
-      const model = models[0];
-      
-      // Use 3-stage prompt management for large operations
-      const stages = this.getPromptStages(secureParams);
-      const promptManager = new ThreeStagePromptManager(
-        await model.getContextLength()
-      );
-      
-      // ResponseFactory for consistent outputs
-      return ResponseFactory.parseAndCreateResponse(
-        this.name,
-        response,
-        model.identifier
-      );
-    });
-  }
-}
-```
 
 ### Build Process
 
@@ -431,8 +294,13 @@ set DEBUG=local-llm:*
 
 ## 📚 Documentation
 
-- **[Plugin Development Guide](PLUGIN_DEVELOPMENT_GUIDE.md)** - Comprehensive development documentation
-- **[Functional Specification](FUNCTIONAL_SPECIFICATION.md)** - Complete function specifications with parameters and responses
+Complete guides for each function category:
+
+- **[Analysis Functions Guide](https://github.com/houtini-ai/docs/blob/main/analysis-functions.md)** - Comprehensive guide to all analysis functions with examples and use cases
+- **[Generation Functions Guide](https://github.com/houtini-ai/docs/blob/main/generation-functions.md)** - Complete guide to code and content generation functions  
+- **[Creative Functions Guide](https://github.com/houtini-ai/docs/blob/main/creative-functions.md)** - Guide to games, art, and interactive content creation
+- **[System Functions Guide](https://github.com/houtini-ai/docs/blob/main/system-functions.md)** - Health checks, diagnostics, and system management
+- **[Complete User Guide](https://github.com/houtini-ai/docs/blob/main/user-guide.md)** - Comprehensive user guide with workflows and best practices
 
 ## 📊 System Requirements
 
@@ -484,12 +352,12 @@ MIT License - See [LICENSE](LICENSE) file for details.
 
 For issues or questions:
 1. Check the troubleshooting section above
-2. Review the plugin development guide
+2. Review the complete documentation guides
 3. Contact the repository maintainer
 
 ---
 
 **Version**: 4.3.0  
 **Architecture**: Universal Template with Chained Analysis  
-**Last Updated**: August 2025  
+**Last Updated**: January 2025  
 **Status**: Active Development
