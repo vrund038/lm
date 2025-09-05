@@ -3,81 +3,38 @@
  * Handles the breakdown of prompts into managed stages for optimal context usage
  */
 
-import { PromptStages, StageMetrics, ChunkedConversation } from '../types/prompt-stages.js';
+import { PromptStages, ChunkedConversation } from '../types/prompt-stages.js';
 
 export class ThreeStagePromptManager {
-  private contextLimit: number;
-  private safetyMargin: number = 0.8;
-
-  constructor(contextLimit: number, safetyMargin: number = 0.8) {
-    this.contextLimit = contextLimit;
-    this.safetyMargin = safetyMargin;
+  constructor() {
+    // No context-related state needed - moved to TokenCalculator
   }
 
   /**
-   * Estimate token count (rough approximation: 4 chars ≈ 1 token)
+   * Split data payload into chunks of specified size
+   * Now receives chunk size from TokenCalculator
    */
-  private estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4);
-  }
-
-  /**
-   * Calculate stage metrics to determine available space for data
-   */
-  calculateStageMetrics(stages: PromptStages): StageMetrics {
-    const systemTokens = this.estimateTokens(stages.systemAndContext);
-    const dataTokens = this.estimateTokens(stages.dataPayload);
-    const outputTokens = this.estimateTokens(stages.outputInstructions);
+  chunkDataPayload(dataPayload: string, maxChunkSize: number): string[] {
+    // Convert tokens to chars for character-based chunking
+    const maxCharsPerChunk = maxChunkSize * 4;
     
-    const fixedOverhead = systemTokens + outputTokens;
-    const effectiveLimit = this.contextLimit * this.safetyMargin;
-    const availableForData = Math.max(0, effectiveLimit - fixedOverhead);
-
-    return {
-      systemTokens,
-      dataTokens,
-      outputTokens,
-      fixedOverhead,
-      availableForData
-    };
-  }
-
-  /**
-   * Check if data payload needs chunking
-   */
-  needsChunking(stages: PromptStages): boolean {
-    const metrics = this.calculateStageMetrics(stages);
-    return metrics.dataTokens > metrics.availableForData;
-  }
-
-  /**
-   * Split data payload into appropriately sized chunks
-   */
-  chunkDataPayload(dataPayload: string, availableTokens: number): string[] {
-    const dataTokens = this.estimateTokens(dataPayload);
-    
-    if (dataTokens <= availableTokens) {
+    if (dataPayload.length <= maxCharsPerChunk) {
       return [dataPayload];
     }
 
-    // Calculate number of chunks needed
-    const chunksNeeded = Math.ceil(dataTokens / availableTokens);
-    const charsPerChunk = Math.floor(dataPayload.length / chunksNeeded);
-    
     const chunks: string[] = [];
     
-    // Try to break at natural boundaries (lines, sections)
+    // Try to break at natural boundaries (sections)
     const sections = dataPayload.split('\n' + '='.repeat(80) + '\n');
-    
     if (sections.length > 1) {
       // Break by file sections if available
       let currentChunk = '';
       
       for (const section of sections) {
         const sectionWithSeparator = section + '\n' + '='.repeat(80) + '\n';
-        const combinedSize = this.estimateTokens(currentChunk + sectionWithSeparator);
+        const combinedLength = currentChunk.length + sectionWithSeparator.length;
         
-        if (combinedSize <= availableTokens && currentChunk.length > 0) {
+        if (combinedLength <= maxCharsPerChunk && currentChunk.length > 0) {
           currentChunk += sectionWithSeparator;
         } else {
           if (currentChunk.length > 0) {
@@ -86,8 +43,8 @@ export class ThreeStagePromptManager {
           }
           
           // If single section is too large, split it
-          if (this.estimateTokens(section) > availableTokens) {
-            const subChunks = this.splitLargeSection(section, availableTokens);
+          if (section.length > maxCharsPerChunk) {
+            const subChunks = this.splitLargeSection(section, maxCharsPerChunk);
             chunks.push(...subChunks);
           } else {
             currentChunk = sectionWithSeparator;
@@ -100,8 +57,8 @@ export class ThreeStagePromptManager {
       }
     } else {
       // Simple character-based splitting as fallback
-      for (let i = 0; i < dataPayload.length; i += charsPerChunk) {
-        chunks.push(dataPayload.slice(i, i + charsPerChunk));
+      for (let i = 0; i < dataPayload.length; i += maxCharsPerChunk) {
+        chunks.push(dataPayload.slice(i, i + maxCharsPerChunk));
       }
     }
     
@@ -111,8 +68,7 @@ export class ThreeStagePromptManager {
   /**
    * Split a large section that doesn't fit in one chunk
    */
-  private splitLargeSection(section: string, availableTokens: number): string[] {
-    const targetChars = availableTokens * 4; // Rough char estimate
+  private splitLargeSection(section: string, maxChars: number): string[] {
     const chunks: string[] = [];
     
     // Try to split by lines first
@@ -120,7 +76,7 @@ export class ThreeStagePromptManager {
     let currentChunk = '';
     
     for (const line of lines) {
-      if (currentChunk.length + line.length + 1 <= targetChars) {
+      if (currentChunk.length + line.length + 1 <= maxChars) {
         currentChunk += (currentChunk ? '\n' : '') + line;
       } else {
         if (currentChunk) {
@@ -128,8 +84,8 @@ export class ThreeStagePromptManager {
           currentChunk = line;
         } else {
           // Line itself is too long, force split
-          chunks.push(line.slice(0, targetChars));
-          currentChunk = line.slice(targetChars);
+          chunks.push(line.slice(0, maxChars));
+          currentChunk = line.slice(maxChars);
         }
       }
     }
@@ -143,25 +99,16 @@ export class ThreeStagePromptManager {
 
   /**
    * Create a chunked conversation from prompt stages
+   * Now receives pre-calculated chunks from TokenCalculator
    */
-  createChunkedConversation(stages: PromptStages): ChunkedConversation {
-    const metrics = this.calculateStageMetrics(stages);
-    
+  createChunkedConversation(stages: PromptStages, dataChunks: string[]): ChunkedConversation {
     // System message (Stage 1)
     const systemMessage = {
       role: 'system' as const,
       content: stages.systemAndContext
     };
 
-    // Data messages (Stage 2 - chunked if needed)
-    let dataChunks: string[];
-    
-    if (this.needsChunking(stages)) {
-      dataChunks = this.chunkDataPayload(stages.dataPayload, metrics.availableForData);
-    } else {
-      dataChunks = [stages.dataPayload];
-    }
-
+    // Data messages (Stage 2 - pre-chunked)
     const dataMessages = dataChunks.map((chunk, index) => ({
       role: 'user' as const,
       content: dataChunks.length > 1 
@@ -184,21 +131,4 @@ export class ThreeStagePromptManager {
     };
   }
 
-  /**
-   * Get metrics for debugging/logging
-   */
-  getDebugInfo(stages: PromptStages): any {
-    const metrics = this.calculateStageMetrics(stages);
-    const needsChunking = this.needsChunking(stages);
-    
-    return {
-      contextLimit: this.contextLimit,
-      effectiveLimit: this.contextLimit * this.safetyMargin,
-      metrics,
-      needsChunking,
-      chunksNeeded: needsChunking 
-        ? Math.ceil(metrics.dataTokens / metrics.availableForData)
-        : 1
-    };
-  }
 }

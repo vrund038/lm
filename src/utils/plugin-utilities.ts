@@ -34,11 +34,53 @@ export class ModelSetup {
 /**
  * Dynamic token calculation utility
  * Calculates optimal maxTokens based on content size and context window
+ * Moved from ThreeStagePromptManager to centralize all context management
  */
 export class TokenCalculator {
   /**
+   * Estimate token count (moved from ThreeStagePromptManager)
+   * Standard approximation: 4 chars ≈ 1 token
+   */
+  static estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+
+  /**
+   * Calculate if stages need chunking based on context length
+   * Replaces ThreeStagePromptManager.needsChunking()
+   */
+  static needsChunking(stages: PromptStages, contextLength: number): boolean {
+    const systemTokens = this.estimateTokens(stages.systemAndContext);
+    const dataTokens = this.estimateTokens(stages.dataPayload);
+    const outputTokens = this.estimateTokens(stages.outputInstructions);
+    
+    // Use 95% of context (maximum efficiency with minimal safety buffer)
+    const usableContext = Math.floor(contextLength * 0.95);
+    const fixedOverhead = systemTokens + outputTokens;
+    const availableForData = usableContext - fixedOverhead;
+    
+    return dataTokens > availableForData;
+  }
+
+  /**
+   * Calculate optimal chunk size for data payload
+   * Replaces ThreeStagePromptManager stage metrics
+   */
+  static calculateOptimalChunkSize(stages: PromptStages, contextLength: number): number {
+    const systemTokens = this.estimateTokens(stages.systemAndContext);
+    const outputTokens = this.estimateTokens(stages.outputInstructions);
+    
+    // Use 95% of context, reserve space for system + output
+    const usableContext = Math.floor(contextLength * 0.95);
+    const fixedOverhead = systemTokens + outputTokens;
+    const availableForData = Math.max(1000, usableContext - fixedOverhead);
+    
+    return availableForData;
+  }
+
+  /**
    * Calculate optimal maxTokens for single-stage execution
-   * Increased allocation from 40% to 65% for more comprehensive responses
+   * Maximum allocation: 95% of context for comprehensive responses
    */
   static calculateForDirect(
     stages: PromptStages, 
@@ -49,11 +91,12 @@ export class TokenCalculator {
       bufferTokens?: number;
     } = {}
   ): number {
-    const { minTokens = 1000, maxTokens = Math.floor(contextLength * 0.65), bufferTokens = 500 } = options;
+    // Use 95% of context - maximum efficiency with minimal safety buffer
+    const { minTokens = 1000, maxTokens = Math.floor(contextLength * 0.95), bufferTokens = 200 } = options;
     
-    const estimatedInputTokens = Math.floor(
-      (stages.systemAndContext.length + stages.dataPayload.length + stages.outputInstructions.length) / 4
-    );
+    const estimatedInputTokens = this.estimateTokens(stages.systemAndContext) + 
+                                this.estimateTokens(stages.dataPayload) +
+                                this.estimateTokens(stages.outputInstructions);
     
     const calculatedMaxTokens = Math.min(
       Math.max(minTokens, contextLength - estimatedInputTokens - bufferTokens),
@@ -65,7 +108,7 @@ export class TokenCalculator {
 
   /**
    * Calculate optimal maxTokens for chunked execution
-   * Increased allocation from 50% to 70% for more comprehensive multi-file analysis
+   * Maximum allocation: 95% of context for comprehensive multi-file analysis
    */
   static calculateForChunked(
     messages: Array<{ content: string }>, 
@@ -76,10 +119,11 @@ export class TokenCalculator {
       bufferTokens?: number;
     } = {}
   ): number {
-    const { minTokens = 1500, maxTokens = Math.floor(contextLength * 0.70), bufferTokens = 1000 } = options;
+    // Use 95% of context - maximum efficiency with minimal safety buffer
+    const { minTokens = 1500, maxTokens = Math.floor(contextLength * 0.95), bufferTokens = 150 } = options;
     
     const totalContent = messages.map(m => m.content).join(' ');
-    const estimatedInputTokens = Math.floor(totalContent.length / 4);
+    const estimatedInputTokens = this.estimateTokens(totalContent);
     
     const calculatedMaxTokens = Math.min(
       Math.max(minTokens, contextLength - estimatedInputTokens - bufferTokens),
@@ -91,7 +135,7 @@ export class TokenCalculator {
 
   /**
    * Calculate optimal maxTokens for multi-file analysis
-   * Increased allocation from 60% to 75% for comprehensive project-level analysis
+   * Maximum allocation: 95% of context for comprehensive project-level analysis
    */
   static calculateForMultiFile(
     messages: Array<{ content: string }>, 
@@ -102,10 +146,11 @@ export class TokenCalculator {
       bufferTokens?: number;
     } = {}
   ): number {
-    const { minTokens = 2000, maxTokens = Math.floor(contextLength * 0.75), bufferTokens = 1000 } = options;
+    // Use 95% of context - maximum efficiency with minimal safety buffer
+    const { minTokens = 2000, maxTokens = Math.floor(contextLength * 0.95), bufferTokens = 150 } = options;
     
     const totalContent = messages.map(m => m.content).join(' ');
-    const estimatedInputTokens = Math.floor(totalContent.length / 4);
+    const estimatedInputTokens = this.estimateTokens(totalContent);
     
     const calculatedMaxTokens = Math.min(
       Math.max(minTokens, contextLength - estimatedInputTokens - bufferTokens),

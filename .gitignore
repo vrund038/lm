@@ -80,6 +80,9 @@ cleanup.*
 # Build helper scripts
 add-shebang.js
 
+# Test files directory
+test-files/
+
 # Package files
 *.tgz
 

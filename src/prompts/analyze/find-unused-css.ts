@@ -9,7 +9,8 @@ import {
   ResponseProcessor, 
   ParameterValidator, 
   ErrorHandler,
-  MultiFileAnalysis
+  MultiFileAnalysis,
+  TokenCalculator
 } from '../../utils/plugin-utilities.js';
 import { getAnalysisCache } from '../../cache/index.js';
 import { CssParser } from '../../utils/css-parser.js';
@@ -206,11 +207,13 @@ export class FindUnusedCSSAnalyzer extends BasePlugin implements IPromptPlugin {
     });
     
     // Step 4: Execute with proper chunking
-    const promptManager = new ThreeStagePromptManager(contextLength);
-    const needsChunking = promptManager.needsChunking(promptStages);
+    const promptManager = new ThreeStagePromptManager();
+    const needsChunking = TokenCalculator.needsChunking(promptStages, contextLength);
     
     if (needsChunking) {
-      const conversation = promptManager.createChunkedConversation(promptStages);
+      const chunkSize = TokenCalculator.calculateOptimalChunkSize(promptStages, contextLength);
+      const dataChunks = promptManager.chunkDataPayload(promptStages.dataPayload, chunkSize);
+      const conversation = promptManager.createChunkedConversation(promptStages, dataChunks);
       const messages = [
         conversation.systemMessage,
         ...conversation.dataMessages,
@@ -261,11 +264,13 @@ export class FindUnusedCSSAnalyzer extends BasePlugin implements IPromptPlugin {
     });
     
     // Step 5: Execute with proper chunking
-    const promptManager = new ThreeStagePromptManager(contextLength);
-    const needsChunking = promptManager.needsChunking(promptStages);
+    const promptManager = new ThreeStagePromptManager();
+    const needsChunking = TokenCalculator.needsChunking(promptStages, contextLength);
     
     if (needsChunking) {
-      const conversation = promptManager.createChunkedConversation(promptStages);
+      const chunkSize = TokenCalculator.calculateOptimalChunkSize(promptStages, contextLength);
+      const dataChunks = promptManager.chunkDataPayload(promptStages.dataPayload, chunkSize);
+      const conversation = promptManager.createChunkedConversation(promptStages, dataChunks);
       const messages = [
         conversation.systemMessage,
         ...conversation.dataMessages,
@@ -316,8 +321,10 @@ export class FindUnusedCSSAnalyzer extends BasePlugin implements IPromptPlugin {
     });
     
     // Always use chunking for multi-file
-    const promptManager = new ThreeStagePromptManager(contextLength);
-    const conversation = promptManager.createChunkedConversation(promptStages);
+    const promptManager = new ThreeStagePromptManager();
+    const chunkSize = TokenCalculator.calculateOptimalChunkSize(promptStages, contextLength);
+    const dataChunks = promptManager.chunkDataPayload(promptStages.dataPayload, chunkSize);
+    const conversation = promptManager.createChunkedConversation(promptStages, dataChunks);
     const messages = [
       conversation.systemMessage,
       ...conversation.dataMessages,

@@ -14,23 +14,6 @@ export interface PromptStages {
   outputInstructions: string;
 }
 
-export interface StageMetrics {
-  /** Token count for system + context stage */
-  systemTokens: number;
-  
-  /** Token count for data payload */
-  dataTokens: number;
-  
-  /** Token count for output instructions */
-  outputTokens: number;
-  
-  /** Total fixed overhead (system + output) */
-  fixedOverhead: number;
-  
-  /** Available tokens for data */
-  availableForData: number;
-}
-
 export interface ChunkedConversation {
   /** System message with context */
   systemMessage: {

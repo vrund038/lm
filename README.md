@@ -143,6 +143,98 @@ Use houtini-lm health check to verify everything is working
 - **`resolve_path`** - Path analysis and suggestions
 - And 2 more system utilities...
 
+## Context Window Management
+
+Houtini LM implements intelligent context window management to maximize the efficiency of your local LM models while ensuring reliable processing of large files and complex analysis tasks.
+
+### Dynamic Context Allocation
+
+**Adaptive Context Utilization**: Unlike systems with hardcoded token limits, Houtini LM dynamically detects your model's context window and allocates **95% of available tokens** for optimal performance:
+
+```typescript
+// Context detection from your loaded model
+const contextLength = await model.getContextLength(); // e.g., 16,384 tokens
+
+// Dynamic allocation - 95% utilization
+const responseTokens = Math.floor(contextLength * 0.95); // 15,565 tokens available
+```
+
+**Benefits:**
+- ✅ **Maximum efficiency** - No wasted context space
+- ✅ **Model-agnostic** - Works with any context size (4K, 16K, 32K+)
+- ✅ **Future-proof** - Automatically adapts to larger models
+
+### Three-Stage Prompt System
+
+Houtini LM uses a sophisticated prompt architecture that separates concerns for optimal token management:
+
+**Stage 1: System Context** - Expert persona and analysis methodology  
+**Stage 2: Data Payload** - Your code, files, or project content  
+**Stage 3: Output Instructions** - Structured response requirements  
+
+```
+┌─────────────────────┐
+│   System Context   │  ← Expert role, methodologies
+├─────────────────────┤
+│   Data Payload     │  ← Your files/code (chunked if needed)
+├─────────────────────┤
+│ Output Instructions │  ← Response format, requirements
+└─────────────────────┘
+```
+
+**Intelligent Processing:**
+- **Small files** → Single-stage execution for speed
+- **Large files** → Automatic chunking with coherent aggregation
+- **Multi-file projects** → Optimized batch processing
+
+### Automatic Chunking Capability
+
+When files exceed available context space, Houtini LM automatically chunks content while maintaining analysis quality:
+
+**Smart Chunking Features:**
+- 🔍 **Natural boundaries** - Splits at logical sections, not arbitrary points
+- 🔄 **Context preservation** - Maintains analysis continuity across chunks
+- 📊 **Intelligent aggregation** - Combines chunk results into coherent reports
+- ⚡ **Performance optimization** - Parallel processing where possible
+
+**Example Chunking Process:**
+```
+Large File (50KB) → Context Analysis → Exceeds Limit
+    ↓
+Split into 3 logical chunks → Process each chunk → Aggregate results
+    ↓
+Single comprehensive analysis report
+```
+
+### Timeout Configuration
+
+Houtini LM uses **120-second timeouts** (2 minutes) to accommodate thorough analysis on lower-powered systems:
+
+**Why Extended Timeouts:**
+- 🔍 **Complex analysis** - Security audits, architecture analysis, and comprehensive code reviews take time
+- 💻 **System compatibility** - Works reliably on older hardware and resource-constrained environments  
+- 🧠 **Model processing** - Larger local models (13B-33B parameters) require more inference time
+- 📊 **Quality over speed** - Comprehensive reports are worth the wait
+
+**Timeout Guidelines:**
+- **Simple analysis** (100 lines): 15-30 seconds
+- **Medium files** (500 lines): 30-60 seconds  
+- **Large files** (1000+ lines): 60-120 seconds
+- **Multi-file projects**: 90-180 seconds
+
+**Performance Tips:**
+- Use faster models (13B vs 33B) for quicker responses
+- Enable GPU acceleration in LM Studio for better performance
+- Consider using `analysisDepth="basic"` for faster results when appropriate
+
+### Memory Efficiency
+
+**Intelligent Caching**: Results are cached to prevent redundant processing  
+**Resource Management**: Automatic cleanup of large contexts after processing  
+**Streaming Responses**: Progressive output delivery for better user experience
+
+This architecture ensures Houtini LM can handle everything from small utility functions to entire enterprise codebases while maintaining consistent quality and performance across different hardware configurations.
+
 ## Documentation
 
 **Complete guides available:**

@@ -3,6 +3,7 @@ src/
 tests/
 diagnostics/
 scripts/
+test-files/
 
 # CRITICAL: Protect proprietary template system
 src/templates/

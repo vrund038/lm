@@ -16,7 +16,8 @@ import {
   ResponseProcessor, 
   ParameterValidator, 
   ErrorHandler,
-  MultiFileAnalysis
+  MultiFileAnalysis,
+  TokenCalculator
 } from '../../utils/plugin-utilities.js';
 import { getAnalysisCache } from '../../cache/index.js';
 
@@ -174,11 +175,13 @@ export class TextAdventureGenerator extends BasePlugin implements IPromptPlugin 
     });
     
     // Execute with appropriate method
-    const promptManager = new ThreeStagePromptManager(contextLength);
-    const needsChunking = promptManager.needsChunking(promptStages);
+    const promptManager = new ThreeStagePromptManager();
+    const needsChunking = TokenCalculator.needsChunking(promptStages, contextLength);
     
     if (needsChunking) {
-      const conversation = promptManager.createChunkedConversation(promptStages);
+      const chunkSize = TokenCalculator.calculateOptimalChunkSize(promptStages, contextLength);
+      const dataChunks = promptManager.chunkDataPayload(promptStages.dataPayload, chunkSize);
+      const conversation = promptManager.createChunkedConversation(promptStages, dataChunks);
       const messages = [
         conversation.systemMessage,
         ...conversation.dataMessages,
@@ -207,8 +210,10 @@ export class TextAdventureGenerator extends BasePlugin implements IPromptPlugin 
     const promptStages = this.getMultiFilePromptStages(params);
     
     // Always use chunking for complete adventure generation
-    const promptManager = new ThreeStagePromptManager(contextLength);
-    const conversation = promptManager.createChunkedConversation(promptStages);
+    const promptManager = new ThreeStagePromptManager();
+    const chunkSize = TokenCalculator.calculateOptimalChunkSize(promptStages, contextLength);
+    const dataChunks = promptManager.chunkDataPayload(promptStages.dataPayload, chunkSize);
+    const conversation = promptManager.createChunkedConversation(promptStages, dataChunks);
     const messages = [
       conversation.systemMessage,
       ...conversation.dataMessages,
