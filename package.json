@@ -1,11 +1,14 @@
 {
   "name": "@houtini/lm",
-  "version": "1.0.5",
+  "version": "1.0.6",
+  "type": "module",
   "description": "Houtini LM - LM Studio MCP Server with Expert Prompt Library and Custom Prompting",
   "main": "dist/index.js",
-  "type": "module",
+  "bin": {
+    "houtini-lm": "dist/index.js"
+  },
   "scripts": {
-    "build": "tsc && node add-shebang.js",
+    "build": "tsc && node add-shebang.mjs",
     "clean": "rimraf dist",
     "rebuild": "npm run clean && npm run build",
     "start": "node dist/index.js",

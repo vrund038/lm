@@ -8,6 +8,7 @@ import { IPromptPlugin } from './types.js';
 import { BasePlugin } from './base-plugin.js';
 import path from 'path';
 import { promises as fs } from 'fs';
+import { pathToFileURL } from 'url';
 
 export class PluginLoader {
   private plugins: Map<string, IPromptPlugin> = new Map();
@@ -59,8 +60,8 @@ export class PluginLoader {
         return;
       }
       
-      // Convert Windows path to proper file:// URL
-      const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+      // Use pathToFileURL for proper ES module loading on Windows
+      const fileUrl = pathToFileURL(filePath).href;
       const module = await import(fileUrl);
       const PluginClass = module.default;
       

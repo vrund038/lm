@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'fs';
 import { join, extname, basename, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-// ES module equivalent of __dirname
+// ES module __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 

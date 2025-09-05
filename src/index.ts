@@ -14,12 +14,15 @@ import {
 import { LMStudioClient } from '@lmstudio/sdk';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { pathToFileURL } from 'url';
+import fs from 'fs';
 import { config } from './config.js';
 import { PluginLoader, PluginRegistry } from './plugins/index.js';
 
-// Get current directory for plugin loading
+// ES module __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
 
 class HoutiniLMServer {
   private server: Server;
@@ -99,10 +102,11 @@ class HoutiniLMServer {
     if (this.pluginsInitialized) return;
 
     try {
-      // Removed console.log to avoid JSON-RPC interference
+      console.error('DEBUG: Starting plugin initialization...');
       
       // Load plugins from prompts directory
       const promptsDir = path.join(__dirname, 'prompts');
+      console.error('DEBUG: Loading from:', promptsDir);
       await this.pluginLoader.loadPlugins(promptsDir);
       
       // Load system plugins
@@ -110,7 +114,7 @@ class HoutiniLMServer {
       
       this.pluginsInitialized = true;
       
-      // Silent initialization - no console output
+      console.error('DEBUG: Plugins initialized successfully');
       
     } catch (error) {
       // Silent error handling to avoid JSON-RPC interference
@@ -124,9 +128,8 @@ class HoutiniLMServer {
   private async loadSystemPlugins(): Promise<void> {
     try {
       const systemDir = path.join(__dirname, 'system');
-      const { promises: fs } = await import('fs');
       
-      const files = await fs.readdir(systemDir);
+      const files = fs.readdirSync(systemDir);
       
       for (const file of files) {
         if (file.endsWith('.js')) { // Only load .js files, skip .d.ts
@@ -145,10 +148,10 @@ class HoutiniLMServer {
    */
   private async loadSystemPlugin(filePath: string): Promise<void> {
     try {
-      // Convert to proper file:// URL for Windows
-      const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+      // Use ES module dynamic import with proper URL
+      const fileUrl = pathToFileURL(filePath).href;
       const module = await import(fileUrl);
-      const PluginClass = module.default;
+      const PluginClass = module.default || module.HealthCheckPlugin || module.PathResolverPlugin || Object.values(module)[0];
       
       if (PluginClass && typeof PluginClass === 'function') {
         const plugin = new PluginClass();
@@ -198,8 +201,11 @@ class HoutiniLMServer {
       }
       
       try {
+        // Strip the houtini-lm: prefix to get the actual plugin name
+        const pluginName = toolName.replace(/^houtini-lm:/, '');
+        
         // Execute plugin
-        const result = await this.pluginLoader.executePlugin(toolName, args, this.lmStudioClient);
+        const result = await this.pluginLoader.executePlugin(pluginName, args, this.lmStudioClient);
         
         // Silent success - no console output
         
