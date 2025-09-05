@@ -74,12 +74,46 @@ export abstract class BasePlugin implements IPromptPlugin {
   }
   
   /**
+   * Get workflow context based on plugin category
+   */
+  getWorkflowContext(): string {
+    const contexts = {
+      'analyze': 'Perfect for understanding complex code, identifying issues, and technical debt assessment',
+      'generate': 'Ideal for creating production-ready code, tests, and documentation', 
+      'fun': 'Build games, art, and interactive experiences for learning and portfolios',
+      'system': 'System diagnostics and function discovery',
+      'custom': 'Flexible analysis and generation for any development task'
+    };
+    
+    return contexts[this.category] || 'Specialized development assistance';
+  }
+
+  /**
+   * Get usage tip based on plugin category
+   */
+  getUsageTip(): string {
+    const tips = {
+      'analyze': 'Use Desktop Commander to read files, then pass content here for analysis',
+      'generate': 'Generate unlimited iterations locally, then review with Claude',
+      'fun': 'Perfect for learning advanced techniques through practical projects',
+      'system': 'Start with health_check, use list_functions to explore capabilities',
+      'custom': 'Provide clear instructions for any analysis or generation task'
+    };
+    
+    return tips[this.category] || 'Combine with other Houtini LM functions for complete workflows';
+  }
+
+  /**
    * Get tool definition for MCP registration
    */
   getToolDefinition(): any {
     return {
       name: this.name,
-      description: this.description,
+      description: `${this.description}
+
+WORKFLOW: ${this.getWorkflowContext()}
+TIP: ${this.getUsageTip()}
+SAVES: Claude context for strategic decisions`,
       inputSchema: {
         type: 'object',
         properties: this.convertParametersToSchema(),

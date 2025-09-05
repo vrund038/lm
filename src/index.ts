@@ -34,13 +34,20 @@ class HoutiniLMServer {
     this.server = new Server(
       {
         name: 'houtini-lm',
-        version: '1.0.0',
+        version: '1.0.7',
+        description: 'Local AI development companion - unlimited analysis and generation without API costs. Preserves Claude context by offloading routine tasks to local LM Studio.',
       },
       {
         capabilities: {
-          tools: {},
-          resources: {},
-          prompts: {}
+          tools: {
+            description: 'Context preservation through local processing - use for routine tasks, save Claude for strategy'
+          },
+          resources: {
+            description: 'Local LM Studio integration with unlimited processing'
+          },
+          prompts: {
+            description: 'Three-stage prompting system with expert personas'
+          }
         },
       }
     );
