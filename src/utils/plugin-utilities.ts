@@ -38,6 +38,7 @@ export class ModelSetup {
 export class TokenCalculator {
   /**
    * Calculate optimal maxTokens for single-stage execution
+   * Increased allocation from 40% to 65% for more comprehensive responses
    */
   static calculateForDirect(
     stages: PromptStages, 
@@ -48,7 +49,7 @@ export class TokenCalculator {
       bufferTokens?: number;
     } = {}
   ): number {
-    const { minTokens = 1000, maxTokens = Math.floor(contextLength * 0.4), bufferTokens = 500 } = options;
+    const { minTokens = 1000, maxTokens = Math.floor(contextLength * 0.65), bufferTokens = 500 } = options;
     
     const estimatedInputTokens = Math.floor(
       (stages.systemAndContext.length + stages.dataPayload.length + stages.outputInstructions.length) / 4
@@ -64,6 +65,7 @@ export class TokenCalculator {
 
   /**
    * Calculate optimal maxTokens for chunked execution
+   * Increased allocation from 50% to 70% for more comprehensive multi-file analysis
    */
   static calculateForChunked(
     messages: Array<{ content: string }>, 
@@ -74,7 +76,7 @@ export class TokenCalculator {
       bufferTokens?: number;
     } = {}
   ): number {
-    const { minTokens = 1500, maxTokens = Math.floor(contextLength * 0.5), bufferTokens = 1000 } = options;
+    const { minTokens = 1500, maxTokens = Math.floor(contextLength * 0.70), bufferTokens = 1000 } = options;
     
     const totalContent = messages.map(m => m.content).join(' ');
     const estimatedInputTokens = Math.floor(totalContent.length / 4);
@@ -89,6 +91,7 @@ export class TokenCalculator {
 
   /**
    * Calculate optimal maxTokens for multi-file analysis
+   * Increased allocation from 60% to 75% for comprehensive project-level analysis
    */
   static calculateForMultiFile(
     messages: Array<{ content: string }>, 
@@ -99,7 +102,7 @@ export class TokenCalculator {
       bufferTokens?: number;
     } = {}
   ): number {
-    const { minTokens = 2000, maxTokens = Math.floor(contextLength * 0.6), bufferTokens = 1000 } = options;
+    const { minTokens = 2000, maxTokens = Math.floor(contextLength * 0.75), bufferTokens = 1000 } = options;
     
     const totalContent = messages.map(m => m.content).join(' ');
     const estimatedInputTokens = Math.floor(totalContent.length / 4);

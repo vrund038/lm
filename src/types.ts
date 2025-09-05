@@ -7,7 +7,7 @@ export interface Config {
   lmStudioUrl: string;
   modelName: string;
   temperature: number;
-  maxTokens: number;
+  // maxTokens removed - now calculated dynamically by TokenCalculator
   topP: number;
   timeout: number;
   maxFileSize: number;

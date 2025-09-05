@@ -9,9 +9,9 @@ export const config: Config = {
   lmStudioUrl: process.env.LM_STUDIO_URL || 'ws://localhost:1234',
   modelName: process.env.LM_STUDIO_MODEL || 'auto',
   temperature: 0.1,
-  maxTokens: 2000,
+  // maxTokens removed - now calculated dynamically by TokenCalculator
   topP: 0.95,
-  timeout: 30000,
+  timeout: 120000, // Increased from 30s to 2 minutes for complex analysis
   maxFileSize: 200 * 1024 * 1024,  // 200MB limit
   supportedFileTypes: [
     '.csv', '.json', '.txt', '.js', '.ts', '.py', '.md', '.log', 
@@ -56,21 +56,22 @@ export const fileProcessingLimits = {
 
 /**
  * Model parameters for different operation types
+ * maxTokens now calculated dynamically by TokenCalculator based on context window
  */
 export const modelParameters = {
   analysis: {
     temperature: 0.1,
-    maxTokens: 2000,
     topP: 0.95
+    // maxTokens removed - calculated dynamically
   },
   generation: {
     temperature: 0.3,
-    maxTokens: 4000,
     topP: 0.9
+    // maxTokens removed - calculated dynamically
   },
   creative: {
     temperature: 0.7,
-    maxTokens: 4000,
     topP: 0.9
+    // maxTokens removed - calculated dynamically
   }
 };
