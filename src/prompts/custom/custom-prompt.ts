@@ -234,9 +234,7 @@ export class CustomPromptExecutor extends BasePlugin implements IPromptPlugin {
         promptStages,
         contextLength,
         {
-          minTokens: 2000,           // Minimum for code generation
-          maxTokens: Math.floor(contextLength * 0.7), // Generous for custom tasks
-          bufferTokens: 1000         // Safety buffer
+          minTokens: 2000            // Minimum for code generation
         }
       );
       
